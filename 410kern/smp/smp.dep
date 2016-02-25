@@ -1,0 +1,38 @@
+410kern/smp/smp.o: 410kern/smp/smp.c 410kern/inc/assert.h \
+ 410kern/string/string.h 410kern/inc/types.h 410kern/smp/smp.h \
+ 410kern/inc/stdint.h 410kern/inc/stddef.h 410kern/smp/smpboot.h \
+ 410kern/smp/mptable.h 410kern/boot/multiboot.h 410kern/smp/apic.h \
+ 410kern/x86/timer_defines.h 410kern/x86/asm.h 410kern/x86/seg.h \
+ 410kern/x86/idt.h 410kern/x86/cr.h 410kern/x86/page.h
+
+410kern/inc/assert.h:
+
+410kern/string/string.h:
+
+410kern/inc/types.h:
+
+410kern/smp/smp.h:
+
+410kern/inc/stdint.h:
+
+410kern/inc/stddef.h:
+
+410kern/smp/smpboot.h:
+
+410kern/smp/mptable.h:
+
+410kern/boot/multiboot.h:
+
+410kern/smp/apic.h:
+
+410kern/x86/timer_defines.h:
+
+410kern/x86/asm.h:
+
+410kern/x86/seg.h:
+
+410kern/x86/idt.h:
+
+410kern/x86/cr.h:
+
+410kern/x86/page.h:

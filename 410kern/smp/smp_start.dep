@@ -1,0 +1,8 @@
+410kern/smp/smp_start.o: 410kern/smp/smp_start.S 410kern/x86/seg.h \
+ 410kern/x86/cr.h 410kern/smp/smpboot.h
+
+410kern/x86/seg.h:
+
+410kern/x86/cr.h:
+
+410kern/smp/smpboot.h:

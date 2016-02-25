@@ -1,0 +1,31 @@
+kern/loader.o: kern/loader.c 410kern/string/string.h 410kern/inc/types.h \
+ 410kern/stdio/stdio.h 410kern/inc/stddef.h 410kern/inc/stdarg.h \
+ 410kern/inc/malloc.h 410kern/stdlib/stdlib.h 410kern/inc/exec2obj.h \
+ kern/inc/loader.h 410kern/elf/elf_410.h 410kern/elf/elf32.h \
+ 410kern/elf/elf_common.h 410kern/inc/stdint.h
+
+410kern/string/string.h:
+
+410kern/inc/types.h:
+
+410kern/stdio/stdio.h:
+
+410kern/inc/stddef.h:
+
+410kern/inc/stdarg.h:
+
+410kern/inc/malloc.h:
+
+410kern/stdlib/stdlib.h:
+
+410kern/inc/exec2obj.h:
+
+kern/inc/loader.h:
+
+410kern/elf/elf_410.h:
+
+410kern/elf/elf32.h:
+
+410kern/elf/elf_common.h:
+
+410kern/inc/stdint.h:

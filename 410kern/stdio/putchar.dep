@@ -1,0 +1,15 @@
+410kern/stdio/putchar.o: 410kern/stdio/putchar.c 410kern/stdio/stdio.h \
+ 410kern/inc/stddef.h 410kern/inc/types.h 410kern/inc/stdarg.h \
+ kern/inc/console.h 410kern/x86/video_defines.h
+
+410kern/stdio/stdio.h:
+
+410kern/inc/stddef.h:
+
+410kern/inc/types.h:
+
+410kern/inc/stdarg.h:
+
+kern/inc/console.h:
+
+410kern/x86/video_defines.h:
