@@ -1,0 +1,17 @@
+kernel
+bootfd.img
+*.o
+*.dep
+*.a
+410user/exec2obj
+kernel.strip
+bootfd.gz
+user_apps.S
+temp/*
+kernel.log
+.md5s
+user/progs/*
+410user/progs/*
+!user/progs/*.c
+!410user/progs/*.c
+
