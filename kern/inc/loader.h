@@ -18,4 +18,6 @@ int getbytes( const char *filename, int offset, int size, char *buf );
  * Declare your loader prototypes here.
  */
 
+int loadExeFile(const char *filename);
+
 #endif /* _LOADER_H */

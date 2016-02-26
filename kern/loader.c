@@ -46,9 +46,36 @@ int getbytes( const char *filename, int offset, int size, char *buf )
             if (offset + size > exec2obj_userapp_TOC[i].execlen)
                 return -1;
             memcpy(buf, exec2obj_userapp_TOC[i].execbytes+offset, size);
-            return 0;
+            return size;
         }
     return -1;
+}
+
+
+int loadExeFile(const char *filename) {
+    if (elf_check_header(filename) == ELF_NOTELF)
+        return -1;
+
+    simple_elf_t simple_elf;
+    if (elf_load_helper(&simple_elf, filename) == ELF_NOTELF)
+        return -1;
+
+    // the following code should finish in VM
+    getbytes(filename, (int)simple_elf.e_txtoff, 
+                       (int)simple_elf.e_txtlen, 
+                       (char*)simple_elf.e_txtstart);
+    getbytes(filename, (int)simple_elf.e_datoff, 
+                       (int)simple_elf.e_datlen, 
+                       (char*)simple_elf.e_datstart);
+    getbytes(filename, (int)simple_elf.e_rodatoff, 
+                       (int)simple_elf.e_rodatlen, 
+                       (char*)simple_elf.e_rodatstart);
+    memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
+
+    void (*my_program) (void) = (void*)simple_elf.e_entry;
+    my_program();
+
+    return 0;
 }
 
 /*@}*/
