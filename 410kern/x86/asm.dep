@@ -1,3 +1,0 @@
-410kern/x86/asm.o: 410kern/x86/asm.S 410kern/x86/seg.h
-
-410kern/x86/seg.h:

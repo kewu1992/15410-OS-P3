@@ -1,6 +1,0 @@
-kern/fake_console.o: kern/fake_console.c kern/inc/console.h \
- 410kern/x86/video_defines.h
-
-kern/inc/console.h:
-
-410kern/x86/video_defines.h:

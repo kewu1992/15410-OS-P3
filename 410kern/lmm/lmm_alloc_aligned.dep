@@ -1,8 +1,0 @@
-410kern/lmm/lmm_alloc_aligned.o: 410kern/lmm/lmm_alloc_aligned.c \
- 410kern/lmm/lmm.h 410kern/inc/types.h 410kern/lmm/lmm_types.h
-
-410kern/lmm/lmm.h:
-
-410kern/inc/types.h:
-
-410kern/lmm/lmm_types.h:

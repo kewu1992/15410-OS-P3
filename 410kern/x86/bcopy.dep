@@ -1,3 +1,0 @@
-410kern/x86/bcopy.o: 410kern/x86/bcopy.S 410kern/inc/asm_style.h
-
-410kern/inc/asm_style.h:
