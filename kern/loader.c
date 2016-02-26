@@ -19,6 +19,11 @@
 #include <loader.h>
 #include <elf_410.h>
 
+/* The number of user executables in the table of contents. */
+extern const int exec2obj_userapp_count;
+
+/* The table of contents. */
+extern const exec2obj_userapp_TOC_entry exec2obj_userapp_TOC[MAX_NUM_APP_ENTRIES];
 
 /* --- Local function prototypes --- */ 
 
@@ -35,12 +40,15 @@
  */
 int getbytes( const char *filename, int offset, int size, char *buf )
 {
-
-    /*
-     * You fill in this function.
-     */
-
-  return -1;
+    int i;
+    for (i = 0; i < exec2obj_userapp_count; i++)
+        if (strcmp(filename, exec2obj_userapp_TOC[i].execname) == 0) {
+            if (offset + size > exec2obj_userapp_TOC[i].execlen)
+                return -1;
+            memcpy(buf, exec2obj_userapp_TOC[i].execbytes+offset, size);
+            return 0;
+        }
+    return -1;
 }
 
 /*@}*/

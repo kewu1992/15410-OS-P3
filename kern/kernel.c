@@ -25,7 +25,7 @@
 #include <console_driver.h>
 #include <console.h>
 #include <cr.h>
-
+#include <loader.h>
 
 
 #include <stdint.h>// for uint32_t
@@ -68,28 +68,6 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      *
      *      0x00000000
      */
-
-    /* The following code works find, because now there is no VM */
-    int *p = (int*)(0x01000000);
-    *p = 123;
-
-    lprintf("successfully write data to 0x01000000");
-
-    /*  The following code cause fault (double fault....) due to exceed 
-     *  physical memory limit (and there is no VM)
-     *
-     *  int *q = (int*)(0x10000000);
-     *  *q = 123;
-     */
-
-    // open VM
-    int mask = 1 << 30;
-    set_cr0(get_cr0()|mask);
-
-    // set PDBR
-    set_cr3(0x01000000);
-
-    //..... then what?
 
     while (1) {
         continue;
