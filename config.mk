@@ -99,7 +99,7 @@ THREAD_OBJS = malloc.o panic.o
 ###########################################################################
 # Object files for your syscall wrappers
 ###########################################################################
-SYSCALL_OBJS = syscall.o
+SYSCALL_OBJS = syscall.o gettid.o
 
 ###########################################################################
 # Object files for your automatic stack handling
@@ -116,7 +116,7 @@ AUTOSTACK_OBJS = autostack.o
 #
 # Kernel object files you provide in from kern/
 #
-KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_get_ebp.o asm_get_esp.o asm_new_process_iret.o
+KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_get_ebp.o asm_get_esp.o asm_new_process_iret.o init_IDT.o handler_wrapper.o
 
 ###########################################################################
 # WARNING: Do not put **test** programs into the REQPROGS variables.  Your

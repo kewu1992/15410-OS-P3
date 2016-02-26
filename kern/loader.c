@@ -99,12 +99,9 @@ int loadExeFile(const char *filename) {
     thread->pcb = process;
     thread->k_stack_esp = malloc(K_STACK_SIZE) + K_STACK_SIZE;
 
-    lprintf("The last byte of new stack: %p", thread->k_stack_esp);
-
-    // push pid
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, thread->tid);
+    lprintf("kernal stack top: %p", thread->k_stack_esp);
     //set esp0
-    set_esp0((uint32_t)thread->k_stack_esp);
+    set_esp0((uint32_t)(thread->k_stack_esp));
 
     // push SS
     thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_DS);
@@ -129,6 +126,10 @@ void* push_to_stack(void *esp, uint32_t value) {
     void* new_esp = (void*)((uint32_t)esp - 4);
     memcpy(new_esp, &value, 4);
     return new_esp;
+}
+
+int gettid_syscall_handler() {
+    return 12321;
 }
 
 /*@}*/

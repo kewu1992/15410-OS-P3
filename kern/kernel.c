@@ -22,12 +22,12 @@
 #include <x86/asm.h>                /* enable_interrupts() */
 
 
-#include <console_driver.h>
+#include <init_IDT.h>
 #include <console.h>
 #include <cr.h>
 #include <loader.h>
 #include <eflags.h>
-
+#include <assert.h>
 
 #include <stdint.h>// for uint32_t
 extern uint32_t asm_get_ebp();
@@ -48,11 +48,10 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      * when you are ready.
      */
 
-    //uint32_t eflags = get_eflags();
-
     lprintf( "Hello from a brand new kernel!" );
 
-    init_console_driver();
+    if (init_IDT(NULL) < 0)
+        panic("Initialize IDT failed!");
 
     clear_console();
     printf("Hello, world");
