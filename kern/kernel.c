@@ -24,6 +24,14 @@
 
 #include <console_driver.h>
 #include <console.h>
+#include <cr.h>
+
+
+
+#include <stdint.h>// for uint32_t
+extern uint32_t asm_get_ebp();
+extern uint32_t asm_get_esp();
+
 
 /** @brief Kernel entrypoint.
  *  
@@ -45,6 +53,43 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
 
     clear_console();
     printf("Hello, world");
+
+    lprintf("ebp:%x", (unsigned int)asm_get_ebp());
+    lprintf("esp:%x", (unsigned int)asm_get_esp());
+
+    /*      0xffffffff  <-- logical max address (4GB)
+     *      
+     *      0x10000000  <-- physical max address (256MB)  
+     *
+     *      0x00ffffff  <-- max memory address for kernel (V=P)
+     *
+     *      0x0011b03c  <-- %ebp of kernel_main(): can be various
+     *      0x0011b020  <-- %esp of kernel_main(): can be various
+     *
+     *      0x00000000
+     */
+
+    /* The following code works find, because now there is no VM */
+    int *p = (int*)(0x01000000);
+    *p = 123;
+
+    lprintf("successfully write data to 0x01000000");
+
+    /*  The following code cause fault (double fault....) due to exceed 
+     *  physical memory limit (and there is no VM)
+     *
+     *  int *q = (int*)(0x10000000);
+     *  *q = 123;
+     */
+
+    // open VM
+    int mask = 1 << 30;
+    set_cr0(get_cr0()|mask);
+
+    // set PDBR
+    set_cr3(0x01000000);
+
+    //..... then what?
 
     while (1) {
         continue;
