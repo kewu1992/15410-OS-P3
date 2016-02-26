@@ -21,6 +21,10 @@
 /* x86 specific includes */
 #include <x86/asm.h>                /* enable_interrupts() */
 
+
+#include <console_driver.h>
+#include <console.h>
+
 /** @brief Kernel entrypoint.
  *  
  *  This is the entrypoint for the kernel.
@@ -36,6 +40,11 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      */
 
     lprintf( "Hello from a brand new kernel!" );
+
+    init_console_driver();
+
+    clear_console();
+    printf("Hello, world");
 
     while (1) {
         continue;
