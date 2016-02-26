@@ -21,6 +21,7 @@
  */
 
 #include <syscall.h>
+#include <simics.h>
 
 int fork(void)
 {
@@ -34,6 +35,11 @@ int exec(char *execname, char *argvec[])
 
 void set_status(int status)
 {
+	lprintf("I can not exit because syscall is not implemented... exit status: %d", status);
+
+	while (1)
+		continue;
+
 	return;
 }
 

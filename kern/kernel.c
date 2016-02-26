@@ -26,6 +26,7 @@
 #include <console.h>
 #include <cr.h>
 #include <loader.h>
+#include <eflags.h>
 
 
 #include <stdint.h>// for uint32_t
@@ -47,6 +48,8 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      * when you are ready.
      */
 
+    //uint32_t eflags = get_eflags();
+
     lprintf( "Hello from a brand new kernel!" );
 
     init_console_driver();
@@ -62,13 +65,13 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      *      0x10000000  <-- physical max address (256MB)  
      *
      *      0x00ffffff  <-- max memory address for kernel (V=P)
-     *
+     *      
      *      0x0011b03c  <-- %ebp of kernel_main(): can be various
      *      0x0011b020  <-- %esp of kernel_main(): can be various
      *
      *      0x00000000
      */
-
+ 
     lprintf( "Ready to run program" );
     loadExeFile("small_program");
     lprintf( "Finsih running program" );
