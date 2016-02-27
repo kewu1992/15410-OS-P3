@@ -1,6 +1,9 @@
 
-// how to define a proper size?
-#define K_STACK_SIZE    1024
+/* k-stack size is 8192 */
+#define K_STACK_BITS    13
+#define K_STACK_SIZE    (1<<13) 
+
+#define GET_K_STACK_INDEX(x)    (((unsigned int)(x)) >> K_STACK_BITS)
 
 typedef enum {
     RUNNING,

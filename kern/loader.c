@@ -24,6 +24,7 @@
 #include <simics.h>
 #include <eflags.h>
 #include <cr.h>
+#include <common_kern.h>
 
 /* The number of user executables in the table of contents. */
 extern const int exec2obj_userapp_count;
@@ -36,8 +37,10 @@ extern uint32_t asm_get_esp();
 
 static int id_count = 0;
 
+static tcb_t **tcb_table;
+
 /* --- Local function prototypes --- */ 
-void* push_to_stack(void *esp, uint32_t value);
+static void* push_to_stack(void *esp, uint32_t value);
 
 
 /**
@@ -64,7 +67,16 @@ int getbytes( const char *filename, int offset, int size, char *buf )
 }
 
 
-int loadExeFile(const char *filename) {
+int loadFirstTask(const char *filename) {
+    /***********
+     *
+     *  Initialize tcb_table, should move to proper location later
+     *
+     ***********/
+    tcb_table = calloc(USER_MEM_START/K_STACK_SIZE, sizeof(tcb_t*));
+
+
+
     if (elf_check_header(filename) == ELF_NOTELF)
         return -1;
 
@@ -72,7 +84,7 @@ int loadExeFile(const char *filename) {
     if (elf_load_helper(&simple_elf, filename) == ELF_NOTELF)
         return -1;
 
-    // the following code should finish in VM
+    // the following code should run in VM
     getbytes(filename, (int)simple_elf.e_txtoff, 
                        (int)simple_elf.e_txtlen, 
                        (char*)simple_elf.e_txtstart);
@@ -85,10 +97,11 @@ int loadExeFile(const char *filename) {
     memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
 
     void (*my_program) (void) = (void*)simple_elf.e_entry;
-    //my_program();
-
-
-
+    
+    /*
+     * NEED TO TEST TO MAKE SURE malloc() AND smemalign() WORKS FINE
+     * WHEN VM IS OPEN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+     */ 
     pcb_t *process = malloc(sizeof(pcb_t));
     process->pid = id_count++;
     process->page_table_base = 0;
@@ -97,9 +110,11 @@ int loadExeFile(const char *filename) {
     tcb_t *thread = malloc(sizeof(tcb_t));
     thread->tid = process->pid;
     thread->pcb = process;
-    thread->k_stack_esp = malloc(K_STACK_SIZE) + K_STACK_SIZE;
+    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;
+    
+    // set tcb_table
+    tcb_table[GET_K_STACK_INDEX(thread->k_stack_esp-1)] = thread;
 
-    lprintf("kernal stack top: %p", thread->k_stack_esp);
     //set esp0
     set_esp0((uint32_t)(thread->k_stack_esp));
 
@@ -129,7 +144,7 @@ void* push_to_stack(void *esp, uint32_t value) {
 }
 
 int gettid_syscall_handler() {
-    return 12321;
+    return tcb_table[GET_K_STACK_INDEX(asm_get_esp())]->tid;
 }
 
 /*@}*/

@@ -24,8 +24,10 @@ gettid_wrapper:
     pushl   %esi
     pushl   %edi
     pushl   %ebp
+    pushl   %ds     # save %ds segment register
     call gettid_syscall_handler
-    popl    %ebp
+    popl    %ds     # restore %ds segment register
+    popl    %ebp    # restore all generic registers except %esp and %eax
     popl    %edi
     popl    %esi
     popl    %edx

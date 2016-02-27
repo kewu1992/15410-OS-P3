@@ -71,14 +71,10 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      *      0x00000000
      */
  
-    lprintf( "Ready to run program" );
-    loadExeFile("small_program");
-    lprintf( "Finsih running program" );
-
-    while (1) {
-        continue;
-    }
+    lprintf( "Ready to load first task" );
+    loadFirstTask("small_program");
 
 
+    // should never reach here
     return 0;
 }
