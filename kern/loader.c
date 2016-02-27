@@ -26,6 +26,8 @@
 #include <cr.h>
 #include <common_kern.h>
 
+#include <vm.h> // For vm
+
 /* The number of user executables in the table of contents. */
 extern const int exec2obj_userapp_count;
 
@@ -84,20 +86,29 @@ int loadFirstTask(const char *filename) {
     if (elf_load_helper(&simple_elf, filename) == ELF_NOTELF)
         return -1;
 
+
+    // You may wanna do so to enable mappings for user address space
+    new_region(simple_elf.e_txtstart, simple_elf.e_txtlen);
+    new_region(simple_elf.e_datstart, simple_elf.e_datlen);
+    new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen);
+    new_region(simple_elf.e_bssstart, simple_elf.e_bsslen);
+    new_region(0x8000000 - PAGE_SIZE, 2 * PAGE_SIZE);
+
+
     // the following code should run in VM
     getbytes(filename, (int)simple_elf.e_txtoff, 
-                       (int)simple_elf.e_txtlen, 
-                       (char*)simple_elf.e_txtstart);
+            (int)simple_elf.e_txtlen, 
+            (char*)simple_elf.e_txtstart);
     getbytes(filename, (int)simple_elf.e_datoff, 
-                       (int)simple_elf.e_datlen, 
-                       (char*)simple_elf.e_datstart);
+            (int)simple_elf.e_datlen, 
+            (char*)simple_elf.e_datstart);
     getbytes(filename, (int)simple_elf.e_rodatoff, 
-                       (int)simple_elf.e_rodatlen, 
-                       (char*)simple_elf.e_rodatstart);
+            (int)simple_elf.e_rodatlen, 
+            (char*)simple_elf.e_rodatstart);
     memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
 
     void (*my_program) (void) = (void*)simple_elf.e_entry;
-    
+
     /*
      * NEED TO TEST TO MAKE SURE malloc() AND smemalign() WORKS FINE
      * WHEN VM IS OPEN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -111,7 +122,7 @@ int loadFirstTask(const char *filename) {
     thread->tid = process->pid;
     thread->pcb = process;
     thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;
-    
+
     // set tcb_table
     tcb_table[GET_K_STACK_INDEX(thread->k_stack_esp-1)] = thread;
 

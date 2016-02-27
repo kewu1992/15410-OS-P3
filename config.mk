@@ -116,7 +116,7 @@ AUTOSTACK_OBJS = autostack.o
 #
 # Kernel object files you provide in from kern/
 #
-KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_get_ebp.o asm_get_esp.o asm_new_process_iret.o init_IDT.o handler_wrapper.o
+KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_get_ebp.o asm_get_esp.o asm_new_process_iret.o init_IDT.o handler_wrapper.o vm.o asm_pf_handler.o
 
 ###########################################################################
 # WARNING: Do not put **test** programs into the REQPROGS variables.  Your

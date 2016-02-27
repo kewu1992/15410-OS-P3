@@ -30,6 +30,10 @@
 #include <assert.h>
 
 #include <stdint.h>// for uint32_t
+
+#include <vm.h> // For vm
+
+
 extern uint32_t asm_get_ebp();
 extern uint32_t asm_get_esp();
 
@@ -70,6 +74,10 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      *
      *      0x00000000
      */
+
+    // Initialize vm, all kernel 16 MB will be directly mapped and
+    // paging will be enabled after this call
+    init_vm();
  
     lprintf( "Ready to load first task" );
     loadFirstTask("small_program");
