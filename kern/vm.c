@@ -310,7 +310,8 @@ int new_region(uint32_t va, int size_bytes) {
             SET_BIT(pte_ctrl_bits, PG_US);
 
             *pte = ((uint32_t)new_f | pte_ctrl_bits);
-            // memset((void *)new_f, 0, PAGE_SIZE);
+            // Clear page
+            memset((void *)page, 0, PAGE_SIZE);
         }
 
         page += PAGE_SIZE;
