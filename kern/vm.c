@@ -200,6 +200,15 @@ void enable_paging() {
     set_cr0(cr0);
 }
 
+// Disable caching
+void disable_caching() {
+
+    uint32_t cr0 = get_cr0();
+    cr0 |= CR0_CD;
+    set_cr0(cr0);
+
+}
+
 
 // Open virtual memory
 int init_vm() {
@@ -221,6 +230,15 @@ int init_vm() {
     // Ignore PCD and PWT in %cr3
     uint32_t cr3 = pdb;
     set_cr3(cr3);
+
+    // Disable caching of main memory
+    // This is needed for the situation where you invalidate
+    // a page table entry's content, like changing the page it
+    // points to to read-only, and the user program accesses 
+    // the page before the cache updates, then there's a 
+    // protection problem.
+    // May adjust to page level cache disable later 
+    disable_caching();
 
     enable_paging();
 
@@ -301,19 +319,51 @@ int new_region(uint32_t va, int size_bytes) {
     return 0;
 }
 
-/*
-// Set region permission, 0 as r/w, 1 as read-only
-int set_region_rw_pm(int rw_pm) {
 
-return 0;
+// Set region permission as read-only
+// Return 0 on success, -1 on error
+int set_region_ro(uint32_t va, int size_bytes) {
+
+    uint32_t page_lowest = va & PAGE_ALIGN_MASK;
+    uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
+        PAGE_ALIGN_MASK;
+
+    // Number of pages in the region
+    int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
+    int i;
+
+    uint32_t page = page_lowest;
+    pd_t *pd = (pd_t *)initial_pd;
+
+    for(i = 0; i < count; i++) {
+        uint32_t pd_index = GET_PD_INDEX(page);
+        pde_t *pde = &(pd->pde[pd_index]);
+
+        // Check page directory entry presence
+        if(((*pde) & (1 << PG_P)) == 0) {
+            // Not present
+            return -1;
+        }
+
+        // Check page table entry presence
+        uint32_t pt_index = GET_PT_INDEX(page);
+        pt_t *pt = (pt_t *)((*pde) & PAGE_ALIGN_MASK);
+        pte_t *pte = &(pt->pte[pt_index]);
+
+        if(((*pte) & (1 << PG_P)) == 0) {
+            // Not present
+            return -1;
+        }
+
+        // Set page as read-only
+        uint32_t pte_value = (uint32_t)(*pte);
+        CLR_BIT(pte_value, PG_RW);
+        *pte = pte_value;
+
+        page += PAGE_SIZE;
+    }
+
+    return 0;
 }
-
-// Set region privilege, 0 as supervisor only, 1 as user privilege
-int set_region_ro(uint32_t vir_addr, int size_bytes) {
-
-return 0;
-}
-*/
-
 
 

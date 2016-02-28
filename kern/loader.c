@@ -107,6 +107,16 @@ int loadFirstTask(const char *filename) {
             (char*)simple_elf.e_rodatstart);
     memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
 
+    // Set txt and rodata segment as read-only
+    // Caution: Depends on how WP (bit 16 of CR0) is set, a "supervisor"
+    // level procedure may still be able to write to user-level
+    // read-only pages.
+    if(set_region_ro(simple_elf.e_txtstart, simple_elf.e_txtlen) ||
+            set_region_ro(simple_elf.e_rodatstart, 
+                simple_elf.e_rodatlen)) {
+        lprintf("set_region_ro failed");
+    }
+
     void (*my_program) (void) = (void*)simple_elf.e_entry;
 
     /*

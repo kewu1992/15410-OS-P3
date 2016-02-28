@@ -75,6 +75,10 @@ int init_vm();
 // default to user privilege, r/w permission
 int new_region(uint32_t va, int size_bytes);
 
+// Set region as read-only
+// Return 0 on success, -1 on error
+int set_region_ro(uint32_t va, int size_bytes);
+
 #endif
 
 
