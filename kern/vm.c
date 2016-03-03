@@ -6,25 +6,17 @@
  *  @bug No known bugs.
  */
 
-#include <asm.h> // For idt_base();
-#include <idt.h> // For IDT_PF
-#include <cr.h> // For %cr
-#include <simics.h> // For lprintf
-#include <page.h> // For PAGE_SIZE
-#include <malloc.h> // For smemalign
-
-#include <string.h> // For memset
-#include <seg.h> // For SEGSEL_KERNEL_CS
-
 #include <vm.h>
-#include <common_kern.h>
-#include <cr.h>
 
 // Currently don't support more than one process, thus one page-directory
 static uint32_t initial_pd;
 
 // Dummy frame counter
 static int frame_counter;
+
+uint32_t get_pd() {
+    return initial_pd;
+}
 
 // frame allocator
 uint32_t new_frame() {
@@ -43,109 +35,42 @@ int pf_handler() {
     return 0;
 }
 
-
-int install_pf_handler() {
-    // Get idt base addr
-    uint32_t idt_base_addr = (uint32_t)idt_base();
-
-    // Get page fault interrupt idt entry address
-    // Why does the P3 slide say a page fault is entry 13, which is 
-    // General Protection Fault, while Page Fault is entry 14? 
-    // Which one to use?
-    uint32_t pf_idt_addr =  idt_base_addr +
-        IDT_PF * IDT_ENTRY_SIZE;
-
-    // idt entry
-    struct idt_entry_t idt_entry;
-    memset(&idt_entry, 0, sizeof(struct idt_entry_t));
-
-    // Fill in idt entry
-    // Do we need an asm wrapper, and what kind of info do we need for
-    // page fault?
-    idt_entry.offset_lsw = ((uint32_t)(asm_pf_handler)) 
-        & 0xffff;
-    idt_entry.seg_selector = SEGSEL_KERNEL_CS;
-    idt_entry.byte_info |= 1 << 7; // P
-    idt_entry.byte_info |= 0 << 5; // DPL
-    // Use trap gate, interrupts are disabled before the handler 
-    // begins execution, there's also a choice of trap gate, which
-    // doesn't disable interrupts, which one to use?
-    idt_entry.byte_info |= 0b01111; // D
-    idt_entry.offset_msw = ((uint32_t)(asm_pf_handler)) >> 16;
-
-    // Install the page fault handler by writing the idt entry to its
-    // memory location.
-    int cur_offset = 0;
-    memcpy((char *)pf_idt_addr, 
-            &(idt_entry.offset_lsw), 
-            sizeof(idt_entry.offset_lsw));
-    cur_offset += sizeof(idt_entry.offset_lsw); 
-    memcpy((char *)pf_idt_addr + cur_offset, 
-            &(idt_entry.seg_selector), 
-            sizeof(idt_entry.seg_selector));
-    cur_offset += sizeof(idt_entry.seg_selector);
-    memcpy((char *)pf_idt_addr + cur_offset, 
-            &(idt_entry.byte_unused), 
-            sizeof(idt_entry.byte_unused));
-    cur_offset += sizeof(idt_entry.byte_unused);
-    memcpy((char *)pf_idt_addr + cur_offset, 
-            &(idt_entry.byte_info), 
-            sizeof(idt_entry.byte_info));
-    cur_offset += sizeof(idt_entry.byte_info);
-    memcpy((char *)pf_idt_addr + cur_offset, 
-            &(idt_entry.offset_msw), 
-            sizeof(idt_entry.offset_msw));
-
-    return 0;
-}
-
 // 0 for pde, 1 for pte
 uint32_t get_pg_ctrl_bits(int type) {
 
+    uint32_t ctrl_bits = 0;
+    /* Common bits for pde and pte */
+    // presented in physical memory when set
+    SET_BIT(ctrl_bits, PG_P);
+    // r/w permission when set
+    SET_BIT(ctrl_bits, PG_RW);
+    // Supervisor mode only when cleared
+    CLR_BIT(ctrl_bits, PG_US);
+    // Write-back caching when cleared
+    CLR_BIT(ctrl_bits, PG_PWT);
+    // Page or page table can be cached when cleared
+    CLR_BIT(ctrl_bits, PG_PCD);
+    // Indicates page table hasn't been accessed when cleared
+    CLR_BIT(ctrl_bits, PG_A);
+
+    /* Different bits for pde and pte */
     if(type == 0) {
-        // Page directory entry 12..0 control bits
-        uint32_t pde_ctrl_bits = 0;
-        // presented in physical memory when set
-        SET_BIT(pde_ctrl_bits, PG_P);
-        // r/w permission when set
-        SET_BIT(pde_ctrl_bits, PG_RW);
-        // Supervisor mode only when cleared
-        CLR_BIT(pde_ctrl_bits, PG_US);
-        // Write-through caching when set
-        SET_BIT(pde_ctrl_bits, PG_PWT);
-        // Page or page table can be cached when cleared
-        CLR_BIT(pde_ctrl_bits, PG_PCD);
-        // Indicates page table hasn't been accessed when cleared
-        CLR_BIT(pde_ctrl_bits, PG_A);
+        // pde bits
         // Page size: 0 indicates 4KB
-        CLR_BIT(pde_ctrl_bits, PG_PS);
-        return pde_ctrl_bits;
+        CLR_BIT(ctrl_bits, PG_PS);
     } else {
-        // Page table entry 12..0 control bits
-        uint32_t pte_ctrl_bits = 0;
-        // presented in physical memory when set
-        SET_BIT(pte_ctrl_bits, PG_P);
-        // r/w permission when set
-        SET_BIT(pte_ctrl_bits, PG_RW);
-        // Supervisor mode only when cleared
-        CLR_BIT(pte_ctrl_bits, PG_US);
-        // Write-through caching when set
-        SET_BIT(pte_ctrl_bits, PG_PWT);
-        // Page or page table can be cached when cleared
-        CLR_BIT(pte_ctrl_bits, PG_PCD);
-        // Indicates page table hasn't been accessed when cleared
-        CLR_BIT(pte_ctrl_bits, PG_A);
+        // pte bits
         // Indicates page is dirty when set
-        SET_BIT(pte_ctrl_bits, PG_D);
+        SET_BIT(ctrl_bits, PG_D);
         // Page table attribute index, used with PCD, clear
-        CLR_BIT(pte_ctrl_bits, PG_PAT);
-        // Global page, set to preserve page in TLB
-        SET_BIT(pte_ctrl_bits, PG_G);
-        return pte_ctrl_bits;
+        CLR_BIT(ctrl_bits, PG_PAT);
+        // Global page, clear to not preserve page in TLB
+        CLR_BIT(ctrl_bits, PG_G);
     }
 
-}
+    return ctrl_bits;
 
+}
 
 
 // Only map kernel space for the moment
@@ -177,6 +102,9 @@ uint32_t create_pd() {
 
     // Get pte ctrl bits
     uint32_t pte_ctrl_bits = get_pg_ctrl_bits(1);
+    // Set kernel pages as global pages, so that TLB wouldn't
+    // clear them when %cr3 is reset
+    SET_BIT(pte_ctrl_bits, PG_G);
 
     int j;
     for(i = 0; i < 4; i++) {
@@ -192,7 +120,6 @@ uint32_t create_pd() {
     return (uint32_t)pd;
 }
 
-
 // Enable paging
 void enable_paging() {
     uint32_t cr0 = get_cr0();
@@ -200,25 +127,16 @@ void enable_paging() {
     set_cr0(cr0);
 }
 
-// Disable caching
-void disable_caching() {
-
-    uint32_t cr0 = get_cr0();
-    cr0 |= CR0_CD;
-    set_cr0(cr0);
-
+// Enable global page so that kernel pages in TLB wouldn't
+// be cleared when %cr3 is reset
+void enable_pge_flag() {
+    uint32_t cr4 = get_cr4();
+    cr4 |= CR4_PGE;
+    set_cr4(cr4);
 }
-
 
 // Open virtual memory
 int init_vm() {
-
-    // Install page fault handler
-    int ret = install_pf_handler();
-    if(ret < 0) {
-        lprintf("Page fault handler failed");
-        return -1;
-    }
 
     // Get page direcotry base for a new task
     uint32_t pdb = create_pd();
@@ -227,30 +145,33 @@ int init_vm() {
     // Set page directory base register
     // Put current task's page directory base in %cr3 register
 
-    // Ignore PCD and PWT in %cr3
+    // Set PCD and PWT as both 0 in %cr3 if not touching 0 bits
     uint32_t cr3 = pdb;
     set_cr3(cr3);
 
-    // Disable caching of main memory
-    // This is needed for the situation where you invalidate
-    // a page table entry's content, like changing the page it
-    // points to to read-only, and the user program accesses 
-    // the page before the cache updates, then there's a 
-    // protection problem.
-    // May adjust to page level cache disable later 
-    disable_caching();
-
+    // Enable paging
     enable_paging();
+
+    // Enable global page so that kernel pages in TLB wouldn't
+    // be cleared when %cr3 is reset
+    enable_pge_flag();
 
     lprintf("Paging is enabled!");
 
     return 0;
 }
 
-/* vm's interface */
-// Enable new region starting from vir_addr of size_bytes
-// default to user privilege, r/w permission
-int new_region(uint32_t va, int size_bytes) {
+/** @brief Enable mapping for a region in user space (0x1000000 upwards)
+ *
+ *  The privilege level would be set as User level.
+ *
+ *  @param va The virtual address the region starts with
+ *  @param size_bytes The size of the region
+ *  @param rw_perm The rw permission of the region, 1 as rw, 0 as ro
+ *
+ *  @return 0 on success; -1 on error
+ */
+int new_region(uint32_t va, int size_bytes, int rw_perm) {
     // Find frames for this region, set pd and pt
 
     // Enable mapping from the page where the first byte of region
@@ -304,6 +225,9 @@ int new_region(uint32_t va, int size_bytes) {
             uint32_t new_f = new_frame();
 
             uint32_t pte_ctrl_bits = get_pg_ctrl_bits(1);
+            // Set rw permission
+            rw_perm ? SET_BIT(pte_ctrl_bits, PG_RW) :
+                CLR_BIT(pte_ctrl_bits, PG_RW);
 
             // Change privilege level to user
             // Allow user mode access when set
@@ -366,5 +290,6 @@ int set_region_ro(uint32_t va, int size_bytes) {
 
     return 0;
 }
+
 
 

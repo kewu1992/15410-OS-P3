@@ -37,4 +37,6 @@ void timer_wrapper();
 
 void gettid_wrapper();
 
+void asm_pf_handler();
+
 #endif

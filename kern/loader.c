@@ -87,12 +87,16 @@ int loadFirstTask(const char *filename) {
         return -1;
 
 
-    // You may wanna do so to enable mappings for user address space
-    new_region(simple_elf.e_txtstart, simple_elf.e_txtlen);
-    new_region(simple_elf.e_datstart, simple_elf.e_datlen);
-    new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen);
-    new_region(simple_elf.e_bssstart, simple_elf.e_bsslen);
-    new_region(0x8000000 - PAGE_SIZE, 2 * PAGE_SIZE);
+    // Enable mappings
+    // Set rw permission as well, 0 as ro, 1 as rw, so that User
+    // level program can't write to read-only regions
+    // Supervisor can still write to uesr level read-only region 
+    // if WP (write protection, bit 16 of %cr0) isn't set
+    new_region(simple_elf.e_txtstart, simple_elf.e_txtlen, 0);
+    new_region(simple_elf.e_datstart, simple_elf.e_datlen, 1);
+    new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen, 0);
+    new_region(simple_elf.e_bssstart, simple_elf.e_bsslen, 1);
+    new_region(0x8000000 - PAGE_SIZE, 2 * PAGE_SIZE, 1);
 
 
     // the following code should run in VM
@@ -107,15 +111,9 @@ int loadFirstTask(const char *filename) {
             (char*)simple_elf.e_rodatstart);
     memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
 
-    // Set txt and rodata segment as read-only
-    // Caution: Depends on how WP (bit 16 of CR0) is set, a "supervisor"
-    // level procedure may still be able to write to user-level
-    // read-only pages.
-    if(set_region_ro(simple_elf.e_txtstart, simple_elf.e_txtlen) ||
-            set_region_ro(simple_elf.e_rodatstart, 
-                simple_elf.e_rodatlen)) {
-        lprintf("set_region_ro failed");
-    }
+    // Update TLB for new task by resetting %cr3 value 
+    uint32_t pd = get_pd();
+    set_cr3(pd);;
 
     void (*my_program) (void) = (void*)simple_elf.e_entry;
 

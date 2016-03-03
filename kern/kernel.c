@@ -80,7 +80,8 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     init_vm();
  
     lprintf( "Ready to load first task" );
-    loadFirstTask("small_program");
+    // loadFirstTask("small_program");
+    loadFirstTask("ck1");
 
 
     // should never reach here

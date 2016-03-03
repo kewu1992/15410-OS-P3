@@ -19,6 +19,7 @@
 //#include "keyboard_driver.h"
 //#include "timer_driver.h"
 #include <syscall_int.h>
+#include <idt.h>
 
 #include <simics.h>
 
@@ -167,6 +168,8 @@ int init_IDT(void (*tickback)(unsigned int)) {
     fill_option(timer_idt);
     */
 
+    // install page fault handler wrapper
+    install_IDT_entry(IDT_PF, asm_pf_handler, SEGSEL_KERNEL_CS, 0, 0);
 
     // install gettid() syscall handler
     install_IDT_entry(GETTID_INT, gettid_wrapper, SEGSEL_KERNEL_CS, 3, 0);

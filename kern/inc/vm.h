@@ -9,6 +9,18 @@
 #define _VM_H_
 
 #include <page.h> // For PAGE_SIZE
+#include <asm.h> // For idt_base();
+#include <idt.h> // For IDT_PF
+#include <cr.h> // For %cr
+#include <simics.h> // For lprintf
+#include <page.h> // For PAGE_SIZE
+#include <malloc.h> // For smemalign
+
+#include <string.h> // For memset
+#include <seg.h> // For SEGSEL_KERNEL_CS
+
+#include <common_kern.h>
+#include <cr.h>
 
 // Page alignment mask
 #define PAGE_ALIGN_MASK ((unsigned int) ~((unsigned int) (PAGE_SIZE-1)))
@@ -46,36 +58,15 @@ typedef struct {
 #define GET_PD_INDEX(va) ((va) >> 22)
 #define GET_PT_INDEX(va) (((va) << 10) >> 22)
 
-
-// Size of each idt entry in bytes
-#define IDT_ENTRY_SIZE 8
-
-/** @brief A struct representing an 8-byte idt entry */
-struct idt_entry_t {
-    /** offset 15..0 */
-    uint16_t offset_lsw;    
-    /** segment selector */
-    uint16_t seg_selector;  
-    /** unused byte */
-    uint8_t byte_unused;    
-    /** gate info */
-    uint8_t byte_info;      
-    /** offset 16..31 */
-    uint16_t offset_msw;    
-};
-
-// Asm wrapper of page fault handler
-void asm_pf_handler();
-
 // Init paging
 // default, the entire kernel 16 MB will be mapped
 int init_vm();
 
-// Enable mapping for a region in user space, 0x1000000 upwards
-// default to user privilege, r/w permission
-int new_region(uint32_t va, int size_bytes);
+uint32_t get_pd();
 
-// Set region as read-only
+int new_region(uint32_t va, int size_bytes, int rw_perm);
+
+// Set region permission as read-only
 // Return 0 on success, -1 on error
 int set_region_ro(uint32_t va, int size_bytes);
 
