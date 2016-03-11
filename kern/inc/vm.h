@@ -62,13 +62,13 @@ typedef struct {
 // default, the entire kernel 16 MB will be mapped
 int init_vm();
 
-uint32_t get_pd();
+uint32_t create_pd();
 
 int new_region(uint32_t va, int size_bytes, int rw_perm);
 
 // Set region permission as read-only
 // Return 0 on success, -1 on error
-int set_region_ro(uint32_t va, int size_bytes);
+// int set_region_ro(uint32_t va, int size_bytes);
 
 #endif
 

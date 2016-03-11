@@ -70,6 +70,11 @@ int getbytes( const char *filename, int offset, int size, char *buf )
 
 
 int loadFirstTask(const char *filename) {
+
+    // Create pd for a new task
+    uint32_t new_pd = create_pd();
+    set_cr3(new_pd);
+
     /***********
      *
      *  Initialize tcb_table, should move to proper location later
@@ -112,8 +117,7 @@ int loadFirstTask(const char *filename) {
     memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
 
     // Update TLB for new task by resetting %cr3 value 
-    uint32_t pd = get_pd();
-    set_cr3(pd);;
+    set_cr3(new_pd);;
 
     void (*my_program) (void) = (void*)simple_elf.e_entry;
 

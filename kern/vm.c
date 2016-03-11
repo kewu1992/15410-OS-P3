@@ -9,14 +9,16 @@
 #include <vm.h>
 
 // Currently don't support more than one process, thus one page-directory
-static uint32_t initial_pd;
+// static uint32_t initial_pd;
 
 // Dummy frame counter
 static int frame_counter;
 
+/*
 uint32_t get_pd() {
     return initial_pd;
 }
+*/
 
 // frame allocator
 uint32_t new_frame() {
@@ -72,7 +74,6 @@ uint32_t get_pg_ctrl_bits(int type) {
 
 }
 
-
 // Only map kernel space for the moment
 uint32_t create_pd() {
 
@@ -104,7 +105,7 @@ uint32_t create_pd() {
     uint32_t pte_ctrl_bits = get_pg_ctrl_bits(1);
     // Set kernel pages as global pages, so that TLB wouldn't
     // clear them when %cr3 is reset
-    SET_BIT(pte_ctrl_bits, PG_G);
+    // SET_BIT(pte_ctrl_bits, PG_G);
 
     int j;
     for(i = 0; i < 4; i++) {
@@ -140,14 +141,14 @@ int init_vm() {
 
     // Get page direcotry base for a new task
     uint32_t pdb = create_pd();
-    initial_pd = pdb;
+    set_cr3(pdb);
 
     // Set page directory base register
     // Put current task's page directory base in %cr3 register
 
     // Set PCD and PWT as both 0 in %cr3 if not touching 0 bits
-    uint32_t cr3 = pdb;
-    set_cr3(cr3);
+    // uint32_t cr3 = pdb;
+    // set_cr3(cr3);
 
     // Enable paging
     enable_paging();
@@ -186,7 +187,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
     int i;
 
     uint32_t page = page_lowest;
-    pd_t *pd = (pd_t *)initial_pd;
+    pd_t *pd = (pd_t *)get_cr3();
 
     for(i = 0; i < count; i++) {
         uint32_t pd_index = GET_PD_INDEX(page);
@@ -247,6 +248,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
 
 // Set region permission as read-only
 // Return 0 on success, -1 on error
+/*
 int set_region_ro(uint32_t va, int size_bytes) {
 
     uint32_t page_lowest = va & PAGE_ALIGN_MASK;
@@ -290,6 +292,6 @@ int set_region_ro(uint32_t va, int size_bytes) {
 
     return 0;
 }
-
+*/
 
 
