@@ -7,6 +7,9 @@
  */
 
 #include <vm.h>
+#include <list.h>
+
+void asm_invalidate_tlb(uint32_t va);
 
 // Currently don't support more than one process, thus one page-directory
 // static uint32_t initial_pd;
@@ -17,6 +20,123 @@ static int frame_counter;
 /*
 uint32_t get_pd() {
     return initial_pd;
+}
+*/
+
+struct free_area_struct {
+    /* @brief a doubly linked circular list of blocks */
+    list_t list;
+    /* @brief Keep track of the blocks it allocates in this group */
+    // int bitmap;
+};
+
+#define MAX_ORDER 10
+
+struct free_area_struct free_area[MAX_ORDER];
+
+
+/*
+// Manage continugous page allocation
+void init_buddy_system() {
+    // init MAX_ORDER lists
+    int i;
+    for(i = 0; i < MAX_ORDER; i++) {
+        if(list_init(&free_area[i].list)) {
+            lprintf("list_init failed");
+            panic("list_init failed");
+        }
+    }
+
+    // Populate the list of the largest order with the
+    // available frames (not counting kernel space), 
+    // which are divided into blocks of size 2^(MAX_ORDER-1)
+    // pages
+    int avail_frame_count = machine_phys_frames() - 
+        USER_MEM_START/PAGE_SIZE;
+
+    uint32_t base = USER_MEM_START;
+    uint32_t block_size = (2 << (MAX_ORDER - 1)) * PAGE_SIZE;
+    for(i = 0; i < avail_frame_count; i++) {
+        list_append(&(free_area[MAX_ORDER - 1].list), (void *)base);
+        base += block_size;
+    }
+
+}
+*/
+    /*
+    for each frame, need to track:
+    usage count: 0 free, >0 used
+    flags for dirty, locked, referenced, etc?
+
+
+    The buddy system should expose 2 APIs:
+    get_free_frames()
+    free_frames()
+
+    All frames are grouped into 10 lists of blocks that contain groups of
+    1, 2, 4, 8, 16, ..., 512 contiguous framse, repectively
+    meaning 1*PAGE_SIZE, 2*PAGE_SIZE, ..., 512*PAGE_SIZE per block size 
+    in each group, 4k, 8k, 4m
+
+    The address of the 1st frame of a block is a multiple of the group size
+    */
+
+
+/**
+  * @brief Get contiguous frames
+  *
+  * @param order Represent size of contiguous frames. 
+  * Valid choices are 0, 1, 2, 3, ..., MAX_ORDER - 1
+  * 
+  * @return Base of contiguous frames on success; 3 on failure
+  */
+// uint32_t get_frames(int order) {
+
+    /* Example usage:
+       uint32_t new_frame_base = get_frames(i);
+       return 2^i pages of contiguous frames
+    */
+
+/*
+    // Check free area
+    int cur_order = order; 
+    while(order < MAX_ORDER) {
+        void *block = list_remove_first(&(free_area[cur_order].list));
+
+        if(block == NULL) {
+            // Try find free block in larger size group
+            cur_order++;
+        } else {
+            free_block_base = (uint32_t)block;
+            // We have found a free block
+            if(cur_order > order) {
+                // But it's too large, we will split it first
+                // Put unused halves back to lists
+                uint32_t block_size = (2 << cur_order) * PAGE_SIZE;
+                uint32_t block_base = free_block_base + block_size;
+                while(cur_order >= order) {
+                    block_size >>= 1;
+                    block_base -= block_size;
+                    // Place unused half to list of one order less
+                    list_append(&(free_area[cur_order - 1].list),
+                            block_base);
+                }
+            } 
+           
+            return free_block_base;
+        }
+    }
+    
+    // Failed to find a contiguous block of the size we want
+    return 3;
+}
+
+void free_frames() {
+
+    // while(buddy is free) {
+    //     combine(this and buddy);
+    // }
+
 }
 */
 
@@ -139,16 +259,13 @@ void enable_pge_flag() {
 // Open virtual memory
 int init_vm() {
 
+    // Number of pages available
+    int frame_count = machine_phys_frames();
+    lprintf("frame_count: %d", frame_count);
+
     // Get page direcotry base for a new task
     uint32_t pdb = create_pd();
     set_cr3(pdb);
-
-    // Set page directory base register
-    // Put current task's page directory base in %cr3 register
-
-    // Set PCD and PWT as both 0 in %cr3 if not touching 0 bits
-    // uint32_t cr3 = pdb;
-    // set_cr3(cr3);
 
     // Enable paging
     enable_paging();
@@ -246,52 +363,82 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
 }
 
 
-// Set region permission as read-only
-// Return 0 on success, -1 on error
-/*
-int set_region_ro(uint32_t va, int size_bytes) {
+uint32_t clone_pd() {
+    // The pd to clone
+    uint32_t old_pd = get_cr3();
 
-    uint32_t page_lowest = va & PAGE_ALIGN_MASK;
-    uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
-        PAGE_ALIGN_MASK;
+    /* 
+       Do this when using buddy system
+    // Traverse page directory to get the total number of pages used
+    // Should consider remember this number
+    int count = count_num_pages(pd);
 
-    // Number of pages in the region
-    int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
+    // Allocate count new frames
     int i;
-
-    uint32_t page = page_lowest;
-    pd_t *pd = (pd_t *)initial_pd;
-
     for(i = 0; i < count; i++) {
-        uint32_t pd_index = GET_PD_INDEX(page);
-        pde_t *pde = &(pd->pde[pd_index]);
+        uint32_t new_f = new_frame();
+    }
+    */
 
-        // Check page directory entry presence
-        if(((*pde) & (1 << PG_P)) == 0) {
-            // Not present
-            return -1;
+    /* Create a new address space */
+    // Used to copy contents between frames
+    char frame_buf[PAGE_SIZE];
+    // Clone pd
+    pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
+    if(pd == NULL) {
+        lprintf("smemalign failed");
+        panic("smemalign failed");
+    }
+    memcpy(pd, (void *)old_pd, PAGE_SIZE);
+    int i, j;
+    for(i = 0; i < PAGE_SIZE/4; i++) {
+        if((pd->pde[i] & (1 << PG_P)) == 1) {
+            // Page table is present
+            void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
+            if(pd == NULL) {
+                lprintf("smemalign failed");
+                panic("smemalign failed");
+            }
+            uint32_t old_pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
+            memcpy((void *)new_pt, (void *)old_pt_addr, PAGE_SIZE);
+            pd->pde[i] = (uint32_t)new_pt | GET_CTRL_BITS(pd->pde[i]);
+
+            // Clone pt
+            pt_t *pt = (pt_t *)new_pt;
+            for(j = 0; j < PAGE_SIZE/4; j++) {
+                if((pt->pte[j] & (1 << PG_P)) == 1) {
+
+                    // Used the same frame for kernel space
+                    if(i < 4) {
+                        continue;
+                    }
+
+                    uint32_t old_frame_addr = pt->pte[j] & PAGE_ALIGN_MASK;
+                    uint32_t new_f = new_frame();
+
+                    // Find out the corresponding va of current page
+                    uint32_t va = (i << 22) | (j << 12);
+                    memcpy(frame_buf, (void *)va, PAGE_SIZE);
+                    
+                    // Temporarily change the frame that 
+                    // old page table points to
+                    ((pt_t *)old_pt_addr)->pte[j] = 
+                        new_f | GET_CTRL_BITS(pt->pte[j]);
+                    // Invalidate page in tlb as we update page table entry
+                    asm_invalidate_tlb(va);
+                    memcpy((void *)va, frame_buf, PAGE_SIZE);
+                    ((pt_t *)old_pt_addr)->pte[j] = 
+                        old_frame_addr | GET_CTRL_BITS(pt->pte[j]);
+                    // Invalidate page in tlb as we update page table entry
+                    asm_invalidate_tlb(va);
+
+                    // Set new pt points to new frame
+                    pt->pte[j] = new_f | GET_CTRL_BITS(pt->pte[j]);
+                }
+            }
         }
-
-        // Check page table entry presence
-        uint32_t pt_index = GET_PT_INDEX(page);
-        pt_t *pt = (pt_t *)((*pde) & PAGE_ALIGN_MASK);
-        pte_t *pte = &(pt->pte[pt_index]);
-
-        if(((*pte) & (1 << PG_P)) == 0) {
-            // Not present
-            return -1;
-        }
-
-        // Set page as read-only
-        uint32_t pte_value = (uint32_t)(*pte);
-        CLR_BIT(pte_value, PG_RW);
-        *pte = pte_value;
-
-        page += PAGE_SIZE;
     }
 
-    return 0;
+    return (uint32_t)pd;
 }
-*/
-
 
