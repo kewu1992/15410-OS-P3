@@ -23,7 +23,7 @@
 
 
 #include <init_IDT.h>
-#include <console.h>
+
 #include <cr.h>
 #include <loader.h>
 #include <eflags.h>
@@ -33,10 +33,7 @@
 
 #include <vm.h> // For vm
 
-
-extern uint32_t asm_get_ebp();
-extern uint32_t asm_get_esp();
-
+#include <console.h>
 
 /** @brief Kernel entrypoint.
  *  
@@ -57,31 +54,18 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     if (init_IDT(NULL) < 0)
         panic("Initialize IDT failed!");
 
+    enable_interrupts();
+
     clear_console();
     printf("Hello, world");
-
-    lprintf("ebp:%x", (unsigned int)asm_get_ebp());
-    lprintf("esp:%x", (unsigned int)asm_get_esp());
-
-    /*      0xffffffff  <-- logical max address (4GB)
-     *      
-     *      0x10000000  <-- physical max address (256MB)  
-     *
-     *      0x00ffffff  <-- max memory address for kernel (V=P)
-     *      
-     *      0x0011b03c  <-- %ebp of kernel_main(): can be various
-     *      0x0011b020  <-- %esp of kernel_main(): can be various
-     *
-     *      0x00000000
-     */
 
     // Initialize vm, all kernel 16 MB will be directly mapped and
     // paging will be enabled after this call
     init_vm();
  
     lprintf( "Ready to load first task" );
-    // loadFirstTask("small_program");
-    loadFirstTask("ck1");
+    loadFirstTask("small_program");
+    //loadFirstTask("ck1");
 
 
     // should never reach here

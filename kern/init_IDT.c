@@ -12,12 +12,12 @@
 #include <asm.h>
 #include <seg.h>
 #include <string.h>
-//#include <keyhelp.h>
-//#include <timer_defines.h>
-#include "handler_wrapper.h"
+#include <keyhelp.h>
+#include <timer_defines.h>
+#include <handler_wrapper.h>
 #include <console_driver.h>
-//#include "keyboard_driver.h"
-//#include "timer_driver.h"
+#include <keyboard_driver.h>
+#include <timer_driver.h>
 #include <syscall_int.h>
 #include <idt.h>
 
@@ -152,21 +152,12 @@ void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int g
  *  @return A negative error code on error, or 0 on success
  **/
 int init_IDT(void (*tickback)(unsigned int)) {
-    /*
-    // install keyboard interrupt handler
-    void* keyboard_idt = 
-                    (void*)((char*)idt_base() + KEY_IDT_ENTRY * IDT_ENTRY_SIZE);
-    fill_handler(keyboard_idt, keyboard_wrapper);
-    fill_segsel(keyboard_idt);
-    fill_option(keyboard_idt);
     
+    // install keyboard interrupt handler
+    install_IDT_entry(KEY_IDT_ENTRY, keyboard_wrapper, SEGSEL_KERNEL_CS, 0, 0);
+
     // instll timer interrupt handler
-    void* timer_idt = 
-                (void*)((char*)idt_base() + TIMER_IDT_ENTRY * IDT_ENTRY_SIZE);
-    fill_handler(timer_idt, timer_wrapper);
-    fill_segsel(timer_idt);
-    fill_option(timer_idt);
-    */
+    install_IDT_entry(TIMER_IDT_ENTRY, timer_wrapper, SEGSEL_KERNEL_CS, 0, 1);
 
     // install page fault handler wrapper
     install_IDT_entry(IDT_PF, asm_pf_handler, SEGSEL_KERNEL_CS, 0, 0);
@@ -176,8 +167,8 @@ int init_IDT(void (*tickback)(unsigned int)) {
 
     // initialize device drivers
     init_console_driver();
-    //init_keyboard_driver();
-    //init_timer_driver(tickback);
+    init_keyboard_driver();
+    init_timer_driver(tickback);
 
     return 0;
 }

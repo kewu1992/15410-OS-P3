@@ -27,6 +27,11 @@
 #include <common_kern.h>
 
 #include <vm.h> // For vm
+#include <asm_helper.h>
+#include <scheduler.h>
+#include <context_switcher.h>
+
+#define MAX_ADDR 0xFFFFFFFF
 
 /* The number of user executables in the table of contents. */
 extern const int exec2obj_userapp_count;
@@ -35,11 +40,8 @@ extern const int exec2obj_userapp_count;
 extern const exec2obj_userapp_TOC_entry exec2obj_userapp_TOC[MAX_NUM_APP_ENTRIES];
 
 extern void asm_new_process_iret(void *esp);
-extern uint32_t asm_get_esp();
 
-static int id_count = 0;
-
-static tcb_t **tcb_table;
+static uint32_t init_eflags;
 
 /* --- Local function prototypes --- */ 
 static void* push_to_stack(void *esp, uint32_t value);
@@ -68,22 +70,24 @@ int getbytes( const char *filename, int offset, int size, char *buf )
     return -1;
 }
 
+int loadFirstTask(const char *filename) {  
 
-int loadFirstTask(const char *filename) {
+    if (tcb_init() < 0)
+        return -1;
 
-    // Create pd for a new task
-    uint32_t new_pd = create_pd();
-    set_cr3(new_pd);
+    if (scheduler_init() < 0)
+        return -1;
 
-    /***********
-     *
-     *  Initialize tcb_table, should move to proper location later
-     *
-     ***********/
-    tcb_table = calloc(USER_MEM_START/K_STACK_SIZE, sizeof(tcb_t*));
+    init_eflags = get_eflags();
 
+    if (loadTask(filename) < 0)
+        return -1;
 
+    // should never reach here
+    return 0;
+}
 
+int loadTask(const char *filename) {
     if (elf_check_header(filename) == ELF_NOTELF)
         return -1;
 
@@ -92,7 +96,7 @@ int loadFirstTask(const char *filename) {
         return -1;
 
 
-    // Enable mappings
+    // allocate pages for the new task
     // Set rw permission as well, 0 as ro, 1 as rw, so that User
     // level program can't write to read-only regions
     // Supervisor can still write to uesr level read-only region 
@@ -101,8 +105,7 @@ int loadFirstTask(const char *filename) {
     new_region(simple_elf.e_datstart, simple_elf.e_datlen, 1);
     new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen, 0);
     new_region(simple_elf.e_bssstart, simple_elf.e_bsslen, 1);
-    new_region(0x8000000 - PAGE_SIZE, 2 * PAGE_SIZE, 1);
-
+    new_region(MAX_ADDR - 2 * PAGE_SIZE, 2 * PAGE_SIZE, 1);
 
     // the following code should run in VM
     getbytes(filename, (int)simple_elf.e_txtoff, 
@@ -116,18 +119,11 @@ int loadFirstTask(const char *filename) {
             (char*)simple_elf.e_rodatstart);
     memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
 
-    // Update TLB for new task by resetting %cr3 value 
-    set_cr3(new_pd);;
-
     void (*my_program) (void) = (void*)simple_elf.e_entry;
 
-    /*
-     * NEED TO TEST TO MAKE SURE malloc() AND smemalign() WORKS FINE
-     * WHEN VM IS OPEN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     */ 
     pcb_t *process = malloc(sizeof(pcb_t));
-    process->pid = id_count++;
-    process->page_table_base = 0;
+    process->pid = tcb_next_id();
+    process->page_table_base = get_cr3();
     process->state = RUNNING;
 
     tcb_t *thread = malloc(sizeof(tcb_t));
@@ -135,8 +131,8 @@ int loadFirstTask(const char *filename) {
     thread->pcb = process;
     thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;
 
-    // set tcb_table
-    tcb_table[GET_K_STACK_INDEX(thread->k_stack_esp-1)] = thread;
+    // set tcb
+    tcb_set_entry(thread->k_stack_esp-1, thread);
 
     //set esp0
     set_esp0((uint32_t)(thread->k_stack_esp));
@@ -144,9 +140,9 @@ int loadFirstTask(const char *filename) {
     // push SS
     thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_DS);
     // push esp
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, 0x8000000);
+    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, MAX_ADDR - PAGE_SIZE);
     // push EFLAGS
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, get_eflags());
+    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, init_eflags);
     // push CS
     thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_CS);
     // push EIP
@@ -167,7 +163,8 @@ void* push_to_stack(void *esp, uint32_t value) {
 }
 
 int gettid_syscall_handler() {
-    return tcb_table[GET_K_STACK_INDEX(asm_get_esp())]->tid;
+    context_switch_load("switched_program");
+    return tcb_get_entry((void*)asm_get_esp())->tid;
 }
 
 /*@}*/

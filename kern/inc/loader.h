@@ -20,4 +20,6 @@ int getbytes( const char *filename, int offset, int size, char *buf );
 
 int loadFirstTask(const char *filename);
 
+int loadTask(const char *filename);
+
 #endif /* _LOADER_H */

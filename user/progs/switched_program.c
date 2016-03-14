@@ -10,14 +10,12 @@ void func() {
 }
 
 int main() {
-    lprintf("I am small program!");
-    gettid();
+    lprintf("I am switched program!");
 
     long i = 1;
     while (i++) {
-        if (i % 10000 == 0) {
-            lprintf("small_program:%ld", i/10000);
-        }
+        if (i % 10000 == 0)
+            lprintf("switched_program:%ld", i/10000);
     }
     
 
