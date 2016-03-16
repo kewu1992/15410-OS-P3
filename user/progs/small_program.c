@@ -10,13 +10,25 @@ void func() {
 }
 
 int main() {
-    lprintf("I am small program!");
-    gettid();
+    
+    lprintf("I am small program:%d", gettid());
+
+    char *small_text;
+    
+    if (fork() == 0) {
+        // child
+        lprintf("I am child program:%d", gettid());
+        small_text = "child";
+    } else {
+        // parent
+        lprintf("I am parent program:%d", gettid());
+        small_text = "parent";
+    }
 
     long i = 1;
     while (i++) {
         if (i % 10000 == 0) {
-            lprintf("small_program:%ld", i/10000);
+            lprintf("%s:%ld", small_text, i/10000);
         }
     }
     

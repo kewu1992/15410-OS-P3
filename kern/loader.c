@@ -27,9 +27,6 @@
 #include <common_kern.h>
 
 #include <vm.h> // For vm
-#include <asm_helper.h>
-#include <scheduler.h>
-#include <context_switcher.h>
 
 #define MAX_ADDR 0xFFFFFFFF
 
@@ -40,8 +37,6 @@ extern const int exec2obj_userapp_count;
 extern const exec2obj_userapp_TOC_entry exec2obj_userapp_TOC[MAX_NUM_APP_ENTRIES];
 
 extern void asm_new_process_iret(void *esp);
-
-static uint32_t init_eflags;
 
 /* --- Local function prototypes --- */ 
 static void* push_to_stack(void *esp, uint32_t value);
@@ -70,31 +65,44 @@ int getbytes( const char *filename, int offset, int size, char *buf )
     return -1;
 }
 
-int loadFirstTask(const char *filename) {  
+void loadFirstTask(const char *filename) {  
 
-    if (tcb_init() < 0)
-        return -1;
+    void* my_program;
+    if ((my_program = loadTask(filename)) == NULL)
+        panic("Load first task failed");
 
-    if (scheduler_init() < 0)
-        return -1;
+    // create new process
+    tcb_t *thread = tcb_create_process(RUNNING);
 
-    init_eflags = get_eflags();
+    //set esp0
+    set_esp0((uint32_t)(thread->k_stack_esp));
 
-    if (loadTask(filename) < 0)
-        return -1;
+    // push SS
+    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_DS);
+    // push esp
+    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, MAX_ADDR - PAGE_SIZE);
+    // push EFLAGS
+    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, get_eflags());
+    // push CS
+    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_CS);
+    // push EIP
+    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, (uint32_t)my_program);
+    // push DS
+    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_DS);
+
+    // set esp and call iret
+    asm_new_process_iret(thread->k_stack_esp);
 
     // should never reach here
-    return 0;
 }
 
-int loadTask(const char *filename) {
+void* loadTask(const char *filename) {
     if (elf_check_header(filename) == ELF_NOTELF)
-        return -1;
+        return NULL;
 
     simple_elf_t simple_elf;
     if (elf_load_helper(&simple_elf, filename) == ELF_NOTELF)
-        return -1;
-
+        return NULL;
 
     // allocate pages for the new task
     // Set rw permission as well, 0 as ro, 1 as rw, so that User
@@ -119,52 +127,13 @@ int loadTask(const char *filename) {
             (char*)simple_elf.e_rodatstart);
     memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
 
-    void (*my_program) (void) = (void*)simple_elf.e_entry;
-
-    pcb_t *process = malloc(sizeof(pcb_t));
-    process->pid = tcb_next_id();
-    process->page_table_base = get_cr3();
-    process->state = RUNNING;
-
-    tcb_t *thread = malloc(sizeof(tcb_t));
-    thread->tid = process->pid;
-    thread->pcb = process;
-    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;
-
-    // set tcb
-    tcb_set_entry(thread->k_stack_esp-1, thread);
-
-    //set esp0
-    set_esp0((uint32_t)(thread->k_stack_esp));
-
-    // push SS
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_DS);
-    // push esp
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, MAX_ADDR - PAGE_SIZE);
-    // push EFLAGS
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, init_eflags);
-    // push CS
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_CS);
-    // push EIP
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, (uint32_t)my_program);
-    // push DS
-    thread->k_stack_esp = push_to_stack(thread->k_stack_esp, SEGSEL_USER_DS);
-
-    // set esp and call iret
-    asm_new_process_iret(thread->k_stack_esp);
-
-    return 0;
+    return (void*)simple_elf.e_entry;
 }
 
 void* push_to_stack(void *esp, uint32_t value) {
     void* new_esp = (void*)((uint32_t)esp - 4);
     memcpy(new_esp, &value, 4);
     return new_esp;
-}
-
-int gettid_syscall_handler() {
-    context_switch_load("switched_program");
-    return tcb_get_entry((void*)asm_get_esp())->tid;
 }
 
 /*@}*/

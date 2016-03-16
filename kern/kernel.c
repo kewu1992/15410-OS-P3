@@ -32,8 +32,12 @@
 #include <stdint.h>// for uint32_t
 
 #include <vm.h> // For vm
+#include <scheduler.h>
+#include <control_block.h>
 
 #include <console.h>
+
+static void kernel_init();
 
 /** @brief Kernel entrypoint.
  *  
@@ -50,24 +54,34 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      */
 
     lprintf( "Hello from a brand new kernel!" );
+    
+    lprintf("Initializing kernel");
+    kernel_init();
+    lprintf("Finish initialization");
+
+    lprintf( "Ready to load first task" );
+    loadFirstTask("small_program");
+
+    // should never reach here
+    return 0;
+}
+
+
+void kernel_init() {
+    if (tcb_init() < 0)
+        panic("Initialize tcb failed!");
+
+    if (scheduler_init() < 0)
+        panic("Initialize scheduler failed!");
 
     if (init_IDT(NULL) < 0)
         panic("Initialize IDT failed!");
 
-    enable_interrupts();
-
-    clear_console();
-    printf("Hello, world");
-
     // Initialize vm, all kernel 16 MB will be directly mapped and
     // paging will be enabled after this call
     init_vm();
- 
-    lprintf( "Ready to load first task" );
-    loadFirstTask("small_program");
-    //loadFirstTask("ck1");
 
+    enable_interrupts();
 
-    // should never reach here
-    return 0;
+    clear_console();
 }

@@ -13,6 +13,7 @@
 #include <asm.h>
 #include <timer_defines.h>
 #include <context_switcher.h>
+#include <simics.h>
 
 /** @brief Function pointer points to callback function of timer */
 static void (*callback)(unsigned int);
@@ -47,8 +48,9 @@ void init_timer_driver(void (*tickback)(unsigned int)) {
  *  @return Void.
  */
 void timer_interrupt_handler() {
+
     //callback(++numTicks);
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
 
-    context_switch();
+    context_switch(-1);
 }

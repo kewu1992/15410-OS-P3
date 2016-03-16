@@ -18,8 +18,8 @@ int getbytes( const char *filename, int offset, int size, char *buf );
  * Declare your loader prototypes here.
  */
 
-int loadFirstTask(const char *filename);
+void loadFirstTask(const char *filename);
 
-int loadTask(const char *filename);
+void* loadTask(const char *filename);
 
 #endif /* _LOADER_H */

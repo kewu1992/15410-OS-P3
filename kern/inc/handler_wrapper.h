@@ -39,4 +39,6 @@ void gettid_wrapper();
 
 void asm_pf_handler();
 
+void fork_wrapper();
+
 #endif

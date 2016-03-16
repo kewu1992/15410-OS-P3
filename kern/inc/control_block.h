@@ -3,10 +3,6 @@
 
 #include <stdint.h>
 
-/* k-stack size is 8192 */
-#define K_STACK_BITS    13
-#define K_STACK_SIZE    (1<<13) 
-
 typedef enum {
     RUNNING,
     RUNNABLE,
@@ -20,18 +16,27 @@ typedef struct {
 } pcb_t;
 
 typedef struct {
+    void *k_stack_esp;
     int tid;
     pcb_t *pcb;
-    void *k_stack_esp;
+    int fork_result;
 } tcb_t;
 
 
 int tcb_init();
 
-int tcb_next_id();
+pcb_t* tcb_create_process_only(process_state_t state, tcb_t* thread);
 
-void tcb_set_entry(void *addr, tcb_t *thr);
+tcb_t* tcb_create_thread_only(pcb_t* process);
+
+tcb_t* tcb_create_process(process_state_t state);
+
+void tcb_free_thread(tcb_t *thr);
 
 tcb_t* tcb_get_entry(void *addr);
+
+void* tcb_get_high_addr(void *addr);
+
+void* tcb_get_low_addr(void *addr);
 
 #endif

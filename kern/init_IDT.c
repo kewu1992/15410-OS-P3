@@ -6,7 +6,8 @@
  *  some macros to help filling IDT entries.
  *
  *  @author Ke Wu <kewu@andrew.cmu.edu>
- *  @bug No known bugs.
+ *  @bug Using trap gate or interrupt gate !!!!!!!!!!
+ *       -->  it will affect whether all wrappers need to set esp0
  */
 
 #include <asm.h>
@@ -164,6 +165,9 @@ int init_IDT(void (*tickback)(unsigned int)) {
 
     // install gettid() syscall handler
     install_IDT_entry(GETTID_INT, gettid_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install fork() syscall handler
+    install_IDT_entry(FORK_INT, fork_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // initialize device drivers
     init_console_driver();

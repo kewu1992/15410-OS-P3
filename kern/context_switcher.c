@@ -1,4 +1,3 @@
-
 #include <scheduler.h>
 #include <asm_helper.h>
 #include <control_block.h>
@@ -8,7 +7,17 @@
 #include <loader.h>
 #include <simics.h>
 
-void context_switch() {
+static tcb_t* first_task;
+
+extern void asm_context_switch(int mode, tcb_t *this_thr);
+
+static tcb_t* internal_thread_fork(tcb_t* this_thr);
+
+static void* get_last_ebp(void* ebp);
+
+static char* secondTask = "switched_program";
+
+void context_switch(int mode) {
     /*  The following are pseudocode 
      *  
      *  scheduler.enqueue_tail(this_thr);
@@ -25,46 +34,122 @@ void context_switch() {
      *  What if interrupt during context switch???
      *  *****************
      */
-    tcb_t *next_thr = scheduler_get_next();
-    if (next_thr == NULL)
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    if (this_thr == NULL)
         return;
 
-    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-    scheduler_enqueue_tail(this_thr);
+    // lprintf("before esp: %p", (void*)asm_get_esp());
+    // lprintf("before: %p", this_thr);
 
-    //lprintf("this:%p", this_thr); 
-    //lprintf("this esp:%p", (void*)asm_get_esp());
-    //lprintf("next:%p", next_thr);
-    //lprintf("next esp:%p", next_thr->k_stack_esp);
+    asm_context_switch(mode, this_thr);
 
-    asm_pusha();
-    this_thr->k_stack_esp = (void*)asm_get_esp();
+    this_thr = tcb_get_entry((void*)asm_get_esp());
 
-    if (next_thr->pcb->page_table_base != get_cr3())
-        set_cr3(next_thr->pcb->page_table_base);
-    asm_set_esp_w_ret((uint32_t)next_thr->k_stack_esp);
-    asm_popa();
+    // lprintf("after esp: %p", (void*)asm_get_esp());
+    // lprintf("after: %p", this_thr);
+
+
+    // deal with VM
+    if (mode == -2 && this_thr->fork_result == 0) {
+        // new task (fork)
+        set_cr3(clone_pd());
+        
+        tcb_create_process_only(RUNNING, this_thr);
+    } else if (mode == -4 && this_thr->fork_result == 0) {
+        // new task (load)
+        set_cr3(create_pd());
+
+        tcb_create_process_only(RUNNING, this_thr);
+
+        void* my_program = loadTask(secondTask);
+
+        void* eip = (void*)(((uint32_t)tcb_get_high_addr((void*)asm_get_esp())) - 20);
+        memcpy(eip, &my_program, 4);
+
+        set_esp0((uint32_t)tcb_get_high_addr((void*)asm_get_esp()));
+    }
+
+    if (this_thr->pcb->page_table_base != get_cr3())
+        set_cr3(this_thr->pcb->page_table_base);
+
 }
 
-void context_switch_load(const char *filename) {
-    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-    scheduler_enqueue_tail(this_thr);
+tcb_t* context_switch_get_next(int mode, tcb_t* this_thr) {
+    tcb_t* new_thr;
 
-    //lprintf("this:%p", this_thr); 
-    //lprintf("this esp:%p", (void*)asm_get_esp());
+    switch(mode){
+    case -2:    // fork and context switch to new thread
+    case -3:    // thread_fork and context switch to new thread
+    case -4:    // thread_fork and don't context switch, also save the 
+                // new thread as the first task (used for load)
+        new_thr = internal_thread_fork(this_thr);
+        if (new_thr != NULL) {
+            this_thr->fork_result = new_thr->tid;
+            new_thr->fork_result = 0;
+        } else {
+            this_thr->fork_result = -1;
+            return this_thr;
+        }
+        
+        if (mode == -4) {
+            first_task = new_thr;
+            return this_thr;
+        } else  {
+            scheduler_enqueue_tail(this_thr);
+            return new_thr;
+        }
 
-    // EFLAGS!!
-    asm_pusha();
-    this_thr->k_stack_esp = (void*)asm_get_esp();
+    case -5:    // clone the first task and context switch to new thread 
+                // (used for load)
+        new_thr = internal_thread_fork(first_task);
+        if (new_thr == NULL) {
+            this_thr->fork_result = -1;
+            return this_thr;
+        } 
+        else {
+            this_thr->fork_result = new_thr->tid;
+            new_thr->fork_result = 0;
+            scheduler_enqueue_tail(this_thr);
+            return new_thr;
+        }
+    default:
+        // let scheduler to choose the next thread to run
+        scheduler_enqueue_tail(this_thr);
+        return scheduler_get_next(mode);
+    }
+}
 
-    set_cr3(create_pd());
-    loadTask(filename);
+tcb_t* internal_thread_fork(tcb_t* this_thr) {
+    tcb_t* new_thr = tcb_create_thread_only(this_thr->pcb);
+    if (new_thr == NULL)
+        return NULL;
+
+    void* high_addr = tcb_get_high_addr(this_thr->k_stack_esp);
+    int len = (uint32_t)high_addr - (uint32_t)this_thr->k_stack_esp;
+
+    new_thr->k_stack_esp = (void*)((uint32_t)new_thr->k_stack_esp - len);
+
+    // copy kernel stack
+    memcpy(new_thr->k_stack_esp, this_thr->k_stack_esp, len);
+
+    uint32_t diff = (uint32_t)new_thr->k_stack_esp - (uint32_t)this_thr->k_stack_esp;
+    void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 36);
+    *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
+    ebp = get_last_ebp(ebp);
+    *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
+    
+    return new_thr;
+}
+
+void context_switch_load() {
+    context_switch(-4);
 }
 
 /* Any syscall/interrupt need to call this function before iret.
  * Context switch (change of esp0) can happen in anywhere
  */
 void context_switch_set_esp0(int offset, uint32_t esp) {
+
     uint32_t cs;
     memcpy(&cs, (void*)(esp + offset), 4);
     if (cs != asm_get_cs()) {
@@ -73,4 +158,17 @@ void context_switch_set_esp0(int offset, uint32_t esp) {
     } else {
         // kernel --> kernel, don't need to set esp0
     }
+}
+
+
+
+/** @brief get old %ebp value based on current %ebp
+ *
+ *  @param ebp Value of current %ebp
+ *
+ *  @return Value of old %ebp
+ */
+void* get_last_ebp(void* ebp) {
+    uint32_t last_ebp = *((uint32_t*) ebp);
+    return (void*) last_ebp;
 }

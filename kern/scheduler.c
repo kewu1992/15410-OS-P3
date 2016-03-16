@@ -15,6 +15,6 @@ int scheduler_enqueue_tail(tcb_t *thread) {
     return rv;
 }
 
-tcb_t* scheduler_get_next() {
+tcb_t* scheduler_get_next(int mode) {
     return dequeue(&queue);
 }

@@ -11,5 +11,7 @@ void asm_set_esp_w_ret(uint32_t new_esp);
 
 void asm_popa();
 void asm_pusha();
+void asm_popf();
+void asm_pushf();
 
 #endif

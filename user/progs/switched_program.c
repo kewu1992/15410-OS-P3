@@ -12,10 +12,13 @@ void func() {
 int main() {
     lprintf("I am switched program!");
 
+    char *switched_text = "switched";
+
     long i = 1;
     while (i++) {
-        if (i % 10000 == 0)
-            lprintf("switched_program:%ld", i/10000);
+        if (i % 15000 == 0){
+            lprintf("%s:%ld", switched_text, i/15000);
+        }
     }
     
 

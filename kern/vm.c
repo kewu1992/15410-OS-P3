@@ -7,7 +7,7 @@
  */
 
 #include <vm.h>
-#include <list.h>
+//#include <list.h>
 
 void asm_invalidate_tlb(uint32_t va);
 
@@ -25,7 +25,7 @@ uint32_t get_pd() {
 
 struct free_area_struct {
     /* @brief a doubly linked circular list of blocks */
-    list_t list;
+    //list_t list;
     /* @brief Keep track of the blocks it allocates in this group */
     // int bitmap;
 };
