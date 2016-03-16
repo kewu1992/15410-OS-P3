@@ -8,37 +8,55 @@
 
 #include <vm.h>
 #include <list.h>
+#include <hashtable.h>
 
 void asm_invalidate_tlb(uint32_t va);
-
-// Currently don't support more than one process, thus one page-directory
-// static uint32_t initial_pd;
 
 // Dummy frame counter
 static int frame_counter;
 
+struct free_area_struct {
+    /* @brief a doubly linked list of blocks */
+    list_t list;
+};
+
+// Max block size is 2^(MAX_ORDER-1)*PAGE_SIZE
+// Blocks are of size 4K, 8K, ..., 4M, given PAGE_SIZE is 4K
+#define MAX_ORDER 11
+
+struct free_area_struct free_area[MAX_ORDER];
+//hashtable_t free_block_ht;
+
 /*
-uint32_t get_pd() {
-    return initial_pd;
+// A map that stores the information of whether a block is free,
+// and how large it is.
+// Free block map: base-> {order}
+// API: 
+// uint8_t order = free_block_map_get(base);
+// void free_block_map_put(uint32_t base, uint8_t order);
+// void free_block_map_delete(uint32_t base);
+
+int free_block_map_get(uint32_t base);
+void free_block_map_put(uint32_t base, int order);
+void free_block_map_delete(uint32_t base);
+*/
+
+/*
+#define FREE_BLOCK_HT_SIZE 97
+int free_block_ht_hashfunc(void *key) {
+    return (uint32_t)key % FREE_BLOCK_HT_SIZE;
+}
+
+int free_block_ht_init() {
+    free_block_ht.size = FREE_BLOCK_HT_SIZE; 
+    free_block_ht.func = free_block_ht_hashfunc; 
+    return hashtable_init(&free_block_ht);
 }
 */
 
-struct free_area_struct {
-    /* @brief a doubly linked circular list of blocks */
-    list_t list;
-    /* @brief Keep track of the blocks it allocates in this group */
-    // int bitmap;
-};
-
-#define MAX_ORDER 10
-
-struct free_area_struct free_area[MAX_ORDER];
-
-
-/*
-// Manage continugous page allocation
+// Manage continugous frame allocation
 void init_buddy_system() {
-    // init MAX_ORDER lists
+    // Init MAX_ORDER lists
     int i;
     for(i = 0; i < MAX_ORDER; i++) {
         if(list_init(&free_area[i].list)) {
@@ -47,98 +65,159 @@ void init_buddy_system() {
         }
     }
 
+    /*
+    // Init free block hashtable
+    if(free_block_ht_init() == -1) {
+        lprintf("free_block_ht_init failed");
+        panic("free_block_ht_init failed");
+    }
+    */
+
     // Populate the list of the largest order with the
-    // available frames (not counting kernel space), 
-    // which are divided into blocks of size 2^(MAX_ORDER-1)
-    // pages
+    // available frames (not counting those in kernel space), 
+    // which are grouped into blocks of 2^(MAX_ORDER-1) pages
     int avail_frame_count = machine_phys_frames() - 
         USER_MEM_START/PAGE_SIZE;
 
+    // User space base
     uint32_t base = USER_MEM_START;
-    uint32_t block_size = (2 << (MAX_ORDER - 1)) * PAGE_SIZE;
-    for(i = 0; i < avail_frame_count; i++) {
+    // Number of frames per group of the largest order
+    uint32_t num_frames = 1 << (MAX_ORDER - 1);
+    // Block size of the group of the largest order
+    uint32_t block_size = num_frames * PAGE_SIZE;
+    for(i = 0; i < avail_frame_count/num_frames; i++) {
         list_append(&(free_area[MAX_ORDER - 1].list), (void *)base);
         base += block_size;
+
+    // hashtable_put(&free_block_ht, (void *)base, (void *)(MAX_ORDER - 1));
     }
 
 }
-*/
-    /*
-    for each frame, need to track:
-    usage count: 0 free, >0 used
-    flags for dirty, locked, referenced, etc?
-
-
-    The buddy system should expose 2 APIs:
-    get_free_frames()
-    free_frames()
-
-    All frames are grouped into 10 lists of blocks that contain groups of
-    1, 2, 4, 8, 16, ..., 512 contiguous framse, repectively
-    meaning 1*PAGE_SIZE, 2*PAGE_SIZE, ..., 512*PAGE_SIZE per block size 
-    in each group, 4k, 8k, 4m
-
-    The address of the 1st frame of a block is a multiple of the group size
-    */
-
 
 /**
-  * @brief Get contiguous frames
-  *
-  * @param order Represent size of contiguous frames. 
-  * Valid choices are 0, 1, 2, 3, ..., MAX_ORDER - 1
-  * 
-  * @return Base of contiguous frames on success; 3 on failure
-  */
-// uint32_t get_frames(int order) {
+ * @brief Get contiguous frames
+ *
+ * @param order Size of contiguous frames. 
+ * Valid choices are 0, 1, 2, 3, ..., MAX_ORDER - 1
+ * 
+ * Example usage:
+ *      uint32_t new_frame_base = get_frames(i);
+ *      get 2^i pages of contiguous frames
+ * 
+ * @return Base of contiguous frames on success; 3 on failure
+ */
+uint32_t get_frames(int order) {
 
-    /* Example usage:
-       uint32_t new_frame_base = get_frames(i);
-       return 2^i pages of contiguous frames
-    */
 
-/*
-    // Check free area
+    lprintf("order: %d", order);
+    // Check free block lists
     int cur_order = order; 
-    while(order < MAX_ORDER) {
+    while(cur_order < MAX_ORDER) {
         void *block = list_remove_first(&(free_area[cur_order].list));
 
-        if(block == NULL) {
-            // Try find free block in larger size group
+        //if(block == NULL) {
+        if(block == (void *)0xDEADBEEF) {
+            // Try finding free block in a larger size group
             cur_order++;
         } else {
-            free_block_base = (uint32_t)block;
+            uint32_t free_block_base = (uint32_t)block;
             // We have found a free block
             if(cur_order > order) {
                 // But it's too large, we will split it first
                 // Put unused halves back to lists
-                uint32_t block_size = (2 << cur_order) * PAGE_SIZE;
+                uint32_t block_size = (1 << cur_order) * PAGE_SIZE;
                 uint32_t block_base = free_block_base + block_size;
-                while(cur_order >= order) {
+                while(cur_order > order) {
                     block_size >>= 1;
                     block_base -= block_size;
-                    // Place unused half to list of one order less
-                    list_append(&(free_area[cur_order - 1].list),
-                            block_base);
+                    // Place unused half to the free list of one order less
+                    list_append(&(free_area[cur_order - 1].list), 
+                            (void *)block_base);
+                //    hashtable_put(&free_block_ht, (void *)block_base,
+                //            (void *)(cur_order - 1));
+                    cur_order--;
                 }
             } 
-           
+
+            /*
+            int is_find;
+            hashtable_remove(&free_block_ht, (void *)free_block_base,
+                    &is_find);
+            if(!is_find) {
+                lprintf("get_frames: hashtable_remove failed, element doesn't exist");
+                MAGIC_BREAK;
+                return 3;
+            }
+            */
             return free_block_base;
         }
     }
-    
+
     // Failed to find a contiguous block of the size we want
     return 3;
 }
 
-void free_frames() {
+/*
+void free_frames(uint32_t base, int order) {
 
-    // while(buddy is free) {
-    //     combine(this and buddy);
-    // }
+    // Iteratively merge block with its buddy to the highest order possible
+    while(order < MAX_ORDER) {
+        if(order == MAX_ORDER - 1) {
+            // block is of the highest order, no way to merge any more
+            // Put block to its free list and stop
+            list_append(&(free_area[order].list), (void *)base);
+            hashtable_put(&free_block_ht, (void *)base, (void *)order);
+            return;
+        }
+
+        // Get buddy's base
+        uint32_t buddy_base = (base/PAGE_SIZE) ^ (1 << order) * PAGE_SIZE;
+
+        // Check if buddy is free and of the same order
+        int is_find;
+        int buddy_order = (int)hashtable_get(&free_block_ht, 
+                (void *)buddy_base, &is_find);
+        if(is_find == 0 || buddy_order != order) {
+            // Buddy isn't free, or the free part of it isn't of 
+            // the same size, so can't merge with it
+            // Put block to its free list and stop
+            list_append(&(free_area[order].list), (void *)base);
+            hashtable_put(&free_block_ht, (void *)base, (void *)order);
+            return;
+        }
+*/
+        /* Merge with buddy */
+        // Delete buddy from free block map and free list
+/*       hashtable_remove(&free_block_ht, (void *)buddy_base, &is_find);
+        if(!is_find) {
+            lprintf("hashtable_remove failed, element doesn't exist");
+            return;
+        }
+        list_delete(&(free_area[order].list), (void *)buddy_base);
+        base = base < buddy_base ? base : buddy_base;
+        order++;
+    }
 
 }
 */
+
+/*
+   for each frame, need to track:
+
+   The buddy system should expose 2 APIs:
+   get_free_frames()
+   free_frames()
+
+   All frames are grouped into 11 lists of blocks that contain groups of
+   1, 2, 4, 8, 16, ..., 512, 1024 contiguous framse, repectively
+   meaning 1*PAGE_SIZE, 2*PAGE_SIZE, ..., 1024*PAGE_SIZE per block size 
+   in each group, 4k, 8k, ..., 4m
+
+   The address of the 1st frame of a block is a multiple of the group size
+*/
+
+
+
 
 // frame allocator
 uint32_t new_frame() {
@@ -259,10 +338,6 @@ void enable_pge_flag() {
 // Open virtual memory
 int init_vm() {
 
-    // Number of pages available
-    int frame_count = machine_phys_frames();
-    lprintf("frame_count: %d", frame_count);
-
     // Get page direcotry base for a new task
     uint32_t pdb = create_pd();
     set_cr3(pdb);
@@ -274,10 +349,26 @@ int init_vm() {
     // be cleared when %cr3 is reset
     enable_pge_flag();
 
+    // Init buddy system to track frames in user address space
+    init_buddy_system();
+
     lprintf("Paging is enabled!");
 
     return 0;
 }
+
+/** @brief Get next frame from a new_frames_t
+  *
+  * @param
+  * @return Address of the next frame in the frames list
+  *
+  */
+uint32_t get_next_frame(new_frames_t *new_frames_struct) {
+
+    return 0; 
+
+}
+
 
 /** @brief Enable mapping for a region in user space (0x1000000 upwards)
  *
@@ -302,6 +393,16 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
     // Number of pages in the region
     int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
     int i;
+
+    lprintf("va: 0x%x, count:%d", (unsigned)va, count);
+    // count = 2^i + 2^j + ...
+    // frames = get_frames(order);
+    // Apply for new frames
+    new_frames_t *new_frames_struct = get_frames_list(count); 
+    if(new_frames_struct == NULL) {
+        // Insufficient memory
+        return -1;
+    }
 
     uint32_t page = page_lowest;
     pd_t *pd = (pd_t *)get_cr3();
@@ -340,7 +441,11 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
         if(((*pte) & (1 << PG_P)) == 0) {
             // Not present
             // Allocate a new page
-            uint32_t new_f = new_frame();
+            // uint32_t new_f = new_frame();
+            // uint32_t new_f = get_frames(0);
+
+            // Get next frame from the frames list
+            uint32_t new_f = get_next_frame(new_frames_struct);
 
             uint32_t pte_ctrl_bits = get_pg_ctrl_bits(1);
             // Set rw permission
@@ -376,12 +481,13 @@ uint32_t clone_pd() {
     // Allocate count new frames
     int i;
     for(i = 0; i < count; i++) {
-        uint32_t new_f = new_frame();
+    uint32_t new_f = new_frame();
     }
     */
 
-    /* Create a new address space */
-    // Used to copy contents between frames
+    /* The following code creates a new address space */
+
+    // A buffer to copy contents between frames
     char frame_buf[PAGE_SIZE];
     // Clone pd
     pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
@@ -393,7 +499,7 @@ uint32_t clone_pd() {
     int i, j;
     for(i = 0; i < PAGE_SIZE/4; i++) {
         if((pd->pde[i] & (1 << PG_P)) == 1) {
-            // Page table is present
+            // Clone pt
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
             if(pd == NULL) {
                 lprintf("smemalign failed");
@@ -403,23 +509,25 @@ uint32_t clone_pd() {
             memcpy((void *)new_pt, (void *)old_pt_addr, PAGE_SIZE);
             pd->pde[i] = (uint32_t)new_pt | GET_CTRL_BITS(pd->pde[i]);
 
-            // Clone pt
+            // Clone frames
             pt_t *pt = (pt_t *)new_pt;
             for(j = 0; j < PAGE_SIZE/4; j++) {
                 if((pt->pte[j] & (1 << PG_P)) == 1) {
 
-                    // Used the same frame for kernel space
+                    // Use the same frames for kernel space
                     if(i < 4) {
                         continue;
                     }
 
                     uint32_t old_frame_addr = pt->pte[j] & PAGE_ALIGN_MASK;
-                    uint32_t new_f = new_frame();
+                    //uint32_t new_f = new_frame();
+                    uint32_t new_f = get_frames(0);
+
 
                     // Find out the corresponding va of current page
                     uint32_t va = (i << 22) | (j << 12);
                     memcpy(frame_buf, (void *)va, PAGE_SIZE);
-                    
+
                     // Temporarily change the frame that 
                     // old page table points to
                     ((pt_t *)old_pt_addr)->pte[j] = 
