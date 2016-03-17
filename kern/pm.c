@@ -1,8 +1,8 @@
 /**
- * @brief Physical memory allocator
- *
- *
- */
+  * @brief Physical memory allocator
+  *
+  *
+  */
 #include <pm.h>
 #include <pm.h>
 
@@ -12,6 +12,7 @@
 // Blocks are of size 4K, 8K, ..., 4M, given PAGE_SIZE is 4K
 
 static struct free_area_struct free_area[MAX_ORDER];
+//hashtable_t free_block_ht;
 
 // Number of free frames left
 static int num_free_frames;
@@ -55,7 +56,7 @@ int init_pm() {
 
 // For debuging
 void traverse_free_area() {
-
+    
     lprintf("traverse_free_area starts");
     /**** DEBUG *****/
     int i;
@@ -93,7 +94,7 @@ void test_frames() {
 }
 
 int get_frames(int count, list_t *list) {
-
+    
     // Compare count with current number of free frames availale
     if(count > num_free_frames) {
         return -1;
@@ -119,8 +120,8 @@ int get_frames(int count, list_t *list) {
             if(new_frame == ERROR_NOT_ENOUGH_MEM) {
                 return -1;
             }
-            //        lprintf("In get_frames: get_frames_raw ret: %x",
-            //                (unsigned)new_frame);
+    //        lprintf("In get_frames: get_frames_raw ret: %x",
+    //                (unsigned)new_frame);
             uint32_t *data = malloc(2*sizeof(uint32_t));
             if(data == NULL) {
                 list_destroy(list, TRUE);
@@ -156,42 +157,42 @@ int get_frames(int count, list_t *list) {
  */
 uint32_t get_frames_raw(int order) {
 
-    // lprintf("order: %d", order);
-    // Check free block lists
-    int cur_order = order; 
-    while(cur_order < MAX_ORDER) {
+     // lprintf("order: %d", order);
+     // Check free block lists
+     int cur_order = order; 
+     while(cur_order < MAX_ORDER) {
 
-        if(list_is_empty(&free_area[cur_order].list)) {
-            // Try finding free block in a larger size group
-            cur_order++;
-        } else {
-            uint32_t free_block_base =
-                (uint32_t)list_remove_first(
-                        &(free_area[cur_order].list));
-            // We have found a free block
-            if(cur_order > order) {
-                // But it's too large, we will split it first
-                // Put unused halves back to lists
-                uint32_t block_size = (1 << cur_order) * PAGE_SIZE;
-                uint32_t block_base = free_block_base + block_size;
-                while(cur_order > order) {
-                    block_size >>= 1;
-                    block_base -= block_size;
-                    // Place unused half to free list of one order less
-                    int ret = 
-                        list_append(&(free_area[cur_order - 1].list),
-                                (void *)block_base);
-                    if(ret < 0) return ret;
-                    cur_order--;
-                }
-            } 
+         if(list_is_empty(&free_area[cur_order].list)) {
+             // Try finding free block in a larger size group
+             cur_order++;
+         } else {
+             uint32_t free_block_base =
+                 (uint32_t)list_remove_first(
+                         &(free_area[cur_order].list));
+             // We have found a free block
+             if(cur_order > order) {
+                 // But it's too large, we will split it first
+                 // Put unused halves back to lists
+                 uint32_t block_size = (1 << cur_order) * PAGE_SIZE;
+                 uint32_t block_base = free_block_base + block_size;
+                 while(cur_order > order) {
+                     block_size >>= 1;
+                     block_base -= block_size;
+                     // Place unused half to free list of one order less
+                     int ret = 
+                         list_append(&(free_area[cur_order - 1].list),
+                             (void *)block_base);
+                     if(ret < 0) return ret;
+                     cur_order--;
+                 }
+             } 
 
-            return free_block_base;
-        }
-    }
+             return free_block_base;
+         }
+     }
 
-    // Failed to find a contiguous block of the size we want
-    return ERROR_NOT_ENOUGH_MEM; 
+     // Failed to find a contiguous block of the size we want
+     return ERROR_NOT_ENOUGH_MEM; 
 }
 
 int free_frames_raw(uint32_t base, int order) {
@@ -209,7 +210,7 @@ int free_frames_raw(uint32_t base, int order) {
 
         // Get buddy's base
         uint32_t buddy_base = ((((base - USER_MEM_START)/PAGE_SIZE) ^ 
-                    (1 << order)) * PAGE_SIZE) + USER_MEM_START;
+            (1 << order)) * PAGE_SIZE) + USER_MEM_START;
 
         if(list_delete(&(free_area[order].list), (void *)buddy_base) == -1) {
 
@@ -263,7 +264,6 @@ int free_contiguous_frames(uint32_t base, int count) {
 
     return 0;
 }
-
 
 
 

@@ -42,8 +42,12 @@ struct free_area_struct {
 };
 
 
+
 /***** Core physical memory allocator API ****/
 uint32_t get_frames_raw(int order);
+// free_frames_raw(); // TBD
+
+
 
 
 /***** Wrapper for allocator's core API *****/
@@ -58,6 +62,5 @@ void test_frames();
 
 
 #endif
-
 
 

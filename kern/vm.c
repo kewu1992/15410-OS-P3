@@ -19,7 +19,7 @@ void asm_invalidate_tlb(uint32_t va);
    in each group, 4k, 8k, ..., 4m
 
    The address of the 1st frame of a block is a multiple of the group size
-   */
+*/
 
 int pf_handler() {
 
@@ -148,7 +148,7 @@ int init_vm() {
     init_pm();
 
     //test_frames();
-    //test_vm();
+    test_vm();
 
     lprintf("Paging is enabled!");
 
@@ -181,12 +181,25 @@ int count_pages_user_space() {
 }
 
 void test_vm() {
-    int num_pages_allocated = count_pages_user_space();
+    
+    void *base = (void *)0x1040000;
+    int len = 3 * PAGE_SIZE;
+    int ret = new_pages(base, len);
+    if(ret < 0) {
+        lprintf("new_pages failed");
+        MAGIC_BREAK;
+    }
+    *((char *)base) = '9'; 
 
-    lprintf("before traverse_free_area: num_pages_allocated: %d",
-            num_pages_allocated);
-
+    lprintf("wrote to newly allocated space");
+    ret = remove_pages(base);
+    if(ret < 0) {
+        lprintf("remove_pages failed");
+        MAGIC_BREAK;
+    }
     traverse_free_area();
+
+
 }
 
 
@@ -194,7 +207,7 @@ void test_vm() {
  *
  *
  */
-void free_user_space() {
+int free_user_space() {
 
     lprintf("free_user_space is called");
 
@@ -219,7 +232,8 @@ void free_user_space() {
                         cur_len = 1;
                     } else if(cur_frame != frame_start + cur_len * PAGE_SIZE) {
                         // Free contiguous frames described by frame_start and cur_len
-                        free_contiguous_frames(frame_start, cur_len);
+                        int ret = free_contiguous_frames(frame_start, cur_len);
+                        if(ret < 0) return ret;
 
                         frame_start = cur_frame;
                         cur_len = 1;
@@ -231,7 +245,7 @@ void free_user_space() {
                     pt->pte[j] = 0;
                 }
             }
-
+            
             // Free page table
             pd->pde[i] = 0;
             sfree((void *)pt_addr, PAGE_SIZE);
@@ -244,6 +258,8 @@ void free_user_space() {
     }
 
     lprintf("free_user_space finished");
+
+    return 0;
 
 }
 
@@ -297,10 +313,12 @@ int count_pages_allocated(uint32_t va, int size_bytes) {
  *  @param va The virtual address the region starts with
  *  @param size_bytes The size of the region
  *  @param rw_perm The rw permission of the region, 1 as rw, 0 as ro
+ *  @param is_new_pages_syscall If the caller is the new_pages system call
  *
  *  @return 0 on success; -1 on error
  */
-int new_region(uint32_t va, int size_bytes, int rw_perm) {
+int new_region(uint32_t va, int size_bytes, int rw_perm, 
+        int is_new_pages_syscall) {
     // Find frames for this region, set pd and pt
 
     // Enable mapping from the page where the first byte of region
@@ -311,7 +329,6 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
     // been allocated.
     int num_pages_allocated = count_pages_allocated(va, size_bytes);
 
-
     uint32_t page_lowest = va & PAGE_ALIGN_MASK;
     uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
         PAGE_ALIGN_MASK;
@@ -320,19 +337,15 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
     int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
     int i;
 
-    // lprintf("va: 0x%x, count:%d", (unsigned)va, count);
-
     if(num_pages_allocated > 0) {
-        // Some pages have already been allocated
-        // May return directly if new_region is called by new_pages
-        // lprintf("num pages already allocated: %d", num_pages_allocated);
+        if(is_new_pages_syscall) {
+            // Some pages have already been allocated in this address space
+            return ERROR_OVERLAP;
+        }
+
         count -= num_pages_allocated;
     }
-
-    // count = 2^i + 2^j + ...
-    // frames = get_frames(order);
-    // Apply for new frames
-
+    
     list_t list;
     if(get_frames(count, &list) == -1) {
         return -1;
@@ -377,7 +390,6 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
         if(((*pte) & (1 << PG_P)) == 0) {
             // Not present
             // Allocate a new page
-            // uint32_t new_f = new_frame();
             if(frames_left == 0) {
                 uint32_t *data = list_remove_first(&list);
                 frames_left = data[0];
@@ -396,6 +408,17 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
             // Change privilege level to user
             // Allow user mode access when set
             SET_BIT(pte_ctrl_bits, PG_US);
+
+            // new_pages system call related
+            if(is_new_pages_syscall) {
+                if(page == page_lowest) {
+                    SET_BIT(pte_ctrl_bits, PG_NEW_PAGES_START);
+                }
+
+                if(page == page_highest) {
+                    SET_BIT(pte_ctrl_bits, PG_NEW_PAGES_END);
+                }
+            }
 
             *pte = ((uint32_t)new_f | pte_ctrl_bits);
             // Clear page
@@ -461,7 +484,7 @@ uint32_t clone_pd() {
                 if((pt->pte[j] & (1 << PG_P)) == 1) {
 
                     uint32_t old_frame_addr = pt->pte[j] & PAGE_ALIGN_MASK;
-
+                    
                     //uint32_t new_f = new_frame();
                     if(frames_left == 0) {
                         uint32_t *data = list_remove_first(&list);
@@ -500,37 +523,123 @@ uint32_t clone_pd() {
     return (uint32_t)pd;
 }
 
+// Called by remove_pages system call
+int remove_region(uint32_t va) {
+
+    uint32_t page_lowest = va & PAGE_ALIGN_MASK;
+
+    uint32_t frame_start = 0;
+    uint32_t cur_len = 0;
+
+    uint32_t page = page_lowest;
+    pd_t *pd = (pd_t *)get_cr3();
+
+    while(1) {
+        uint32_t pd_index = GET_PD_INDEX(page);
+        pde_t *pde = &(pd->pde[pd_index]);
+
+        // Check page directory entry presence
+        if(((*pde) & (1 << PG_P)) == 0) {
+            // Not present
+            lprintf("pde not present, page: %x", (unsigned)page);
+            return ERROR_BASE_NOT_PREV;
+        }
+
+        // Check page table entry presence
+        uint32_t pt_index = GET_PT_INDEX(page);
+        pt_t *pt = (pt_t *)((*pde) & PAGE_ALIGN_MASK);
+        pte_t *pte = &(pt->pte[pt_index]);
+
+        if(((*pte) & (1 << PG_P)) == 0) {
+            // Not present
+            lprintf("pte not present, page: %x", (unsigned)page);
+            return ERROR_BASE_NOT_PREV;
+        }
+
+        uint32_t cur_frame = (*pte) & PAGE_ALIGN_MASK;
+        if(cur_len == 0) {
+            if(!IS_SET(*pte, PG_NEW_PAGES_START)) {
+                lprintf("PG_NEW_PAGES_START not set, first page: %x", 
+                        (unsigned)page);
+                return ERROR_BASE_NOT_PREV;
+            }
+            frame_start = cur_frame;
+            cur_len = 1;
+        } else if(cur_frame != frame_start + cur_len * PAGE_SIZE) {
+            // Free contiguous frames described by frame_start and cur_len
+            int ret = free_contiguous_frames(frame_start, cur_len);
+            if(ret < 0) {
+                lprintf("free_contiguous_frames failed, page: %x", 
+                        (unsigned)page);
+                return ret;
+            }
+
+            frame_start = cur_frame;
+            cur_len = 1;
+        } else {
+            cur_len++;
+        }
+
+
+        if(IS_SET(*pte, PG_NEW_PAGES_END)) {
+            //lprintf("PG_NEW_PAGES_END found, page: %x", 
+            //        (unsigned)page);
+            // Free last page in this region
+            int ret = free_contiguous_frames(frame_start, cur_len);
+            if(ret < 0) {
+                lprintf("free_contiguous_frames failed, page: %x", 
+                        (unsigned)page);
+            }
+            // Remove page table entry
+            (*pte) = 0;
+            return ret;
+        }
+
+        // Remove page table entry
+        (*pte) = 0;
+
+        page += PAGE_SIZE;
+    }
+
+    return 0;
+}
+
 
 /**
- * @brief new_pages syscall
- *
- */
+  * @brief new_pages syscall
+  *
+  */
 int new_pages(void *base, int len) {
+
     // if base is not aligned
+    if((uint32_t)base % PAGE_SIZE != 0) {
+        return ERROR_BASE_NOT_ALIGNED;     
+    }
+
     // if len is not a positive integral multiple of the system page size
-    // if any portion of the region represents memory already in the task's 
-    // address space
-    // if any portion of the region intersects a part of the address space reserved by the kernel
-    // if the operating system has insufficient resources to satisfy the request.
-    return -1; // Assign different error code later
+    if(!(len > 0 && len % PAGE_SIZE == 0)) {
+        return ERROR_LEN;
+    }
+    
+    // if any portion of the region intersects a part of the address space
+    // reserved by the kernel
+    if(!((uint32_t)base >= USER_MEM_START)) {
+        return ERROR_KERNEL_SPACE;
+    }
 
+    // Allocate pages of read-write permission
+    int ret = new_region((uint32_t)base, len, 1, TRUE);    
+    return ret;
 
-    // Allocate a read write region
-    //int ret = new_region(base, len, 1);
-
-    return 0;
 }
 
 /**
- * @brief remove_pages syscall
- *
- */
+  * @brief remove_pages syscall
+  *
+  */
 int remove_pages(void *base) {
-    // if base is not allocated as a result of a previous new_pages call
-    return -1; // Assign different error code later
 
+    return remove_region((uint32_t)base);
 
-    return 0;
 }
-
 
