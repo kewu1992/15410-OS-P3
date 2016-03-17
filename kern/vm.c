@@ -7,145 +7,19 @@
  */
 
 #include <vm.h>
-//#include <list.h>
+#include <pm.h>
+#include <list.h>
 
 void asm_invalidate_tlb(uint32_t va);
 
-// Currently don't support more than one process, thus one page-directory
-// static uint32_t initial_pd;
-
-// Dummy frame counter
-static int frame_counter;
-
 /*
-uint32_t get_pd() {
-    return initial_pd;
-}
-*/
+   All frames are grouped into 11 lists of blocks that contain groups of
+   1, 2, 4, 8, 16, ..., 512, 1024 contiguous framse, repectively
+   meaning 1*PAGE_SIZE, 2*PAGE_SIZE, ..., 1024*PAGE_SIZE per block size 
+   in each group, 4k, 8k, ..., 4m
 
-struct free_area_struct {
-    /* @brief a doubly linked circular list of blocks */
-    //list_t list;
-    /* @brief Keep track of the blocks it allocates in this group */
-    // int bitmap;
-};
-
-#define MAX_ORDER 10
-
-struct free_area_struct free_area[MAX_ORDER];
-
-
-/*
-// Manage continugous page allocation
-void init_buddy_system() {
-    // init MAX_ORDER lists
-    int i;
-    for(i = 0; i < MAX_ORDER; i++) {
-        if(list_init(&free_area[i].list)) {
-            lprintf("list_init failed");
-            panic("list_init failed");
-        }
-    }
-
-    // Populate the list of the largest order with the
-    // available frames (not counting kernel space), 
-    // which are divided into blocks of size 2^(MAX_ORDER-1)
-    // pages
-    int avail_frame_count = machine_phys_frames() - 
-        USER_MEM_START/PAGE_SIZE;
-
-    uint32_t base = USER_MEM_START;
-    uint32_t block_size = (2 << (MAX_ORDER - 1)) * PAGE_SIZE;
-    for(i = 0; i < avail_frame_count; i++) {
-        list_append(&(free_area[MAX_ORDER - 1].list), (void *)base);
-        base += block_size;
-    }
-
-}
-*/
-    /*
-    for each frame, need to track:
-    usage count: 0 free, >0 used
-    flags for dirty, locked, referenced, etc?
-
-
-    The buddy system should expose 2 APIs:
-    get_free_frames()
-    free_frames()
-
-    All frames are grouped into 10 lists of blocks that contain groups of
-    1, 2, 4, 8, 16, ..., 512 contiguous framse, repectively
-    meaning 1*PAGE_SIZE, 2*PAGE_SIZE, ..., 512*PAGE_SIZE per block size 
-    in each group, 4k, 8k, 4m
-
-    The address of the 1st frame of a block is a multiple of the group size
-    */
-
-
-/**
-  * @brief Get contiguous frames
-  *
-  * @param order Represent size of contiguous frames. 
-  * Valid choices are 0, 1, 2, 3, ..., MAX_ORDER - 1
-  * 
-  * @return Base of contiguous frames on success; 3 on failure
-  */
-// uint32_t get_frames(int order) {
-
-    /* Example usage:
-       uint32_t new_frame_base = get_frames(i);
-       return 2^i pages of contiguous frames
-    */
-
-/*
-    // Check free area
-    int cur_order = order; 
-    while(order < MAX_ORDER) {
-        void *block = list_remove_first(&(free_area[cur_order].list));
-
-        if(block == NULL) {
-            // Try find free block in larger size group
-            cur_order++;
-        } else {
-            free_block_base = (uint32_t)block;
-            // We have found a free block
-            if(cur_order > order) {
-                // But it's too large, we will split it first
-                // Put unused halves back to lists
-                uint32_t block_size = (2 << cur_order) * PAGE_SIZE;
-                uint32_t block_base = free_block_base + block_size;
-                while(cur_order >= order) {
-                    block_size >>= 1;
-                    block_base -= block_size;
-                    // Place unused half to list of one order less
-                    list_append(&(free_area[cur_order - 1].list),
-                            block_base);
-                }
-            } 
-           
-            return free_block_base;
-        }
-    }
-    
-    // Failed to find a contiguous block of the size we want
-    return 3;
-}
-
-void free_frames() {
-
-    // while(buddy is free) {
-    //     combine(this and buddy);
-    // }
-
-}
-*/
-
-// frame allocator
-uint32_t new_frame() {
-
-    return USER_MEM_START + (frame_counter++) * PAGE_SIZE;
-
-}
+   The address of the 1st frame of a block is a multiple of the group size
+   */
 
 int pf_handler() {
 
@@ -201,7 +75,7 @@ uint32_t create_pd() {
     pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
     if(pd == NULL) {
         lprintf("smemalign failed");
-        panic("smemalign failed");
+        return ERROR_MALLOC_LIB;
     }
     // Clear
     memset(pd, 0, PAGE_SIZE);
@@ -214,7 +88,7 @@ uint32_t create_pd() {
         void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
         if(pd == NULL) {
             lprintf("smemalign failed");
-            panic("smemalign failed");
+            return ERROR_MALLOC_LIB;
         }
         // Clear
         memset(new_pt, 0, PAGE_SIZE);
@@ -259,10 +133,6 @@ void enable_pge_flag() {
 // Open virtual memory
 int init_vm() {
 
-    // Number of pages available
-    int frame_count = machine_phys_frames();
-    lprintf("frame_count: %d", frame_count);
-
     // Get page direcotry base for a new task
     uint32_t pdb = create_pd();
     set_cr3(pdb);
@@ -274,10 +144,151 @@ int init_vm() {
     // be cleared when %cr3 is reset
     enable_pge_flag();
 
+    // Init buddy system to track frames in user address space
+    init_pm();
+
+    //test_frames();
+    //test_vm();
+
     lprintf("Paging is enabled!");
 
     return 0;
 }
+
+/** @brief Count number of pages allocated in user space
+ *
+ *
+ */
+int count_pages_user_space() {
+    int num_pages_allocated = 0;
+    pd_t *pd = (pd_t *)get_cr3();
+
+    int i, j;
+    // i = 4, starts from user space
+    for(i = 4; i < PAGE_SIZE/4; i++) {
+        if((pd->pde[i] & (1 << PG_P)) == 1) {
+
+            pt_t *pt = (pt_t *)(pd->pde[i] & PAGE_ALIGN_MASK);
+            for(j = 0; j < PAGE_SIZE/4; j++) {
+                if((pt->pte[j] & (1 << PG_P)) == 1) {
+                    num_pages_allocated++;
+                }
+            }
+        }
+    }
+
+    return num_pages_allocated;
+}
+
+void test_vm() {
+    int num_pages_allocated = count_pages_user_space();
+
+    lprintf("before traverse_free_area: num_pages_allocated: %d",
+            num_pages_allocated);
+
+    traverse_free_area();
+}
+
+
+/** @brief Free pages allocated in this user space
+ *
+ *
+ */
+void free_user_space() {
+
+    lprintf("free_user_space is called");
+
+    pd_t *pd = (pd_t *)get_cr3();
+
+    uint32_t frame_start = 0;
+    uint32_t cur_len = 0;
+
+    int i, j;
+    // i = 4, starts from user space
+    for(i = 4; i < PAGE_SIZE/4; i++) {
+        if((pd->pde[i] & (1 << PG_P)) == 1) {
+
+            uint32_t pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
+            pt_t *pt = (pt_t *)pt_addr;
+            for(j = 0; j < PAGE_SIZE/4; j++) {
+                if((pt->pte[j] & (1 << PG_P)) == 1) {
+
+                    uint32_t cur_frame = pt->pte[j] & PAGE_ALIGN_MASK;
+                    if(cur_len == 0) {
+                        frame_start = cur_frame;
+                        cur_len = 1;
+                    } else if(cur_frame != frame_start + cur_len * PAGE_SIZE) {
+                        // Free contiguous frames described by frame_start and cur_len
+                        free_contiguous_frames(frame_start, cur_len);
+
+                        frame_start = cur_frame;
+                        cur_len = 1;
+                    } else {
+                        cur_len++;
+                    }
+
+                    // Remove page table entry
+                    pt->pte[j] = 0;
+                }
+            }
+
+            // Free page table
+            pd->pde[i] = 0;
+            sfree((void *)pt_addr, PAGE_SIZE);
+        }
+    }
+
+    // Free last contiguous frames
+    if(cur_len != 0) {
+        free_contiguous_frames(frame_start, cur_len);
+    }
+
+    lprintf("free_user_space finished");
+
+}
+
+/** @brief Count number of pages allocated in region
+ *
+ *
+ */
+int count_pages_allocated(uint32_t va, int size_bytes) {
+    int num_pages_allocated = 0;
+
+    uint32_t page_lowest = va & PAGE_ALIGN_MASK;
+    uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
+        PAGE_ALIGN_MASK;
+    int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
+    int i;
+
+    uint32_t page = page_lowest;
+    pd_t *pd = (pd_t *)get_cr3();
+
+    for(i = 0; i < count; i++) {
+        uint32_t pd_index = GET_PD_INDEX(page);
+        pde_t *pde = &(pd->pde[pd_index]);
+
+        // Check page directory entry presence
+        if(((*pde) & (1 << PG_P)) == 1) {
+            // Present
+
+            // Check page table entry presence
+            uint32_t pt_index = GET_PT_INDEX(page);
+            pt_t *pt = (pt_t *)((*pde) & PAGE_ALIGN_MASK);
+            pte_t *pte = &(pt->pte[pt_index]);
+
+            if(((*pte) & (1 << PG_P)) == 1) {
+                // Present
+                num_pages_allocated++;
+            }
+        }
+
+        page += PAGE_SIZE;
+    }
+
+
+    return num_pages_allocated;
+}
+
 
 /** @brief Enable mapping for a region in user space (0x1000000 upwards)
  *
@@ -295,6 +306,12 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
     // Enable mapping from the page where the first byte of region
     // is in, to the one where the last byte of the region is in
 
+    // Need to traverse new_region first to know how many new frames
+    // are needed, because some part of the region may already have
+    // been allocated.
+    int num_pages_allocated = count_pages_allocated(va, size_bytes);
+
+
     uint32_t page_lowest = va & PAGE_ALIGN_MASK;
     uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
         PAGE_ALIGN_MASK;
@@ -302,6 +319,26 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
     // Number of pages in the region
     int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
     int i;
+
+    // lprintf("va: 0x%x, count:%d", (unsigned)va, count);
+
+    if(num_pages_allocated > 0) {
+        // Some pages have already been allocated
+        // May return directly if new_region is called by new_pages
+        // lprintf("num pages already allocated: %d", num_pages_allocated);
+        count -= num_pages_allocated;
+    }
+
+    // count = 2^i + 2^j + ...
+    // frames = get_frames(order);
+    // Apply for new frames
+
+    list_t list;
+    if(get_frames(count, &list) == -1) {
+        return -1;
+    }
+    int frames_left = 0;
+    uint32_t cur_frame = 0;
 
     uint32_t page = page_lowest;
     pd_t *pd = (pd_t *)get_cr3();
@@ -318,7 +355,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
             if(pd == NULL) {
                 lprintf("smemalign failed");
-                panic("smemalign failed");
+                return ERROR_MALLOC_LIB;
             }
             // Clear
             memset(new_pt, 0, PAGE_SIZE);
@@ -340,7 +377,16 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
         if(((*pte) & (1 << PG_P)) == 0) {
             // Not present
             // Allocate a new page
-            uint32_t new_f = new_frame();
+            // uint32_t new_f = new_frame();
+            if(frames_left == 0) {
+                uint32_t *data = list_remove_first(&list);
+                frames_left = data[0];
+                cur_frame = data[1];
+            } 
+
+            frames_left--;
+            uint32_t new_f = cur_frame;
+            cur_frame += PAGE_SIZE;
 
             uint32_t pte_ctrl_bits = get_pg_ctrl_bits(1);
             // Set rw permission
@@ -359,6 +405,8 @@ int new_region(uint32_t va, int size_bytes, int rw_perm) {
         page += PAGE_SIZE;
     }
 
+    list_destroy(&list, TRUE);
+
     return 0;
 }
 
@@ -367,59 +415,69 @@ uint32_t clone_pd() {
     // The pd to clone
     uint32_t old_pd = get_cr3();
 
-    /* 
-       Do this when using buddy system
-    // Traverse page directory to get the total number of pages used
-    // Should consider remember this number
-    int count = count_num_pages(pd);
-
-    // Allocate count new frames
-    int i;
-    for(i = 0; i < count; i++) {
-        uint32_t new_f = new_frame();
+    // Number of pages allocated in this user space
+    int num_pages_allocated = count_pages_user_space();
+    // lprintf("clone_pd: num_pages_allocated:%d", num_pages_allocated);
+    list_t list;
+    if(get_frames(num_pages_allocated, &list) == -1) {
+        return ERROR_NOT_ENOUGH_MEM;
     }
-    */
+    int frames_left = 0;
+    uint32_t cur_frame = 0;
 
-    /* Create a new address space */
-    // Used to copy contents between frames
+    /* The following code creates a new address space */
+
+    // A buffer to copy contents between frames
     char frame_buf[PAGE_SIZE];
     // Clone pd
     pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
     if(pd == NULL) {
         lprintf("smemalign failed");
-        panic("smemalign failed");
+        return ERROR_MALLOC_LIB;
     }
     memcpy(pd, (void *)old_pd, PAGE_SIZE);
     int i, j;
     for(i = 0; i < PAGE_SIZE/4; i++) {
         if((pd->pde[i] & (1 << PG_P)) == 1) {
-            // Page table is present
+            // Clone pt
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
             if(pd == NULL) {
                 lprintf("smemalign failed");
-                panic("smemalign failed");
+                return ERROR_MALLOC_LIB;
             }
             uint32_t old_pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
             memcpy((void *)new_pt, (void *)old_pt_addr, PAGE_SIZE);
             pd->pde[i] = (uint32_t)new_pt | GET_CTRL_BITS(pd->pde[i]);
 
-            // Clone pt
+
+            // Use the same frames for kernel space
+            if(i < 4) {
+                continue;
+            }
+
+            // Clone frames
             pt_t *pt = (pt_t *)new_pt;
             for(j = 0; j < PAGE_SIZE/4; j++) {
                 if((pt->pte[j] & (1 << PG_P)) == 1) {
 
-                    // Used the same frame for kernel space
-                    if(i < 4) {
-                        continue;
-                    }
-
                     uint32_t old_frame_addr = pt->pte[j] & PAGE_ALIGN_MASK;
-                    uint32_t new_f = new_frame();
+
+                    //uint32_t new_f = new_frame();
+                    if(frames_left == 0) {
+                        uint32_t *data = list_remove_first(&list);
+                        frames_left = data[0];
+                        cur_frame = data[1];
+                    } 
+
+                    frames_left--;
+                    uint32_t new_f = cur_frame;
+                    cur_frame += PAGE_SIZE;
+
 
                     // Find out the corresponding va of current page
                     uint32_t va = (i << 22) | (j << 12);
                     memcpy(frame_buf, (void *)va, PAGE_SIZE);
-                    
+
                     // Temporarily change the frame that 
                     // old page table points to
                     ((pt_t *)old_pt_addr)->pte[j] = 
@@ -441,4 +499,38 @@ uint32_t clone_pd() {
 
     return (uint32_t)pd;
 }
+
+
+/**
+ * @brief new_pages syscall
+ *
+ */
+int new_pages(void *base, int len) {
+    // if base is not aligned
+    // if len is not a positive integral multiple of the system page size
+    // if any portion of the region represents memory already in the task's 
+    // address space
+    // if any portion of the region intersects a part of the address space reserved by the kernel
+    // if the operating system has insufficient resources to satisfy the request.
+    return -1; // Assign different error code later
+
+
+    // Allocate a read write region
+    //int ret = new_region(base, len, 1);
+
+    return 0;
+}
+
+/**
+ * @brief remove_pages syscall
+ *
+ */
+int remove_pages(void *base) {
+    // if base is not allocated as a result of a previous new_pages call
+    return -1; // Assign different error code later
+
+
+    return 0;
+}
+
 

@@ -59,6 +59,9 @@ typedef struct {
 #define GET_PT_INDEX(va) (((va) << 10) >> 22)
 #define GET_CTRL_BITS(e) (((e) << 20) >> 20)
 
+#define ERROR_MALLOC_LIB (-1)
+#define ERROR_NOT_ENOUGH_MEM 3
+
 // Init paging
 // default, the entire kernel 16 MB will be mapped
 int init_vm();
@@ -67,7 +70,10 @@ uint32_t create_pd();
 uint32_t clone_pd();
 
 int new_region(uint32_t va, int size_bytes, int rw_perm);
+void free_user_space();
+void test_vm();
 
 #endif
+
 
 
