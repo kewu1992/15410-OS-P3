@@ -148,7 +148,7 @@ int init_vm() {
     init_pm();
 
     //test_frames();
-    test_vm();
+    //test_vm();
 
     lprintf("Paging is enabled!");
 
