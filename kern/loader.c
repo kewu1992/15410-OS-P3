@@ -102,10 +102,11 @@ void* loadTask(const char *filename, int argc, const char **argv, void** usr_esp
     // level program can't write to read-only regions
     // Supervisor can still write to uesr level read-only region 
     // if WP (write protection, bit 16 of %cr0) isn't set
-    new_region(simple_elf.e_txtstart, simple_elf.e_txtlen, 0);
-    new_region(simple_elf.e_datstart, simple_elf.e_datlen, 1);
-    new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen, 0);
-    new_region(simple_elf.e_bssstart, simple_elf.e_bsslen, 1);
+    new_region(simple_elf.e_txtstart, simple_elf.e_txtlen, 0, 0);
+    new_region(simple_elf.e_datstart, simple_elf.e_datlen, 1, 0);
+    new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen, 0, 0);
+    new_region(simple_elf.e_bssstart, simple_elf.e_bsslen, 1, 0);
+
 
     // copy bytes from elf
     getbytes(filename, (int)simple_elf.e_txtoff, 
@@ -135,7 +136,7 @@ void* loadTask(const char *filename, int argc, const char **argv, void** usr_esp
     // calculate pages needed initially
     int page_num = len / PAGE_SIZE + 1;
     // allocate page
-    new_region(MAX_ADDR - page_num * PAGE_SIZE, page_num * PAGE_SIZE, 1);
+    new_region(MAX_ADDR - page_num * PAGE_SIZE, page_num * PAGE_SIZE, 1, 0);
 
     // put argv[]
     int arg_len;

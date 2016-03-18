@@ -124,16 +124,6 @@ void task_vanish(int status)
 		continue;
 }
 
-int new_pages(void * addr, int len)
-{
-	return -1;
-}
-
-int remove_pages(void * addr)
-{
-	return -1;
-}
-
 unsigned int get_ticks()
 {
 	return 1;
