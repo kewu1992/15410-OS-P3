@@ -41,4 +41,6 @@ void asm_pf_handler();
 
 void fork_wrapper();
 
+void exec_wrapper();
+
 #endif

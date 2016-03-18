@@ -23,11 +23,6 @@
 #include <syscall.h>
 #include <simics.h>
 
-int exec(char *execname, char *argvec[])
-{
-	return -1;
-}
-
 void set_status(int status)
 {
 	lprintf("I can not exit because syscall is not implemented... exit status: %d", status);

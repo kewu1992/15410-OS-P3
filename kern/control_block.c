@@ -12,6 +12,7 @@
 
 static tcb_t **tcb_table;
 
+// need lock!!!!!!!!!!!!!!
 static int id_count = 0;
 
 static void tcb_set_entry(void *addr, tcb_t *thr);

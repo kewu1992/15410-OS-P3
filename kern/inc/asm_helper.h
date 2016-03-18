@@ -14,4 +14,6 @@ void asm_pusha();
 void asm_popf();
 void asm_pushf();
 
+int asm_xchg(int *lock_available, int val);
+
 #endif

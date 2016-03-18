@@ -19,6 +19,7 @@
 .globl asm_pop_ss
 .globl asm_push_ss
 .globl asm_set_ss
+.globl asm_xchg
 
 
 asm_get_ebp:
@@ -41,43 +42,39 @@ asm_set_esp_w_ret:
     ret  
 
 asm_pop_generic:
-    addl    $4, %esp         # skip ret addr
+    popl    24(%esp)         # move ret addr
     popl    %ebp             # restore all generic registers except %esp and %eax
     popl    %edi
     popl    %esi
     popl    %edx
     popl    %ecx
     popl    %ebx
-    pushl   -28(%esp)        # push ret addr
     ret
 
 asm_push_generic:
-    popl    -28(%esp)       # move return addr
     pushl   %ebx            # save all generic registers except %esp and %eax
     pushl   %ecx
     pushl   %edx
     pushl   %esi
     pushl   %edi
     pushl   %ebp
-    subl    $4, %esp        # esp -= 4 so that it points to ret addr
+    pushl   24(%esp)        # push ret addr
     ret
 
 asm_pop_ss:
-    addl    $4, %esp         # skip ret addr
+    popl    16(%esp)         # move ret addr
     popl    %gs              # restore all data segment selectors
     popl    %fs
     popl    %es
     popl    %ds
-    pushl   -20(%esp)        # push ret addr
     ret
 
 asm_push_ss:
-    popl    -20(%esp)        # move return addr
     pushl   %ds              # save all data segment selectors
     pushl   %es
     pushl   %fs
     pushl   %gs
-    subl    $4, %esp         # esp -= 4 so that it points to ret addr
+    pushl   16(%esp)         # push ret addr
     ret
 
 asm_set_ss:
@@ -90,3 +87,9 @@ asm_set_ss:
     popl    %fs
     popl    %gs
     ret
+
+asm_xchg:
+    movl    4(%esp), %ecx   # Get lock_available
+    movl    8(%esp), %eax   # Get val
+    xchg    (%ecx), %eax    # atomically exchange *lock_available with val
+    ret                     # Return old (*lock_availble)

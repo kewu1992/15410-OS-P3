@@ -11,16 +11,9 @@ void func() {
 
 int main() {
     lprintf("I am switched program!");
-
-    char *switched_text = "switched";
-
-    long i = 1;
-    while (i++) {
-        if (i % 15000 == 0){
-            lprintf("%s:%ld", switched_text, i/15000);
-        }
-    }
     
+    char* argv[] = {"small_program", "233333", NULL};
+    exec("small_program", argv);
 
     return 0;
 }

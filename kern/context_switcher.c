@@ -1,3 +1,9 @@
+/*  When context switch will happen?
+ *      1. timer interrupt (context_switch(-1))
+ *      2. yield(-1), yield(tid)
+ *      3. I/O interrupt (context_switch(tid))
+ *      4. system call that cause thread fork/blocked
+ */
 #include <scheduler.h>
 #include <asm_helper.h>
 #include <control_block.h>
@@ -61,10 +67,14 @@ void context_switch(int mode) {
 
         tcb_create_process_only(RUNNING, this_thr);
 
-        void* my_program = loadTask(secondTask);
+        const char *argv[1] = {secondTask};
+        void* usr_esp;
+        void* my_program = loadTask(secondTask, 1, argv, &usr_esp);
 
         void* eip = (void*)(((uint32_t)tcb_get_high_addr((void*)asm_get_esp())) - 20);
         memcpy(eip, &my_program, 4);
+        void* esp = (void*)(((uint32_t)tcb_get_high_addr((void*)asm_get_esp())) - 8);
+        memcpy(esp, &usr_esp, 4);
 
         set_esp0((uint32_t)tcb_get_high_addr((void*)asm_get_esp()));
     }
