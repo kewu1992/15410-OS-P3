@@ -2,6 +2,7 @@
 #include <malloc.h>
 #include <common_kern.h>
 #include <cr.h>
+#include <asm_atomic.h>
 
 /* k-stack size is 8192 */
 #define K_STACK_BITS    13
@@ -39,7 +40,7 @@ tcb_t* tcb_create_thread_only(pcb_t* process) {
     if (thread == NULL) {
         return NULL;
     }
-    thread->tid = id_count++;
+    thread->tid = atomic_add(&id_count);
     thread->pcb = process;
     thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;
     if (thread->k_stack_esp == NULL) {
