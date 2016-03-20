@@ -43,4 +43,6 @@ void fork_wrapper();
 
 void exec_wrapper();
 
+void pf_wrapper();
+
 #endif
