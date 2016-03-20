@@ -19,7 +19,6 @@
 .globl asm_pop_ss
 .globl asm_push_ss
 .globl asm_set_ss
-.globl asm_xchg
 
 
 asm_get_ebp:
@@ -88,8 +87,3 @@ asm_set_ss:
     popl    %gs
     ret
 
-asm_xchg:
-    movl    4(%esp), %ecx   # Get lock_available
-    movl    8(%esp), %eax   # Get val
-    xchg    (%ecx), %eax    # atomically exchange *lock_available with val
-    ret                     # Return old (*lock_availble)

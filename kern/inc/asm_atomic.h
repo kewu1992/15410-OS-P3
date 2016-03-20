@@ -3,4 +3,6 @@
 
 int atomic_add(int* num);
 
+int asm_xchg(int *lock_available, int val);
+
 #endif

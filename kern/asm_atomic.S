@@ -1,6 +1,9 @@
-# int atomic_add(int* num)
 
+# int atomic_add(int* num)
 .globl atomic_add
+
+# int asm_xchg(int *lock_available, int val);
+.globl asm_xchg
 
 atomic_add:
     movl    4(%esp), %ecx           # %ecx = num
@@ -13,3 +16,9 @@ atomic_add:
     jnz     .L1
     addl    $1, %eax                # %eax = *num (after atomic add)
     ret
+
+asm_xchg:
+    movl    4(%esp), %ecx   # Get lock_available
+    movl    8(%esp), %eax   # Get val
+    xchg    (%ecx), %eax    # atomically exchange *lock_available with val
+    ret                     # Return old (*lock_availble)
