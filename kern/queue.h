@@ -30,12 +30,16 @@ typedef struct deque{
 
 int queue_init(deque_t *deque);
 
-int enqueue(deque_t *deque, void* data);
+int queue_enqueue(deque_t *deque, void* data);
 
-void* dequeue(deque_t *deque);
+void* queue_dequeue(deque_t *deque);
+
+void* queue_remove(deque_t *deque, void *field, void*(*func)(void*));
 
 int queue_destroy(deque_t *deque);
 
 int queue_is_active(deque_t *deque);
+
+int queue_is_empty(deque_t *deque);
 
 #endif
