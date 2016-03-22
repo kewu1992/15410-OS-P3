@@ -30,11 +30,11 @@ typedef int spinlock_t;
 
 int spinlock_init(spinlock_t* lock);
 
-void spinlcok_lock(spinlock_t* lock);
+void spinlock_lock(spinlock_t* lock);
 
-void spinlcok_unlock(spinlock_t* lock);
+void spinlock_unlock(spinlock_t* lock);
 
-void spinlcok_destroy(spinlock_t* lock);
+void spinlock_destroy(spinlock_t* lock);
 
 #endif /* _SPINLOCK_H */
 

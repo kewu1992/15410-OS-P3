@@ -12,6 +12,7 @@
 #include <vm.h>
 #include <loader.h>
 #include <simics.h>
+#include <stdio.h>
 
 static tcb_t* first_task;
 
@@ -105,7 +106,11 @@ tcb_t* context_switch_get_next(int mode, tcb_t* this_thr) {
             first_task = new_thr;
             return this_thr;
         } else  {
-            scheduler_enqueue_tail(this_thr);
+            if (scheduler_enqueue_tail(this_thr) < 0) {
+                printf("scheduler_enqueue_tail() failed, context switch \
+                        failed for thread %d", this_thr->tid);
+                return this_thr;
+            }
             return new_thr;
         }
 
@@ -119,12 +124,20 @@ tcb_t* context_switch_get_next(int mode, tcb_t* this_thr) {
         else {
             this_thr->fork_result = new_thr->tid;
             new_thr->fork_result = 0;
-            scheduler_enqueue_tail(this_thr);
+            if (scheduler_enqueue_tail(this_thr) < 0) {
+                printf("scheduler_enqueue_tail() failed, context switch \
+                        failed for thread %d", this_thr->tid);
+                return this_thr;
+            }
             return new_thr;
         }
     default:
         // let scheduler to choose the next thread to run
-        scheduler_enqueue_tail(this_thr);
+        if (scheduler_enqueue_tail(this_thr) < 0) {
+            printf("scheduler_enqueue_tail() failed, context switch \
+                    failed for thread %d", this_thr->tid);
+            return this_thr;
+        }
         return scheduler_get_next(mode);
     }
 }

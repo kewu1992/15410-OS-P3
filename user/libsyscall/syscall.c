@@ -85,11 +85,6 @@ int readline(int size, char *buf)
 	return -1;
 }
 
-int print(int size, char *buf)
-{
-	return -1;
-}
-
 int set_term_color(int color)
 {
 	return -1;

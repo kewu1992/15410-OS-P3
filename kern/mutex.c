@@ -56,40 +56,35 @@ int mutex_init(mutex_t *mp) {
  *  @return void
  */
 void mutex_destroy(mutex_t *mp) {
-    spinlcok_lock(&mp->inner_lock);
+    spinlock_lock(&mp->inner_lock);
 
     if (mp->lock_holder == -2) {
         // try to destroy a destroied mutex
         panic("mutex %p has already been destroied!", mp);
     }
 
-    /*
+    
     while (mp->lock_holder != -1) {
         // illegal, mutex is locked
-        lprintf("Destroy mutex %p failed, mutex is locked, "
-                "will try again...", mp);
         printf("Destroy mutex %p failed, mutex is locked, "
                 "will try again...\n", mp);
-        spinlcok_unlock(&mp->inner_lock);
-        yield(-1);
-        spinlcok_lock(&mp->inner_lock);
+        spinlock_unlock(&mp->inner_lock);
+        context_switch(-1);
+        spinlock_lock(&mp->inner_lock);
     }
 
     while (queue_destroy(&mp->deque) < 0){
         // illegal, some threads are blocked waiting on it
-        lprintf("Destroy mutex %p failed, some threads are blocking on it, "
-                "will try again...", mp);
         printf("Destroy mutex %p failed, some threads are blocking on it, "
-                "will try again...\n", mp);
-        spinlcok_unlock(&mp->inner_lock);
-        yield(-1);
-        spinlcok_lock(&mp->inner_lock);
+                "will try again later...\n", mp);
+        spinlock_unlock(&mp->inner_lock);
+        context_switch(-1);
+        spinlock_lock(&mp->inner_lock);
     }
-    */
 
     mp->lock_holder = -2;
 
-    spinlcok_unlock(&mp->inner_lock);
+    spinlock_unlock(&mp->inner_lock);
 }
 
 /** @brief Lock mutex
@@ -106,7 +101,7 @@ void mutex_destroy(mutex_t *mp) {
 void mutex_lock(mutex_t *mp) {
     int tid = tcb_get_entry((void*)asm_get_esp())->tid;
 
-    spinlcok_lock(&mp->inner_lock);
+    spinlock_lock(&mp->inner_lock);
     if (mp->lock_holder == -2) {
         // try to lock a destroied mutex
         panic("mutex %p has already been destroied!", mp);
@@ -115,12 +110,18 @@ void mutex_lock(mutex_t *mp) {
     if (mp->lock_holder == -1){
         // mutex is unlocked, get the mutex lock directly and set it to locked
         mp->lock_holder = tid;
-        spinlcok_unlock(&mp->inner_lock);
+        spinlock_unlock(&mp->inner_lock);
     } else {
         // mutex is locked, enter the tail of queue to wait
-        queue_enqueue(&mp->deque, (void*)tid);
+        while (queue_enqueue(&mp->deque, (void*)tid) < 0) {
+            printf("Out of memory when try to lock mutex %p, will try again \
+                    later...\n", mp);
+            spinlock_unlock(&mp->inner_lock);
+            context_switch(-1);
+            spinlock_lock(&mp->inner_lock);
+        }
 
-        spinlcok_unlock(&mp->inner_lock);
+        spinlock_unlock(&mp->inner_lock);
 
         // while this thread doesn't get the mutex, let the thread that grab
         // the mutex to run 
@@ -140,24 +141,22 @@ void mutex_lock(mutex_t *mp) {
  *  @return void
  */
 void mutex_unlock(mutex_t *mp) {
-    spinlcok_lock(&mp->inner_lock);
+    spinlock_lock(&mp->inner_lock);
 
     if (mp->lock_holder == -2) {
         // try to unlock a destroied mutex
         panic("mutex %p has already been destroied!", mp);
     }
 
-    /*
+    
     while (mp->lock_holder == -1) {
-        lprintf("try to unlock an unlocked mutex %p, "
-                "will wait until it is locked", mp);
         printf("try to unlock an unlocked mutex %p, "
                 "will wait until it is locked\n", mp);
-        spinlcok_unlock(&mp->inner_lock);
-        yield(-1);
-        spinlcok_lock(&mp->inner_lock);
+        spinlock_unlock(&mp->inner_lock);
+        context_switch(-1);
+        spinlock_lock(&mp->inner_lock);
     }
-    */
+    
 
     if (queue_is_empty(&mp->deque)) {
         // no thread is waiting on the mutex, set mutex as available 
@@ -169,6 +168,6 @@ void mutex_unlock(mutex_t *mp) {
         mp->lock_holder = tid;
     }
 
-    spinlcok_unlock(&mp->inner_lock);
+    spinlock_unlock(&mp->inner_lock);
 }
 

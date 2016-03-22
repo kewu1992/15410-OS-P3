@@ -36,6 +36,7 @@
 #include <control_block.h>
 
 #include <console.h>
+#include <syscall_inter.h>
 
 static void kernel_init();
 
@@ -60,7 +61,7 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     lprintf("Finish initialization");
 
     lprintf( "Ready to load first task" );
-    loadFirstTask("switched_program");
+    loadFirstTask("mutex_test");
 
     // should never reach here
     return 0;
@@ -80,6 +81,9 @@ void kernel_init() {
     // Initialize vm, all kernel 16 MB will be directly mapped and
     // paging will be enabled after this call
     init_vm();
+
+    if (syscall_print_init() < 0)
+        panic("Initialize syscall print() failed!");
 
     enable_interrupts();
 

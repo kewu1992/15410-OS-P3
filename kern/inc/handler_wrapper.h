@@ -45,4 +45,6 @@ void exec_wrapper();
 
 void pf_wrapper();
 
+void print_wrapper();
+
 #endif

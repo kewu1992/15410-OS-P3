@@ -155,7 +155,7 @@ void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int g
 int init_IDT(void (*tickback)(unsigned int)) {
     
     // install keyboard interrupt handler
-    install_IDT_entry(KEY_IDT_ENTRY, keyboard_wrapper, SEGSEL_KERNEL_CS, 0, 0);
+    install_IDT_entry(KEY_IDT_ENTRY, keyboard_wrapper, SEGSEL_KERNEL_CS, 0, 1);
 
     // instll timer interrupt handler ????????? gate type???????
     install_IDT_entry(TIMER_IDT_ENTRY, timer_wrapper, SEGSEL_KERNEL_CS, 0, 1);
@@ -171,6 +171,9 @@ int init_IDT(void (*tickback)(unsigned int)) {
 
     // install exec() syscall handler
     install_IDT_entry(EXEC_INT, exec_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install print() syscall handler
+    install_IDT_entry(PRINT_INT, print_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // initialize device drivers
     init_console_driver();

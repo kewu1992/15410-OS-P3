@@ -17,12 +17,15 @@ int scheduler_init() {
     return 0;
 }
 
+/*
+ *  @return 0 on success; -1 on error
+ */
 int scheduler_enqueue_tail(tcb_t *thread) {
     int rv;
 
-    spinlcok_lock(&spinlock);
+    spinlock_lock(&spinlock);
     rv = queue_enqueue(&queue, (void*)thread);
-    spinlcok_unlock(&spinlock);
+    spinlock_unlock(&spinlock);
 
     return rv;
 }
@@ -30,7 +33,7 @@ int scheduler_enqueue_tail(tcb_t *thread) {
 tcb_t* scheduler_get_next(int mode) {
     tcb_t* rv;
 
-    spinlcok_lock(&spinlock);
+    spinlock_lock(&spinlock);
     if (mode == -1)
         rv = queue_dequeue(&queue);
     else {
@@ -40,7 +43,7 @@ tcb_t* scheduler_get_next(int mode) {
 
         }
     }
-    spinlcok_unlock(&spinlock);
+    spinlock_unlock(&spinlock);
 
     return rv;
 }

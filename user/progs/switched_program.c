@@ -12,8 +12,9 @@ void func() {
 int main() {
     lprintf("I am switched program!");
     
+    
     char* argv[] = {"small_program", "233333", NULL};
     exec("small_program", argv);
-
+    
     return 0;
 }
