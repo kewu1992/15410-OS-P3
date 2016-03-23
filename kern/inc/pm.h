@@ -7,17 +7,13 @@
 #define _PM_H_
 
 #include <page.h> // For PAGE_SIZE
-// #include <asm.h> // For idt_base();
-// #include <idt.h> // For IDT_PF
 #include <cr.h> // For %cr
 #include <simics.h> // For lprintf
 #include <malloc.h> // For smemalign
-
 #include <string.h> // For memset
-// #include <seg.h> // For SEGSEL_KERNEL_CS
-
 #include <common_kern.h>
-// #include <cr.h>
+
+
 
 #include <list.h>
 
@@ -35,32 +31,23 @@
 #endif
 
 
-
-struct free_area_struct {
-    /* @brief a doubly linked list of blocks */
+typedef struct {
+    /* @brief a circular doubly linked list of free blocks */
     list_t list;
-};
+} free_list_t;
 
-
-
-/***** Core physical memory allocator API ****/
-uint32_t get_frames_raw(int order);
-// free_frames_raw(); // TBD
-
-
-
-
-/***** Wrapper for allocator's core API *****/
 int init_pm();
-// The outside world should call to get new frames
 int get_frames(int count, list_t *list);
-int free_contiguous_frames(uint32_t base, int count);
+int free_frames(uint32_t base, int count);
 
-// For debugging
+
+
+// The followings are for debugging, will remove later
 void traverse_free_area();
 void test_frames();
 
 
 #endif
+
 
 

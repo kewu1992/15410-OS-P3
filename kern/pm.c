@@ -1,30 +1,159 @@
 /**
-  * @brief Physical memory allocator
-  *
-  *
-  */
+ * @brief Physical memory manager
+ * 
+ * The physical frame manager uses the similar idea as linux's buddy system to
+ * manage free frames. All frames are grouped into blocks where each block 
+ * consists of contiguous frames of size that is 2's power of PAGE_SIZE. 
+ * There are 11 free lists that manage contiguous frames size of 2^0 * PAGE, 
+ * 2^1 * PAGE_SIZE, ..., 2^10 * PAGE_SIZE. We treat the number 0, 1, ..., 11
+ * as order. Initially, all free physical frames are divided into 2^10 * 
+ * PAGE_SIZE blocks and put into the list that manages block size of 2^10 * 
+ * PAGE_SIZE. When certain number of frames are requested, say, 16, the 
+ * manager will look into the free list that has free blocks of size 2^4 * 
+ * PAGE_SIZE. If there's an available block, then remove it from the list, 
+ * returning its base to the requester; else, the frame manager will try 
+ * looking into the free list that is one order higher, i.e., the free list
+ * that has free blocks of size 2^5 * PAGE_SIZE, and if there's a hit, 
+ * divide the 2^5 * PAGE_SIZE block into halves, put back one half to the 
+ * free list that has block size of 2^4 * PAGE_SIZE, and return the other
+ * half to the requester. When a block is later freed, the block will be
+ * put back to the free list that manages blocks whose order are the same
+ * as the block to free. When a block is put back to a free list, it will
+ * check its buddy's status. A buddy for a block is defined to be another 
+ * block that is of the same size and is ajacent to the block, and either 
+ * the buddy, or the block's base address is a multiple of the block size.
+ * If a block to be freed finds out that its buddy is in the free list,
+ * the two will merge, be removed from the current free list and be added
+ * to the free list that has a higher order. The process will iterate until
+ * buddy isn't free or reaching the free list of the highest order.
+ *
+ * @author Jian Wang (jianwan3)
+ * @author Ke Wu (kewu)
+ *
+ * @bug No known bugs.
+ */
+
 #include <pm.h>
-#include <pm.h>
 
 
+/** @brief An array of lists that tracks free frames of different size */
+static free_list_t free_list[MAX_ORDER];
 
-// Max block size is 2^(MAX_ORDER-1)*PAGE_SIZE
-// Blocks are of size 4K, 8K, ..., 4M, given PAGE_SIZE is 4K
 
-static struct free_area_struct free_area[MAX_ORDER];
-//hashtable_t free_block_ht;
-
-// Number of free frames left
+/** @brief Number of free frames currently available in physical memory */
 static int num_free_frames;
 
-/****** Public API *******/
 
-// Manage continugous frame allocation
+/**
+ * @brief Get contiguous frames
+ *
+ * @param order Size of contiguous frames. 
+ * Valid choices are 0, 1, 2, 3, ..., MAX_ORDER - 1
+ * 
+ * Example usage:
+ *      uint32_t new_frame_base = get_frames(i);
+ *      will get 2^i pages of contiguous frames
+ * 
+ * @return Base of contiguous frames on success; negative integer on error
+ */
+static uint32_t get_frames_raw(int order) {
+
+    // lprintf("order: %d", order);
+    // Check free block lists
+    int cur_order = order; 
+    while(cur_order < MAX_ORDER) {
+
+        if(list_is_empty(&free_list[cur_order].list)) {
+            // Try finding free block in a larger size group
+            cur_order++;
+        } else {
+            uint32_t free_block_base =
+                (uint32_t)list_remove_first(
+                        &(free_list[cur_order].list));
+            // We have found a free block
+            if(cur_order > order) {
+                // But it's too large, we will split it first
+                // Put unused halves back to lists
+                uint32_t block_size = (1 << cur_order) * PAGE_SIZE;
+                uint32_t block_base = free_block_base + block_size;
+                while(cur_order > order) {
+                    block_size >>= 1;
+                    block_base -= block_size;
+                    // Place unused half to free list of one order less
+                    int ret = 
+                        list_append(&(free_list[cur_order - 1].list),
+                                (void *)block_base);
+                    if(ret < 0) return ret;
+                    cur_order--;
+                }
+            } 
+
+            return free_block_base;
+        }
+    }
+
+    // Failed to find a contiguous block of the size we want
+    return ERROR_NOT_ENOUGH_MEM; 
+}
+
+/**
+ * @brief Free contiguous frames
+ *
+ * @param base The base of contiguous frames to free
+ * @param order Size of contiguous frames. 
+ * Valid choices are 0, 1, 2, 3, ..., MAX_ORDER - 1
+ * 
+ * 
+ * @return 0 on success; negative integer on error
+ */
+static int free_frames_raw(uint32_t base, int order) {
+
+    // lprintf("free_frames: base: %x, order: %d", (unsigned)base, order);
+    // Iteratively merge block with its buddy to the highest order possible
+    while(order < MAX_ORDER) {
+        if(order == MAX_ORDER - 1) {
+            // block is of the highest order, no way to merge any more
+            // Put block to its free list and stop
+            int ret =list_append(&(free_list[order].list), (void *)base);
+            if(ret < 0) return ret;
+            break;
+        }
+
+        // Get buddy's base
+        uint32_t buddy_base = ((((base - USER_MEM_START)/PAGE_SIZE) ^ 
+                    (1 << order)) * PAGE_SIZE) + USER_MEM_START;
+
+        if(list_delete(&(free_list[order].list), (void *)buddy_base) == -1) {
+
+            // Buddy of the same size isn't free, can't merge with it
+            // Put block to its free list and stop
+            int ret = list_append(&(free_list[order].list), (void *)base);
+            if(ret < 0) return ret;
+            break;
+        }
+
+        // Merge with buddy
+        base = base < buddy_base ? base : buddy_base;
+
+        order++;
+    }
+
+    return 0;
+}
+
+
+/****** Public interface for the physical memory manager ********/
+
+/**
+ * @brief Initialize physical memory manager
+ *  
+ * @return 0 on success; negative integer on error
+ */
 int init_pm() {
     // Init MAX_ORDER lists
     int i;
     for(i = 0; i < MAX_ORDER; i++) {
-        if(list_init(&free_area[i].list)) {
+        if(list_init(&free_list[i].list)) {
             lprintf("list_init failed");
             return -1;
         }
@@ -44,7 +173,7 @@ int init_pm() {
     uint32_t block_size = num_frames * PAGE_SIZE;
     for(i = 0; i < num_free_frames/num_frames; i++) {
         int ret = 
-            list_append(&(free_area[MAX_ORDER - 1].list), (void *)base);
+            list_append(&(free_list[MAX_ORDER - 1].list), (void *)base);
         if(ret != 0) return ret;
 
         base += block_size;
@@ -54,47 +183,24 @@ int init_pm() {
 }
 
 
-// For debuging
-void traverse_free_area() {
-    
-    lprintf("traverse_free_area starts");
-    /**** DEBUG *****/
-    int i;
-    for(i = 0; i < MAX_ORDER; i++) {
-        // Test initial list content
-        lprintf("order: %d", i);
-        while(!list_is_empty(&(free_area[i].list))) {
-            void *data = list_remove_first(&(free_area[i].list));
-            lprintf("data: %x", (unsigned)data);
-        }
-    }
-    MAGIC_BREAK;
-}
-
-// For debuging
-void test_frames() {
-
-    // Test request frame size 19
-    lprintf("Test new_frames");
-    list_t list;
-    int count = 19;
-    if(get_frames(count, &list) == -1) {
-        lprintf("get_frames failed");
-        return;
-    }
-
-    // Traverse result list
-    while(!list_is_empty(&list)) {
-        uint32_t *data = list_remove_first(&list);
-        lprintf("size:%d, base:%x", (int)data[0], (unsigned)data[1]);
-    }
-
-    MAGIC_BREAK;
-
-}
-
+/**
+ * @brief Get frames. Wrapper for get_frames_raw.
+ *
+ * @param count The number of frames requested. (Not necessary 2's power)
+ *
+ * @param list The list to store the result. 
+ * The data field of each node of result list is a 2D array, the size of the 
+ * frame blocks and the base of the block. For instance, if 17 frames are 
+ * requested, then the result list may contain 2 nodes to represent 2 blocks, 
+ * where the first node's data[0] is 4, which means the block size is 
+ * 2^4 * PAGE_SIZE, data[1] is the block's base; the second node's data[1] is 
+ * 0, which means the block size is 2^0 * PAGE_SIZE, data[1] is the block's 
+ * base. So the 17 frames are consisted of two blocks.
+ *  
+ * @return 0 on success; negative integer on error
+ */
 int get_frames(int count, list_t *list) {
-    
+
     // Compare count with current number of free frames availale
     if(count > num_free_frames) {
         return -1;
@@ -120,8 +226,8 @@ int get_frames(int count, list_t *list) {
             if(new_frame == ERROR_NOT_ENOUGH_MEM) {
                 return -1;
             }
-    //        lprintf("In get_frames: get_frames_raw ret: %x",
-    //                (unsigned)new_frame);
+            //        lprintf("In get_frames: get_frames_raw ret: %x",
+            //                (unsigned)new_frame);
             uint32_t *data = malloc(2*sizeof(uint32_t));
             if(data == NULL) {
                 list_destroy(list, TRUE);
@@ -139,98 +245,15 @@ int get_frames(int count, list_t *list) {
     return 0;
 }
 
-
-
-/******* raw API **********/
-
 /**
- * @brief Get contiguous frames
+ * @brief Free frames. Wrapper for free_frames_raw.
  *
- * @param order Size of contiguous frames. 
- * Valid choices are 0, 1, 2, 3, ..., MAX_ORDER - 1
- * 
- * Example usage:
- *      uint32_t new_frame_base = get_frames(i);
- *      get 2^i pages of contiguous frames
- * 
- * @return Base of contiguous frames on success; 3 on failure
+ * @param base The base of the block to free
+ * @param count The number of frames to free (Not necessary 2's power)
+ *  
+ * @return 0 on success; negative integer on error
  */
-uint32_t get_frames_raw(int order) {
-
-     // lprintf("order: %d", order);
-     // Check free block lists
-     int cur_order = order; 
-     while(cur_order < MAX_ORDER) {
-
-         if(list_is_empty(&free_area[cur_order].list)) {
-             // Try finding free block in a larger size group
-             cur_order++;
-         } else {
-             uint32_t free_block_base =
-                 (uint32_t)list_remove_first(
-                         &(free_area[cur_order].list));
-             // We have found a free block
-             if(cur_order > order) {
-                 // But it's too large, we will split it first
-                 // Put unused halves back to lists
-                 uint32_t block_size = (1 << cur_order) * PAGE_SIZE;
-                 uint32_t block_base = free_block_base + block_size;
-                 while(cur_order > order) {
-                     block_size >>= 1;
-                     block_base -= block_size;
-                     // Place unused half to free list of one order less
-                     int ret = 
-                         list_append(&(free_area[cur_order - 1].list),
-                             (void *)block_base);
-                     if(ret < 0) return ret;
-                     cur_order--;
-                 }
-             } 
-
-             return free_block_base;
-         }
-     }
-
-     // Failed to find a contiguous block of the size we want
-     return ERROR_NOT_ENOUGH_MEM; 
-}
-
-int free_frames_raw(uint32_t base, int order) {
-
-    // lprintf("free_frames: base: %x, order: %d", (unsigned)base, order);
-    // Iteratively merge block with its buddy to the highest order possible
-    while(order < MAX_ORDER) {
-        if(order == MAX_ORDER - 1) {
-            // block is of the highest order, no way to merge any more
-            // Put block to its free list and stop
-            int ret =list_append(&(free_area[order].list), (void *)base);
-            if(ret < 0) return ret;
-            break;
-        }
-
-        // Get buddy's base
-        uint32_t buddy_base = ((((base - USER_MEM_START)/PAGE_SIZE) ^ 
-            (1 << order)) * PAGE_SIZE) + USER_MEM_START;
-
-        if(list_delete(&(free_area[order].list), (void *)buddy_base) == -1) {
-
-            // Buddy of the same size isn't free, can't merge with it
-            // Put block to its free list and stop
-            int ret = list_append(&(free_area[order].list), (void *)base);
-            if(ret < 0) return ret;
-            break;
-        }
-
-        // Merge with buddy
-        base = base < buddy_base ? base : buddy_base;
-
-        order++;
-    }
-
-    return 0;
-}
-
-int free_contiguous_frames(uint32_t base, int count) {
+int free_frames(uint32_t base, int count) {
 
     uint32_t cur_frame = base;
     int count_left = count;
@@ -250,10 +273,10 @@ int free_contiguous_frames(uint32_t base, int count) {
                     if(ret != 0) return ret;
                     cur_frame += cur_size * PAGE_SIZE;
                 } else {
-                    ret = free_contiguous_frames(cur_frame, cur_size/2);
+                    ret = free_frames(cur_frame, cur_size/2);
                     if(ret != 0) return ret;
                     cur_frame += cur_size / 2 * PAGE_SIZE;
-                    ret = free_contiguous_frames(cur_frame, cur_size/2);
+                    ret = free_frames(cur_frame, cur_size/2);
                     if(ret != 0) return ret;
                     cur_frame += cur_size / 2 * PAGE_SIZE;
                 }
@@ -267,4 +290,44 @@ int free_contiguous_frames(uint32_t base, int count) {
 
 
 
+/************ The followings are for debugging, will remove later **********/
+
+// For debuging, will remove later
+void traverse_free_area() {
+
+    lprintf("traverse_free_area starts");
+    /**** DEBUG *****/
+    int i;
+    for(i = 0; i < MAX_ORDER; i++) {
+        // Test initial list content
+        lprintf("order: %d", i);
+        while(!list_is_empty(&(free_list[i].list))) {
+            void *data = list_remove_first(&(free_list[i].list));
+            lprintf("data: %x", (unsigned)data);
+        }
+    }
+    MAGIC_BREAK;
+}
+
+// For debuging, will remove later
+void test_frames() {
+
+    // Test request frame size 19
+    lprintf("Test new_frames");
+    list_t list;
+    int count = 19;
+    if(get_frames(count, &list) == -1) {
+        lprintf("get_frames failed");
+        return;
+    }
+
+    // Traverse result list
+    while(!list_is_empty(&list)) {
+        uint32_t *data = list_remove_first(&list);
+        lprintf("size:%d, base:%x", (int)data[0], (unsigned)data[1]);
+    }
+
+    MAGIC_BREAK;
+
+}
 
