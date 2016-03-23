@@ -345,7 +345,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
     }
     
     list_t list;
-    if(get_frames(count, &list) == -1) {
+    if(get_frames(count - num_pages_allocated, &list) == -1) {
         return -1;
     }
     int frames_left = 0;
