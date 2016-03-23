@@ -17,6 +17,7 @@ int fork_syscall_handler() {
 }
 
 int exec_syscall_handler(char* execname, char **argvec) {
+    lprintf("start execute %s", execname);
 
     // PAGE_FAULT ?????????
     int i, argc = 0;
@@ -89,6 +90,7 @@ int exec_syscall_handler(char* execname, char **argvec) {
     this_thr->pcb->page_table_base = get_cr3();
     this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
 
+    lprintf("Ready to execute %s", my_execname);
     // load kernel stack, jump to new program
     load_kernel_stack(this_thr->k_stack_esp, usr_esp, my_program);
 

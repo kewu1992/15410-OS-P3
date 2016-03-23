@@ -61,7 +61,7 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     lprintf("Finish initialization");
 
     lprintf( "Ready to load first task" );
-    loadFirstTask("mutex_test");
+    loadFirstTask("coolness");
 
     // should never reach here
     return 0;
