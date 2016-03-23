@@ -342,8 +342,6 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
             // Some pages have already been allocated in this address space
             return ERROR_OVERLAP;
         }
-
-        count -= num_pages_allocated;
     }
     
     list_t list;

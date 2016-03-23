@@ -57,7 +57,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the 410user/progs
 # directory.
 #
-410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 coolness peon merchant
+410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -65,8 +65,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test
-
+STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant
 ###########################################################################
 # Data files provided by course staff to build into the RAM disk
 ###########################################################################
@@ -117,7 +116,7 @@ AUTOSTACK_OBJS = autostack.o
 #
 # Kernel object files you provide in from kern/
 #
-KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_helper.o asm_new_process_iret.o init_IDT.o handler_wrapper.o vm.o asm_pf_handler.o control_block.o context_switcher.o scheduler.o queue.o keyboard_driver.o timer_driver.o asm_invalidate_tlb.o asm_context_switch.o syscall_thr_management.o syscall_lifecycle.o pm.o list.o asm_atomic.o spinlock.o mutex.o syscall_consoleio.o
+KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_helper.o asm_new_process_iret.o init_IDT.o handler_wrapper.o vm.o control_block.o context_switcher.o scheduler.o queue.o keyboard_driver.o timer_driver.o asm_invalidate_tlb.o asm_context_switch.o syscall_thr_management.o syscall_lifecycle.o pm.o list.o asm_atomic.o spinlock.o mutex.o syscall_consoleio.o
 
 ###########################################################################
 # WARNING: Do not put **test** programs into the REQPROGS variables.  Your
