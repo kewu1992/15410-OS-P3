@@ -63,19 +63,18 @@ static uint32_t get_frames_raw(int order) {
     int cur_order = order; 
     while(cur_order < MAX_ORDER) {
 
-        if(list_is_empty(&free_list[cur_order].list)) {
+        uint32_t *free_block_base;
+        if(list_remove_first(&(free_list[cur_order].list), 
+                    (void **)(&free_block_base))) {
             // Try finding free block in a larger size group
             cur_order++;
         } else {
-            uint32_t free_block_base =
-                (uint32_t)list_remove_first(
-                        &(free_list[cur_order].list));
             // We have found a free block
             if(cur_order > order) {
                 // But it's too large, we will split it first
                 // Put unused halves back to lists
                 uint32_t block_size = (1 << cur_order) * PAGE_SIZE;
-                uint32_t block_base = free_block_base + block_size;
+                uint32_t block_base = (uint32_t)free_block_base + block_size;
                 while(cur_order > order) {
                     block_size >>= 1;
                     block_base -= block_size;
@@ -88,7 +87,7 @@ static uint32_t get_frames_raw(int order) {
                 }
             } 
 
-            return free_block_base;
+            return (uint32_t)free_block_base;
         }
     }
 
@@ -301,8 +300,8 @@ void traverse_free_area() {
     for(i = 0; i < MAX_ORDER; i++) {
         // Test initial list content
         lprintf("order: %d", i);
-        while(!list_is_empty(&(free_list[i].list))) {
-            void *data = list_remove_first(&(free_list[i].list));
+        void *data;
+        while(!list_remove_first(&(free_list[i].list), &data)) {
             lprintf("data: %x", (unsigned)data);
         }
     }
@@ -322,8 +321,8 @@ void test_frames() {
     }
 
     // Traverse result list
-    while(!list_is_empty(&list)) {
-        uint32_t *data = list_remove_first(&list);
+    uint32_t *data;
+    while(!list_remove_first(&list, (void *)(&data))) {
         lprintf("size:%d, base:%x", (int)data[0], (unsigned)data[1]);
     }
 

@@ -417,9 +417,16 @@ uint32_t clone_pd() {
 
                     //uint32_t new_f = new_frame();
                     if(frames_left == 0) {
-                        uint32_t *data = list_remove_first(&list);
-                        frames_left = data[0];
-                        cur_frame = data[1];
+                        uint32_t *data;
+                        if(!list_remove_first(&list, (void **)(&data))) {
+                            frames_left = data[0];
+                            cur_frame = data[1];
+                            free(data);
+                        } else {
+                            // Shouldn't happen
+                            lprintf("list_remove_first returns negative");
+                            return ERROR_UNKNOWN;
+                        }
                     } 
 
                     frames_left--;
@@ -448,6 +455,11 @@ uint32_t clone_pd() {
                 }
             }
         }
+    }
+
+    // Destroy result list
+    if(num_pages_allocated > 0) {
+        list_destroy(&list, TRUE);
     }
 
     return (uint32_t)pd;
@@ -602,9 +614,16 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
             // Not present
             // Allocate a new page
             if(frames_left == 0) {
-                uint32_t *data = list_remove_first(&list);
-                frames_left = data[0];
-                cur_frame = data[1];
+                uint32_t *data;
+                if(!list_remove_first(&list, (void **)(&data))) {
+                    frames_left = data[0];
+                    cur_frame = data[1];
+                    free(data);
+                } else {
+                    // Shouldn't happen
+                    lprintf("list_remove_first returns negative");
+                    return ERROR_UNKNOWN;
+                }
             } 
 
             frames_left--;
@@ -639,7 +658,10 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
         page += PAGE_SIZE;
     }
 
-    list_destroy(&list, TRUE);
+    // Destroy result list
+    if(count - num_pages_allocated > 0) {
+        list_destroy(&list, TRUE);
+    }
 
     return 0;
 }

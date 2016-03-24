@@ -84,6 +84,7 @@ typedef struct {
 #define ERROR_LEN (-3)
 #define ERROR_OVERLAP (-4)
 #define ERROR_KERNEL_SPACE (-5)
+#define ERROR_UNKNOWN (-6)
 #define ERROR_BASE_NOT_PREV (-1)
 
 
