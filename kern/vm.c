@@ -699,6 +699,63 @@ int remove_pages(void *base) {
 }
 
 
+/** @brief Check if pages in region are allocated and of specified permission
+ *
+ *  @param va The virtual address of the start of the region
+ *  @param size_bytes The size of the region
+ *  @param The permission to check: 0 for read-only, 1 for read-write
+ *
+ *  @return 1 if true; 0 if false 
+ */
+int is_region_alloc_perm(uint32_t va, int size_bytes, int rw_perm) {
+
+    uint32_t page_lowest = va & PAGE_ALIGN_MASK;
+    uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
+        PAGE_ALIGN_MASK;
+    int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
+    int i;
+
+    uint32_t page = page_lowest;
+    pd_t *pd = (pd_t *)get_cr3();
+
+    for(i = 0; i < count; i++) {
+        uint32_t pd_index = GET_PD_INDEX(page);
+        pde_t *pde = &(pd->pde[pd_index]);
+
+        // Check page directory entry presence
+        if(IS_SET(*pde, PG_P)) {
+            // Present
+
+            // Check page table entry presence
+            uint32_t pt_index = GET_PT_INDEX(page);
+            pt_t *pt = (pt_t *)((*pde) & PAGE_ALIGN_MASK);
+            pte_t *pte = &(pt->pte[pt_index]);
+
+            if(IS_SET(*pte, PG_P)) {
+                // Present
+                // Check rw permission
+                int pte_rw_bit = IS_SET(*pte, PG_RW);
+                if(rw_perm != pte_rw_bit) {
+                    return 0;
+                }
+            } else {
+                // Page table entry not present
+                // Return not valid
+                return 0;
+            }
+        } else {
+            // Page directory entry not present
+            // Return not valid
+            return 0;
+        }
+
+        page += PAGE_SIZE;
+    }
+
+    // Return true
+    return 1;
+}
+
 
 /************ The followings are for debugging, will remove later **********/
 

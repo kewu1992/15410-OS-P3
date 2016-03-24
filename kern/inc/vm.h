@@ -97,6 +97,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
 int free_user_space();
 int new_pages(void *base, int len);
 int remove_pages(void *base);
+int is_region_alloc_perm(uint32_t va, int size_bytes, int rw_perm);
 
 
 
