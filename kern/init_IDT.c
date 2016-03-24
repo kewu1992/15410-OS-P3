@@ -175,6 +175,12 @@ int init_IDT(void (*tickback)(unsigned int)) {
     // install print() syscall handler
     install_IDT_entry(PRINT_INT, print_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
+    // install new_pages() syscall handler
+    install_IDT_entry(NEW_PAGES_INT, new_pages_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install remove_pages() syscall handler
+    install_IDT_entry(REMOVE_PAGES_INT, remove_pages_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
     // initialize device drivers
     init_console_driver();
     init_keyboard_driver();

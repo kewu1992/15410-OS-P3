@@ -47,4 +47,8 @@ void pf_wrapper();
 
 void print_wrapper();
 
+void new_pages_wrapper();
+
+void remove_pages_wrapper();
+
 #endif
