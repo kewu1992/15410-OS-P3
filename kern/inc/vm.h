@@ -21,6 +21,7 @@
 
 #include <common_kern.h>
 #include <cr.h>
+#include <ureg.h> 
 
 
 /* @brief Page alignment mask */
@@ -100,6 +101,8 @@ int new_pages(void *base, int len);
 int remove_pages(void *base);
 int is_region_alloc_perm(uint32_t va, int size_bytes, int rw_perm);
 
+typedef void (*swexn_handler_t)(void *arg, ureg_t *ureg);
+int swexn(void *esp3, swexn_handler_t eip, void *arg, ureg_t *newureg);
 
 
 
