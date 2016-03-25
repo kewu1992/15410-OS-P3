@@ -53,7 +53,6 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
      * You should delete this comment, and enable them --
      * when you are ready.
      */
-
     lprintf( "Hello from a brand new kernel!" );
     
     lprintf("Initializing kernel");
@@ -69,23 +68,28 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
 
 
 void kernel_init() {
+
+    if (malloc_init() < 0)
+         panic("Initialize malloc failed!");
+    
+    if (init_IDT(NULL) < 0)
+        panic("Initialize IDT failed!");
+
     if (tcb_init() < 0)
         panic("Initialize tcb failed!");
 
-    if (scheduler_init() < 0)
-        panic("Initialize scheduler failed!");
-
-    if (init_IDT(NULL) < 0)
-        panic("Initialize IDT failed!");
 
     // Initialize vm, all kernel 16 MB will be directly mapped and
     // paging will be enabled after this call
     init_vm();
 
+    enable_interrupts();
+
+    if (scheduler_init() < 0)
+        panic("Initialize scheduler failed!");
+
     if (syscall_print_init() < 0)
         panic("Initialize syscall print() failed!");
-
-    enable_interrupts();
 
     clear_console();
 }

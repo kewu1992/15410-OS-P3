@@ -59,9 +59,9 @@ void context_switch(int mode) {
     // deal with VM
     if (mode == -2 && this_thr->fork_result == 0) {
         // new task (fork)
-        set_cr3(clone_pd());
-        
         tcb_create_process_only(RUNNING, this_thr);
+
+        set_cr3(clone_pd());
     } else if (mode == -4 && this_thr->fork_result == 0) {
         // new task (load)
         set_cr3(create_pd());
@@ -79,9 +79,6 @@ void context_switch(int mode) {
 
         set_esp0((uint32_t)tcb_get_high_addr((void*)asm_get_esp()));
     }
-
-    if (this_thr->pcb->page_table_base != get_cr3())
-        set_cr3(this_thr->pcb->page_table_base);
 
 }
 

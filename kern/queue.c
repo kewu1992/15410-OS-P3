@@ -60,7 +60,9 @@ void* queue_dequeue(deque_t *deque) {
     node_t* element = deque->head->next;
     deque->head->next = deque->head->next->next;
     deque->head->next->prev = deque->head;
-    return element->data;
+    void* rv = element->data;
+    free(element);
+    return rv;
 }
 
 
@@ -80,7 +82,9 @@ void* queue_remove(deque_t *deque, void *field, void*(*func)(void*)) {
             node_t* tmp = element->next;
             element->next = element->next->next;
             element->next->prev = element;
-            return tmp->data;
+            void* rv = tmp->data;
+            free(tmp);
+            return rv;
         }
         element = element->next;
     }

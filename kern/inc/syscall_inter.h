@@ -3,4 +3,6 @@
 
 int syscall_print_init();
 
+int malloc_init();
+
 #endif
