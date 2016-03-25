@@ -1,5 +1,6 @@
 #include <control_block.h>
 #include <malloc.h>
+#include <malloc_internal.h>
 #include <common_kern.h>
 #include <cr.h>
 #include <asm_atomic.h>
@@ -18,7 +19,7 @@ static int id_count = 0;
 static void tcb_set_entry(void *addr, tcb_t *thr);
 
 int tcb_init() {
-    tcb_table = calloc(USER_MEM_START/K_STACK_SIZE, sizeof(tcb_t*));
+    tcb_table = _calloc(USER_MEM_START/K_STACK_SIZE, sizeof(tcb_t*));
     return 0;
 }
 
@@ -30,6 +31,7 @@ pcb_t* tcb_create_process_only(process_state_t state, tcb_t* thread) {
     process->page_table_base = get_cr3();
     process->state = state;
 
+    // must be last step
     thread->pcb = process;
     return process;
 }

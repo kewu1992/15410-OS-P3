@@ -29,6 +29,8 @@
 
 #include <vm.h> // For vm
 
+#include <asm_helper.h>
+
 #define MAX_ADDR 0xFFFFFFFF
 
 #define SIZE_USER_STACK  20
@@ -109,10 +111,10 @@ void* loadTask(const char *filename, int argc, const char **argv, void** usr_esp
     new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen, 0, 0);
     new_region(simple_elf.e_bssstart, simple_elf.e_bsslen, 1, 0);
 
-    lprintf("txtstart:%p, txtlen:%d", (void*)simple_elf.e_txtstart, (int)simple_elf.e_txtlen);
-    lprintf("datstart:%p, datlen:%d", (void*)simple_elf.e_datstart, (int)simple_elf.e_datlen);
-    lprintf("rodatstart:%p, rodatslen:%d", (void*)simple_elf.e_rodatstart, (int)simple_elf.e_rodatlen);
-    lprintf("bssstart:%p, bsslen:%d", (void*)simple_elf.e_bssstart, (int)simple_elf.e_bsslen);
+    //lprintf("txtstart:%p, txtlen:%d", (void*)simple_elf.e_txtstart, (int)simple_elf.e_txtlen);
+    //lprintf("datstart:%p, datlen:%d", (void*)simple_elf.e_datstart, (int)simple_elf.e_datlen);
+    //lprintf("rodatstart:%p, rodatslen:%d", (void*)simple_elf.e_rodatstart, (int)simple_elf.e_rodatlen);
+    //lprintf("bssstart:%p, bsslen:%d", (void*)simple_elf.e_bssstart, (int)simple_elf.e_bsslen);
 
     // copy bytes from elf
     getbytes(filename, (int)simple_elf.e_txtoff, 

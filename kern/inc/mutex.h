@@ -6,7 +6,7 @@
 #define _MUTEX_H_
 
 #include <spinlock.h>
-#include <queue.h>
+#include <mutex_queue.h>
 
 /** @brief Mutex type */
 typedef struct mutex {
@@ -17,7 +17,7 @@ typedef struct mutex {
     spinlock_t inner_lock;
     /** @brief A double-ended queue to store the threads that are blocking on
      *         the mutex */
-    deque_t deque;
+    mutex_deque_t deque;
 } mutex_t;
 
 

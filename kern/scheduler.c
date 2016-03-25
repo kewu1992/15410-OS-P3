@@ -1,6 +1,7 @@
 #include <queue.h>
 #include <control_block.h>
 #include <spinlock.h>
+#include <cr.h>
 
 #define NULL 0
 
@@ -24,6 +25,8 @@ int scheduler_enqueue_tail(tcb_t *thread) {
     int rv;
 
     spinlock_lock(&spinlock);
+    // before enqueue, save cr3
+    thread->pcb->page_table_base = get_cr3();
     rv = queue_enqueue(&queue, (void*)thread);
     spinlock_unlock(&spinlock);
 
@@ -43,6 +46,13 @@ tcb_t* scheduler_get_next(int mode) {
 
         }
     }
+    if (rv != NULL) {
+        // before dequeue, restore cr3 and esp0
+        if (rv->pcb->page_table_base != get_cr3())
+            set_cr3(rv->pcb->page_table_base);
+        set_esp0((uint32_t)tcb_get_high_addr(rv->k_stack_esp));
+    }
+    
     spinlock_unlock(&spinlock);
 
     return rv;
