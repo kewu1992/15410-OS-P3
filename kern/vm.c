@@ -220,6 +220,8 @@ static int remove_region(uint32_t va) {
                         (unsigned)page);
                 return ret;
             }
+        //    lprintf("remove frames: start: 0x%x, len: %d",
+        //            (unsigned)frame_start, (int)cur_len);
 
             frame_start = cur_frame;
             cur_len = 1;
@@ -239,11 +241,21 @@ static int remove_region(uint32_t va) {
             }
             // Remove page table entry
             (*pte) = 0;
+
+            // Invalidate tlb for page
+            asm_invalidate_tlb(page);
+
+            lprintf("remove frames: start: 0x%x, len: %d",
+                    (unsigned)frame_start, (int)cur_len);
+
             return ret;
         }
 
         // Remove page table entry
         (*pte) = 0;
+
+        // Invalidate tlb for page
+        asm_invalidate_tlb(page);
 
         page += PAGE_SIZE;
     }
@@ -651,8 +663,17 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
             }
 
             *pte = ((uint32_t)new_f | pte_ctrl_bits);
+
+            // Invalidate tlb for page
+            asm_invalidate_tlb(page);
+
             // Clear page
             memset((void *)page, 0, PAGE_SIZE);
+
+//            lprintf("frame %x allocated to page %x", (unsigned)new_f,
+//                    (unsigned)page);
+
+
         }
 
         page += PAGE_SIZE;

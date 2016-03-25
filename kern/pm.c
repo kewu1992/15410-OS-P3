@@ -43,6 +43,10 @@ static free_list_t free_list[MAX_ORDER];
 /** @brief Number of free frames currently available in physical memory */
 static int num_free_frames;
 
+/** @brief Spinlock to guard against modification of num_free_frames */
+static spinlock_t lock;
+
+
 
 /**
  * @brief Get contiguous frames
@@ -107,6 +111,7 @@ static uint32_t get_frames_raw(int order) {
  */
 static int free_frames_raw(uint32_t base, int order) {
 
+    int origin_order = order;
     // lprintf("free_frames: base: %x, order: %d", (unsigned)base, order);
     // Iteratively merge block with its buddy to the highest order possible
     while(order < MAX_ORDER) {
@@ -137,6 +142,11 @@ static int free_frames_raw(uint32_t base, int order) {
         order++;
     }
 
+    // Increase free frame counter
+    spinlock_lock(&lock);
+    num_free_frames += (1 << origin_order);
+    spinlock_unlock(&lock);
+
     return 0;
 }
 
@@ -149,6 +159,12 @@ static int free_frames_raw(uint32_t base, int order) {
  * @return 0 on success; negative integer on error
  */
 int init_pm() {
+
+    if(spinlock_init(&lock)) {
+        lprintf("spinlock_init failed");
+        return -1;
+    }
+
     // Init MAX_ORDER lists
     int i;
     for(i = 0; i < MAX_ORDER; i++) {
@@ -201,12 +217,15 @@ int init_pm() {
 int get_frames(int count, list_t *list) {
 
     // Compare count with current number of free frames availale
+    spinlock_lock(&lock);
     if(count > num_free_frames) {
+        spinlock_unlock(&lock);
         return -1;
     }
-
-    // Decrease counter now
+    // Decrease free frame counter
     num_free_frames -= count;
+    spinlock_unlock(&lock);
+
     int count_left = count;
 
     if(list_init(list) == -1) {
