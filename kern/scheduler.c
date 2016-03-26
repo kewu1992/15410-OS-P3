@@ -42,16 +42,15 @@ tcb_t* scheduler_get_next(int mode) {
     else {
         // yield to a specific thread
         rv = queue_remove(&queue, (void*)mode, queue_remove_gettid);
-        if (rv == NULL){
+        // can not find the thread
+        if (rv == NULL)
+            return NULL;
+    }
 
-        }
-    }
-    if (rv != NULL) {
-        // before dequeue, restore cr3 and esp0
-        if (rv->pcb->page_table_base != get_cr3())
-            set_cr3(rv->pcb->page_table_base);
-        set_esp0((uint32_t)tcb_get_high_addr(rv->k_stack_esp));
-    }
+    // before dequeue, restore cr3 and esp0
+    if (rv->pcb->page_table_base != get_cr3())
+        set_cr3(rv->pcb->page_table_base);
+    set_esp0((uint32_t)tcb_get_high_addr(rv->k_stack_esp));
     
     spinlock_unlock(&spinlock);
 

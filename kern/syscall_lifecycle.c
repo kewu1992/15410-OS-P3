@@ -12,8 +12,8 @@
 #define EXEC_MAX_ARG_SIZE   128
 
 int fork_syscall_handler() {
-    context_switch(-2);
-    return tcb_get_entry((void*)asm_get_esp())->fork_result;
+    context_switch(1, 0);
+    return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
 int exec_syscall_handler(char* execname, char **argvec) {
