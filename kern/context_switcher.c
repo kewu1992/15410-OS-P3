@@ -14,17 +14,24 @@
 #include <simics.h>
 #include <stdio.h>
 
-static tcb_t* first_task;
-
-extern void asm_context_switch(int mode, tcb_t *this_thr);
+extern void asm_context_switch(int op, uint32_t arg, tcb_t *this_thr);
 
 static tcb_t* internal_thread_fork(tcb_t* this_thr);
 
 static void* get_last_ebp(void* ebp);
 
-static char* secondTask = "switched_program";
-
-void context_switch(int mode) {
+/*  op  arg             meaning
+ *  0   -1 or 0-N       context switch (yield) to -1 or a given tid
+ *
+ *  1   0               fork
+ *
+ *  2   0               thread_fork
+ *
+ *  3   0               block the calling thread and yield -1
+ *
+ *  4   tcb_t*          resume to a given thread identified by its tcb
+ */
+void context_switch(int op, uint32_t arg) {
     /*  The following are pseudocode 
      *  
      *  scheduler.enqueue_tail(this_thr);
@@ -48,94 +55,61 @@ void context_switch(int mode) {
     // lprintf("before esp: %p", (void*)asm_get_esp());
     // lprintf("before: %p", this_thr);
 
-    asm_context_switch(mode, this_thr);
+    asm_context_switch(op, arg, this_thr);
 
     this_thr = tcb_get_entry((void*)asm_get_esp());
 
     // lprintf("after esp: %p", (void*)asm_get_esp());
     // lprintf("after: %p", this_thr);
 
-
-    // deal with VM
-    if (mode == -2 && this_thr->fork_result == 0) {
+    if (op == 1 && this_thr->result == 0) {
         // new task (fork)
         tcb_create_process_only(RUNNING, this_thr);
 
         set_cr3(clone_pd());
-    } else if (mode == -4 && this_thr->fork_result == 0) {
-        // new task (load)
-        set_cr3(create_pd());
-
-        tcb_create_process_only(RUNNING, this_thr);
-
-        const char *argv[1] = {secondTask};
-        void* usr_esp;
-        void* my_program = loadTask(secondTask, 1, argv, &usr_esp);
-
-        void* eip = (void*)(((uint32_t)tcb_get_high_addr((void*)asm_get_esp())) - 20);
-        memcpy(eip, &my_program, 4);
-        void* esp = (void*)(((uint32_t)tcb_get_high_addr((void*)asm_get_esp())) - 8);
-        memcpy(esp, &usr_esp, 4);
-
-        set_esp0((uint32_t)tcb_get_high_addr((void*)asm_get_esp()));
     }
-
 }
 
-tcb_t* context_switch_get_next(int mode, tcb_t* this_thr) {
+tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
     tcb_t* new_thr;
 
-    switch(mode){
-    case -2:    // fork and context switch to new thread
-    case -3:    // thread_fork and context switch to new thread
-    case -4:    // thread_fork and don't context switch, also save the 
-                // new thread as the first task (used for load)
-        new_thr = internal_thread_fork(this_thr);
-        if (new_thr != NULL) {
-            this_thr->fork_result = new_thr->tid;
-            new_thr->fork_result = 0;
-        } else {
-            this_thr->fork_result = -1;
-            return this_thr;
-        }
-        
-        if (mode == -4) {
-            first_task = new_thr;
-            return this_thr;
-        } else  {
-            if (scheduler_enqueue_tail(this_thr) < 0) {
-                printf("scheduler_enqueue_tail() failed, context switch \
-                        failed for thread %d", this_thr->tid);
-                return this_thr;
-            }
-            return new_thr;
-        }
-
-    case -5:    // clone the first task and context switch to new thread 
-                // (used for load)
-        new_thr = internal_thread_fork(first_task);
-        if (new_thr == NULL) {
-            this_thr->fork_result = -1;
-            return this_thr;
-        } 
-        else {
-            this_thr->fork_result = new_thr->tid;
-            new_thr->fork_result = 0;
-            if (scheduler_enqueue_tail(this_thr) < 0) {
-                printf("scheduler_enqueue_tail() failed, context switch \
-                        failed for thread %d", this_thr->tid);
-                return this_thr;
-            }
-            return new_thr;
-        }
-    default:
-        // let scheduler to choose the next thread to run
+    switch(op) {
+    case 0:
+        // context switch (yield)
         if (scheduler_enqueue_tail(this_thr) < 0) {
             printf("scheduler_enqueue_tail() failed, context switch \
                     failed for thread %d", this_thr->tid);
             return this_thr;
         }
-        return scheduler_get_next(mode);
+        // let sheduler to choose the next thread to run
+        new_thr = scheduler_get_next((int)arg);
+        if (new_thr == NULL) {
+            // yield error
+            this_thr->result = -1;
+        } else
+            return new_thr;
+        
+    case 1:    // fork and context switch to new thread
+    case 2:    // thread_fork and context switch to new thread
+        new_thr = internal_thread_fork(this_thr);
+        if (new_thr != NULL) {
+            // fork success
+            this_thr->result = new_thr->tid;
+            new_thr->result = 0;
+        } else {
+            // fork error
+            this_thr->result = -1;
+            return this_thr;
+        }
+        
+        if (scheduler_enqueue_tail(this_thr) < 0) {
+            printf("scheduler_enqueue_tail() failed, context switch \
+                    failed for thread %d", this_thr->tid);
+            return this_thr;
+        }
+        return new_thr;
+    default:
+        return this_thr;
     }
 }
 
@@ -159,10 +133,6 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
     
     return new_thr;
-}
-
-void context_switch_load() {
-    context_switch(-4);
 }
 
 /* Any syscall/interrupt need to call this function before iret.

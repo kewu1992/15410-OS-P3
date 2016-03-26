@@ -19,7 +19,7 @@ typedef struct {
     void *k_stack_esp;
     int tid;
     pcb_t *pcb;
-    int fork_result;
+    int result;
 } tcb_t;
 
 

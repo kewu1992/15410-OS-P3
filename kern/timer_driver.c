@@ -52,5 +52,5 @@ void timer_interrupt_handler() {
     //callback(++numTicks);
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
 
-    context_switch(-1);
+    context_switch(0, -1);
 }
