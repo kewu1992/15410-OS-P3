@@ -60,11 +60,18 @@ typedef struct {
 #define PG_PS 7
 #define PG_PAT 7
 #define PG_G 8
-// Bits availabe for programmer's use
+// 3 bits availabe for programmer's use
 // Use these 2 of these 3 bits to record start and end of pages
 // allocated by new_pages() system call
 #define PG_NEW_PAGES_START 9
 #define PG_NEW_PAGES_END 10
+// Use 1 of these 3 bits to mark ZFOD
+#define PG_ZFOD 11
+
+/**** Bit index in error code when a page fault happens ****/
+// Reserved bit
+#define PG_RSVD 3
+
 
 
 #define GET_PD_INDEX(va) ((va) >> 22)
@@ -95,7 +102,7 @@ int init_vm();
 uint32_t create_pd();
 uint32_t clone_pd();
 int new_region(uint32_t va, int size_bytes, int rw_perm, 
-        int is_new_pages_syscall);
+        int is_new_pages_syscall, int is_ZFOD);
 int free_user_space();
 int new_pages(void *base, int len);
 int remove_pages(void *base);

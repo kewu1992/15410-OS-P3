@@ -21,6 +21,8 @@
  */
 void asm_invalidate_tlb(uint32_t va);
 
+/** @brief A system wide all-zero frame used for ZFOD */
+static uint32_t all_zero_frame;
 
 /* Implementations for functions used internally in this file */
 
@@ -141,7 +143,7 @@ static int count_pages_allocated(uint32_t va, int size_bytes) {
         pde_t *pde = &(pd->pde[pd_index]);
 
         // Check page directory entry presence
-        if(((*pde) & (1 << PG_P)) == 1) {
+        if(IS_SET(*pde, PG_P)) {
             // Present
 
             // Check page table entry presence
@@ -149,7 +151,7 @@ static int count_pages_allocated(uint32_t va, int size_bytes) {
             pt_t *pt = (pt_t *)((*pde) & PAGE_ALIGN_MASK);
             pte_t *pte = &(pt->pte[pt_index]);
 
-            if(((*pte) & (1 << PG_P)) == 1) {
+            if(IS_SET(*pte, PG_P)) {
                 // Present
                 num_pages_allocated++;
             }
@@ -171,17 +173,17 @@ static int count_pages_allocated(uint32_t va, int size_bytes) {
  *
  *  @return 0 on success; negative integer on error
  */
+
 static int remove_region(uint32_t va) {
 
     uint32_t page_lowest = va & PAGE_ALIGN_MASK;
 
-    uint32_t frame_start = 0;
-    uint32_t cur_len = 0;
-
     uint32_t page = page_lowest;
     pd_t *pd = (pd_t *)get_cr3();
+    int is_first_page = 1;
+    int is_finished = 0;
 
-    while(1) {
+    while(!is_finished) {
         uint32_t pd_index = GET_PD_INDEX(page);
         pde_t *pde = &(pd->pde[pd_index]);
 
@@ -203,53 +205,30 @@ static int remove_region(uint32_t va) {
             return ERROR_BASE_NOT_PREV;
         }
 
-        uint32_t cur_frame = (*pte) & PAGE_ALIGN_MASK;
-        if(cur_len == 0) {
+        if(is_first_page) {
+            // Make sure the first page is the base of a previous 
+            // new_pages call
             if(!IS_SET(*pte, PG_NEW_PAGES_START)) {
-                lprintf("PG_NEW_PAGES_START not set, first page: %x", 
+                lprintf("Page 0x%x isn't the base of a previous new_pages call",
                         (unsigned)page);
                 return ERROR_BASE_NOT_PREV;
+            } else {
+                is_first_page = 0;
             }
-            frame_start = cur_frame;
-            cur_len = 1;
-        } else if(cur_frame != frame_start + cur_len * PAGE_SIZE) {
-            // Free contiguous frames described by frame_start and cur_len
-            int ret = free_frames(frame_start, cur_len);
+        }
+
+        if(!IS_SET(*pte, PG_ZFOD)) {
+            // Free the frame if it's not the system wide all-zero frame
+            uint32_t frame = *pte & PAGE_ALIGN_MASK;
+            int ret = free_frames_raw(frame, 0);
             if(ret < 0) {
                 lprintf("free_frames failed, page: %x", 
                         (unsigned)page);
                 return ret;
             }
-        //    lprintf("remove frames: start: 0x%x, len: %d",
-        //            (unsigned)frame_start, (int)cur_len);
-
-            frame_start = cur_frame;
-            cur_len = 1;
-        } else {
-            cur_len++;
         }
 
-
-        if(IS_SET(*pte, PG_NEW_PAGES_END)) {
-            //lprintf("PG_NEW_PAGES_END found, page: %x", 
-            //        (unsigned)page);
-            // Free last page in this region
-            int ret = free_frames(frame_start, cur_len);
-            if(ret < 0) {
-                lprintf("free_frames failed, page: %x", 
-                        (unsigned)page);
-            }
-            // Remove page table entry
-            (*pte) = 0;
-
-            // Invalidate tlb for page
-            asm_invalidate_tlb(page);
-
-            lprintf("remove frames: start: 0x%x, len: %d",
-                    (unsigned)frame_start, (int)cur_len);
-
-            return ret;
-        }
+        is_finished = IS_SET(*pte, PG_NEW_PAGES_END);
 
         // Remove page table entry
         (*pte) = 0;
@@ -264,6 +243,64 @@ static int remove_region(uint32_t va) {
 }
 
 
+
+/** @brief Check and fix ZFOD
+ *  
+ *  @param va The virtual address of the page to inspect
+ *
+ *  @return 1 on true; 0 on false 
+ */
+static int is_page_ZFOD(uint32_t va) {
+
+    uint32_t page = va & PAGE_ALIGN_MASK;
+
+    pd_t *pd = (pd_t *)get_cr3();
+    uint32_t pd_index = GET_PD_INDEX(page);
+    pde_t *pde = &(pd->pde[pd_index]);
+
+    // Check page directory entry presence
+    if(IS_SET(*pde, PG_P)) {
+        // Present
+
+        // Check page table entry presence
+        uint32_t pt_index = GET_PT_INDEX(page);
+        pt_t *pt = (pt_t *)((*pde) & PAGE_ALIGN_MASK);
+        pte_t *pte = &(pt->pte[pt_index]);
+
+        if(IS_SET(*pte, PG_P)) {
+            // Present
+
+            // The page is not marked ZFOD
+            if(!IS_SET(*pte, PG_ZFOD)) {
+                return 0;
+            }
+
+            // Clear ZFOD bit
+            CLR_BIT(*pte, PG_ZFOD);
+            // Set as read-write
+            SET_BIT(*pte, PG_RW);
+            // Allocate a new frame
+            uint32_t new_f = get_frames_raw(0);
+
+            // Set page table entry
+            *pte = new_f | (*pte & (~PAGE_ALIGN_MASK));
+
+            // Invalidate tlb for page
+            asm_invalidate_tlb(page);
+
+            // Clear new frame
+            memset((void *)page, 0, PAGE_SIZE);
+
+            return 1;
+        }
+    }
+
+    return 0;
+
+}
+
+
+
 /* Functions implementations that are public to other modules */
 
 
@@ -272,14 +309,85 @@ static int remove_region(uint32_t va) {
  *
  *  @return 0 on success
  */
-int pf_handler() {
+void pf_handler(uint32_t error_code) {
 
-    uint32_t cur_cr2 = get_cr2();
+    // Get faulting virtual address
+    uint32_t fault_va = get_cr2();
 
-    lprintf("Page fault handler called! cr2 is: 0x%x", 
-            (unsigned)cur_cr2);
-    MAGIC_BREAK;
-    return 0;
+    // error code bit index 3 to 0: RSVD, US, RW, P
+
+    if(!IS_SET(error_code, PG_P)) {
+        // The fault was caused by a non-present page
+        lprintf("The fault was caused by a non-present page");
+        lprintf("cr2 is: 0x%x", (unsigned)fault_va);
+
+        // Kill the thread?!
+        MAGIC_BREAK;
+
+    }
+
+    if(IS_SET(error_code, PG_RSVD)) {
+        // The fault was caused by reserved bit violation
+        lprintf("The fault was caused by reserved bit violation");
+        lprintf("cr2 is: 0x%x", (unsigned)fault_va);
+
+
+        // Kill the thread?!
+        MAGIC_BREAK;
+    }
+
+
+
+    if(IS_SET(error_code, PG_US)) {
+        // The access causing the fault originated when the processor
+        // was executing in user mode
+
+        if(fault_va < USER_MEM_START) {
+            // User trying to access kernel memory
+            lprintf("The fault was caused by user accessing kernel memory");
+            lprintf("cr2 is: 0x%x", (unsigned)fault_va);
+
+            // Kill the thread?!
+            MAGIC_BREAK;
+        }
+
+        if(IS_SET(error_code, PG_RW)) {
+            // The access causing the fault was a write.
+            // Check the corresponding page table entry for faulting addr.
+            // If it's marked as ZFOD, allocate a frame for it, and retry
+            // the faulting address.
+            if(is_page_ZFOD(fault_va)) {
+
+                //lprintf("ZFOD solved");
+                return;
+
+            } else {
+                lprintf("The fault was caused by a write but not ZFOD related");
+                lprintf("cr2 is: 0x%x", (unsigned)fault_va);
+
+                // Kill the thread?!
+                MAGIC_BREAK;
+            }
+        } else {
+            // The access causing the fault was a read
+
+            // How come? Kill the thread?!
+            lprintf("A read caused page fault");
+            lprintf("cr2 is: 0x%x", (unsigned)fault_va);
+            MAGIC_BREAK;
+
+        }
+    } else {
+
+
+        // The access causing the fault originated when the processor
+        // was executing in kernel mode
+        lprintf("page fault happened in kernel mode");
+        lprintf("cr2 is: 0x%x", (unsigned)fault_va);
+        MAGIC_BREAK;
+    }
+
+
 }
 
 
@@ -302,6 +410,16 @@ int init_vm() {
     // Enable global page so that kernel pages in TLB wouldn't
     // be cleared when %cr3 is reset
     enable_pge_flag();
+
+    // Allocate a system-wide all-zero frame
+    void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
+    if(new_f == NULL) {
+        lprintf("smemalign failed");
+        return ERROR_MALLOC_LIB;
+    }
+    // Clear
+    memset(new_f, 0, PAGE_SIZE);
+    all_zero_frame = (uint32_t)new_f;
 
     // Init buddy system to track frames in user address space
     int ret = init_pm();
@@ -482,61 +600,63 @@ uint32_t clone_pd() {
  *
  *  @return 0 on success; negative integer on error
  */
-int free_user_space() {
+/*
+   int free_user_space() {
 
-    lprintf("free_user_space is called");
+   lprintf("free_user_space is called");
 
-    pd_t *pd = (pd_t *)get_cr3();
+   pd_t *pd = (pd_t *)get_cr3();
 
-    uint32_t frame_start = 0;
-    uint32_t cur_len = 0;
+   uint32_t frame_start = 0;
+   uint32_t cur_len = 0;
 
-    int i, j;
-    // skip kernel page tables, starts from user space
-    for(i = NUM_PT_KERNEL; i < PAGE_SIZE/ENTRY_SIZE; i++) {
-        if(IS_SET(pd->pde[i], PG_P)) {
+   int i, j;
+// skip kernel page tables, starts from user space
+for(i = NUM_PT_KERNEL; i < PAGE_SIZE/ENTRY_SIZE; i++) {
+if(IS_SET(pd->pde[i], PG_P)) {
 
-            uint32_t pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
-            pt_t *pt = (pt_t *)pt_addr;
-            for(j = 0; j < PAGE_SIZE/ENTRY_SIZE; j++) {
-                if(IS_SET(pt->pte[j], PG_P)) {
+uint32_t pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
+pt_t *pt = (pt_t *)pt_addr;
+for(j = 0; j < PAGE_SIZE/ENTRY_SIZE; j++) {
+if(IS_SET(pt->pte[j], PG_P)) {
 
-                    uint32_t cur_frame = pt->pte[j] & PAGE_ALIGN_MASK;
-                    if(cur_len == 0) {
-                        frame_start = cur_frame;
-                        cur_len = 1;
-                    } else if(cur_frame != frame_start + cur_len * PAGE_SIZE) {
-                        // Free contiguous frames described by frame_start and cur_len
-                        int ret = free_frames(frame_start, cur_len);
-                        if(ret < 0) return ret;
+uint32_t cur_frame = pt->pte[j] & PAGE_ALIGN_MASK;
+if(cur_len == 0) {
+frame_start = cur_frame;
+cur_len = 1;
+} else if(cur_frame != frame_start + cur_len * PAGE_SIZE) {
+// Free contiguous frames described by frame_start and cur_len
+int ret = free_frames(frame_start, cur_len);
+if(ret < 0) return ret;
 
-                        frame_start = cur_frame;
-                        cur_len = 1;
-                    } else {
-                        cur_len++;
-                    }
+frame_start = cur_frame;
+cur_len = 1;
+} else {
+cur_len++;
+}
 
-                    // Remove page table entry
-                    pt->pte[j] = 0;
-                }
-            }
+// Remove page table entry
+pt->pte[j] = 0;
+}
+}
 
-            // Free page table
-            pd->pde[i] = 0;
-            sfree((void *)pt_addr, PAGE_SIZE);
-        }
-    }
+// Free page table
+pd->pde[i] = 0;
+sfree((void *)pt_addr, PAGE_SIZE);
+}
+}
 
-    // Free last contiguous frames
-    if(cur_len != 0) {
-        free_frames(frame_start, cur_len);
-    }
+// Free last contiguous frames
+if(cur_len != 0) {
+free_frames(frame_start, cur_len);
+}
 
-    lprintf("free_user_space finished");
+lprintf("free_user_space finished");
 
-    return 0;
+return 0;
 
 }
+*/
 
 
 
@@ -551,11 +671,12 @@ int free_user_space() {
  *  @param rw_perm The rw permission of the region, 1 as rw, 0 as ro
  *  @param is_new_pages_syscall Flag showing if the caller is the new_pages 
  *  system call
+ *  @param is_ZFOD Flag showing if the region uses ZFOD
  *
  *  @return 0 on success; negative integer on error
  */
 int new_region(uint32_t va, int size_bytes, int rw_perm, 
-        int is_new_pages_syscall) {
+        int is_new_pages_syscall, int is_ZFOD) {
     // Find frames for this region, set pd and pt
 
     // Enable mapping from the page where the first byte of region
@@ -581,12 +702,19 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
         }
     }
 
-    list_t list;
-    if(get_frames(count - num_pages_allocated, &list) == -1) {
+    // Reserve how many frames will be used in the worst case
+    if(reserve_frames(count - num_pages_allocated) == -1) {
         return -1;
     }
-    int frames_left = 0;
-    uint32_t cur_frame = 0;
+
+    /*
+       list_t list;
+       if(get_frames(count - num_pages_allocated, &list) == -1) {
+       return -1;
+       }
+       int frames_left = 0;
+       uint32_t cur_frame = 0;
+       */
 
     uint32_t page = page_lowest;
     pd_t *pd = (pd_t *)get_cr3();
@@ -624,28 +752,9 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
 
         if(!IS_SET(*pte, PG_P)) {
             // Not present
-            // Allocate a new page
-            if(frames_left == 0) {
-                uint32_t *data;
-                if(!list_remove_first(&list, (void **)(&data))) {
-                    frames_left = data[0];
-                    cur_frame = data[1];
-                    free(data);
-                } else {
-                    // Shouldn't happen
-                    lprintf("list_remove_first returns negative");
-                    return ERROR_UNKNOWN;
-                }
-            } 
 
-            frames_left--;
-            uint32_t new_f = cur_frame;
-            cur_frame += PAGE_SIZE;
-
+            // Get page table entry default bits
             uint32_t pte_ctrl_bits = get_pg_ctrl_bits(1);
-            // Set rw permission
-            rw_perm ? SET_BIT(pte_ctrl_bits, PG_RW) :
-                CLR_BIT(pte_ctrl_bits, PG_RW);
 
             // Change privilege level to user
             // Allow user mode access when set
@@ -653,36 +762,58 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
 
             // new_pages system call related
             if(is_new_pages_syscall) {
+                // The page is the base of the region new_pages() requests
                 if(page == page_lowest) {
                     SET_BIT(pte_ctrl_bits, PG_NEW_PAGES_START);
                 }
 
+                // The page is the last one of the region new_pages() requests
                 if(page == page_highest) {
                     SET_BIT(pte_ctrl_bits, PG_NEW_PAGES_END);
                 }
             }
 
-            *pte = ((uint32_t)new_f | pte_ctrl_bits);
+            uint32_t new_f;
+            if(is_ZFOD) {
+                // Mark as ZFOD
+                SET_BIT(pte_ctrl_bits, PG_ZFOD);
+                // Set as read-only
+                CLR_BIT(pte_ctrl_bits, PG_RW);
+                // Usr a system wide all-zero page
+                new_f = all_zero_frame;
+            } else {
+                // Set rw permission
+                rw_perm ? SET_BIT(pte_ctrl_bits, PG_RW) :
+                    CLR_BIT(pte_ctrl_bits, PG_RW);
+                // Allocate a new frame
+                new_f = get_frames_raw(0);
+            }
+
+            // Set page table entry
+            *pte = new_f | pte_ctrl_bits;
 
             // Invalidate tlb for page
             asm_invalidate_tlb(page);
 
-            // Clear page
-            memset((void *)page, 0, PAGE_SIZE);
+            // Clear new frame
+            if(!is_ZFOD) {
+                memset((void *)page, 0, PAGE_SIZE);
+            }
 
-//            lprintf("frame %x allocated to page %x", (unsigned)new_f,
-//                    (unsigned)page);
-
+            //            lprintf("frame %x allocated to page %x", (unsigned)new_f,
+            //                    (unsigned)page);
 
         }
 
         page += PAGE_SIZE;
     }
 
+    /*
     // Destroy result list
     if(count - num_pages_allocated > 0) {
-        list_destroy(&list, TRUE);
+    list_destroy(&list, TRUE);
     }
+    */
 
     return 0;
 }
@@ -719,7 +850,7 @@ int new_pages(void *base, int len) {
     }
 
     // Allocate pages of read-write permission
-    int ret = new_region((uint32_t)base, len, 1, TRUE);    
+    int ret = new_region((uint32_t)base, len, 1, TRUE, TRUE);    
     return ret;
 
 }
@@ -740,6 +871,7 @@ int remove_pages(void *base) {
     return remove_region((uint32_t)base);
 
 }
+
 
 
 /** @brief Check if pages in region are allocated and of specified permission

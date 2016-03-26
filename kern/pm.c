@@ -60,7 +60,7 @@ static spinlock_t lock;
  * 
  * @return Base of contiguous frames on success; negative integer on error
  */
-static uint32_t get_frames_raw(int order) {
+uint32_t get_frames_raw(int order) {
 
     // lprintf("order: %d", order);
     // Check free block lists
@@ -109,7 +109,7 @@ static uint32_t get_frames_raw(int order) {
  * 
  * @return 0 on success; negative integer on error
  */
-static int free_frames_raw(uint32_t base, int order) {
+int free_frames_raw(uint32_t base, int order) {
 
     int origin_order = order;
     // lprintf("free_frames: base: %x, order: %d", (unsigned)base, order);
@@ -197,6 +197,32 @@ int init_pm() {
     return 0;
 }
 
+/**
+ * @brief Declare how many frames are needed and check if there's enough
+ *
+ * Predeclare futural usage so that frames will be enough when actually needed
+ *
+ * @param count The number of frames requested.
+ *  
+ * @return 0 on success; A negative integer on error
+ */
+
+int reserve_frames(int count) {
+
+    // Compare count with current number of free frames availale
+    spinlock_lock(&lock);
+    if(count > num_free_frames) {
+        spinlock_unlock(&lock);
+        return -1;
+    }
+    // Decrease free frame counter
+    num_free_frames -= count;
+    spinlock_unlock(&lock);
+
+    return 0;
+
+}
+
 
 /**
  * @brief Get frames. Wrapper for get_frames_raw.
@@ -262,6 +288,7 @@ int get_frames(int count, list_t *list) {
 
     return 0;
 }
+
 
 /**
  * @brief Free frames. Wrapper for free_frames_raw.

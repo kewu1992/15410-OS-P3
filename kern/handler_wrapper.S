@@ -105,15 +105,19 @@ pf_wrapper:
     call    asm_push_ss             # save all data segment selectors
     call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
 
-    call    pf_handler
+    movl    52(%esp), %eax          # place error code in %eax
+    pushl   %eax                    # push error code as first argument
+    call    pf_handler              
+    addl    $4, %esp                # "pop" argument
     
     pushl   %esp                    # push argument: %esp
-    pushl   $56                     # push argument: offset of cs
+    pushl   $60                     # push argument: offset of cs
     call    context_switch_set_esp0 # call context_switch_set_esp0()
     addl    $8, %esp                # "pop" arguments
     
     call    asm_pop_ss              # restore all data segment selectors
     popa
+    addl    $4, %esp                # "pop" error code
     iret
 
 print_wrapper:
