@@ -181,6 +181,9 @@ int init_IDT(void (*tickback)(unsigned int)) {
     // install remove_pages() syscall handler
     install_IDT_entry(REMOVE_PAGES_INT, remove_pages_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
+    // install swexn() syscall handler
+    install_IDT_entry(SWEXN_INT, swexn_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
     // initialize device drivers
     init_console_driver();
     init_keyboard_driver();

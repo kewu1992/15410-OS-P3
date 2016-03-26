@@ -51,4 +51,6 @@ void new_pages_wrapper();
 
 void remove_pages_wrapper();
 
+void swexn_wrapper();
+
 #endif
