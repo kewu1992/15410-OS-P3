@@ -38,7 +38,10 @@ typedef struct {
 
 int init_pm();
 int get_frames(int count, list_t *list);
-int free_frames(uint32_t base, int count);
+//int free_frames(uint32_t base, int count);
+int reserve_frames(int count);
+uint32_t get_frames_raw(int order);
+int free_frames_raw(uint32_t base, int order);
 
 
 
