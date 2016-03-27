@@ -4,6 +4,7 @@
 #include <common_kern.h>
 #include <cr.h>
 #include <asm_atomic.h>
+#include <simple_queue.h>
 
 /* k-stack size is 8192 */
 #define K_STACK_BITS    13
@@ -14,7 +15,7 @@
 
 static tcb_t **tcb_table;
 
-static int id_count = 0;
+static int id_count = -1;
 
 static void tcb_set_entry(void *addr, tcb_t *thr);
 
@@ -43,14 +44,14 @@ tcb_t* tcb_create_thread_only(pcb_t* process) {
     }
     thread->tid = atomic_add(&id_count);
     thread->pcb = process;
-    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;
+    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE - sizeof(simple_node_t);
     if (thread->k_stack_esp == NULL) {
         free(thread);
         return NULL;
     }
     
     // set tcb table entry
-    tcb_set_entry(thread->k_stack_esp-1, thread);
+    tcb_set_entry(thread->k_stack_esp, thread);
 
     return thread;
 }
@@ -83,7 +84,9 @@ tcb_t* tcb_get_entry(void *addr) {
 }
 
 void* tcb_get_high_addr(void *addr) {
-    return (void*)((GET_K_STACK_INDEX(addr) + 1) * K_STACK_SIZE);
+    // the very top of kernel stack for each thread is used for context switch
+    // scheduler to store queue node
+    return (void*)((GET_K_STACK_INDEX(addr) + 1) * K_STACK_SIZE - sizeof(simple_node_t));
 }
 
 void* tcb_get_low_addr(void *addr) {

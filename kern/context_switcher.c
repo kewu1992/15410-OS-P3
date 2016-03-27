@@ -29,7 +29,9 @@ static void* get_last_ebp(void* ebp);
  *
  *  3   0               block the calling thread and yield -1
  *
- *  4   tcb_t*          resume to a given thread identified by its tcb
+ *  4   tcb_t*          make_runable a given thread identified by its tcb
+ *
+ *  5   tcb_t*          
  */
 void context_switch(int op, uint32_t arg) {
     /*  The following are pseudocode 
@@ -52,8 +54,12 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
+    // before context switch, save cr3
+    this_thr->pcb->page_table_base = get_cr3();
+
     // lprintf("before esp: %p", (void*)asm_get_esp());
     // lprintf("before: %p", this_thr);
+    // lprintf("before: %d", this_thr->tid);
 
     asm_context_switch(op, arg, this_thr);
 
@@ -61,21 +67,29 @@ void context_switch(int op, uint32_t arg) {
 
     // lprintf("after esp: %p", (void*)asm_get_esp());
     // lprintf("after: %p", this_thr);
+    // lprintf("after: %d", this_thr->tid);
 
     if (op == 1 && this_thr->result == 0) {
         // new task (fork)
         tcb_create_process_only(RUNNING, this_thr);
 
         set_cr3(clone_pd());
+        this_thr->pcb->page_table_base = get_cr3();
     }
+
+    // after context switch, restore cr3
+    if (this_thr->pcb->page_table_base != get_cr3())
+        set_cr3(this_thr->pcb->page_table_base);
+
+    // reset esp0
+    set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp));
 }
 
 tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
     tcb_t* new_thr;
 
     switch(op) {
-    case 0:
-        // context switch (yield)
+    case 0: // context switch (yield)
         if (scheduler_enqueue_tail(this_thr) < 0) {
             printf("scheduler_enqueue_tail() failed, context switch \
                     failed for thread %d", this_thr->tid);
@@ -86,8 +100,10 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
         if (new_thr == NULL) {
             // yield error
             this_thr->result = -1;
-        } else
+            return this_thr;
+        } else {
             return new_thr;
+        }
         
     case 1:    // fork and context switch to new thread
     case 2:    // thread_fork and context switch to new thread
@@ -108,6 +124,20 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             return this_thr;
         }
         return new_thr;
+    case 3: // block
+        // let sheduler to choose the next thread to run
+        new_thr = scheduler_get_next(-1);
+        if (new_thr == NULL) {
+            panic("no other process is running, %d can not be blocked", this_thr->tid);
+        } else
+            return new_thr;
+    case 4: // make_runnable a thread
+        new_thr = (tcb_t*)arg;
+        if (new_thr != NULL && scheduler_enqueue_tail(new_thr) == 0) {
+            this_thr->result = 0;
+        } else
+            this_thr->result = -1;
+        return this_thr;
     default:
         return this_thr;
     }

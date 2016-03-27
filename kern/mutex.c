@@ -45,7 +45,7 @@
 int mutex_init(mutex_t *mp) {
     mp->lock_holder = -1; 
     int is_error = spinlock_init(&mp->inner_lock);
-    is_error |= mutex_queue_init(&mp->deque);
+    is_error |= simple_queue_init(&mp->deque);
     return is_error ? -1 : 0;
 }
 
@@ -73,7 +73,7 @@ void mutex_destroy(mutex_t *mp) {
         spinlock_lock(&mp->inner_lock);
     }
 
-    while (mutex_queue_destroy(&mp->deque) < 0){
+    while (simple_queue_destroy(&mp->deque) < 0){
         // illegal, some threads are blocked waiting on it
         printf("Destroy mutex %p failed, some threads are blocking on it, "
                 "will try again later...\n", mp);
@@ -99,7 +99,7 @@ void mutex_destroy(mutex_t *mp) {
  *  @return void
  */
 void mutex_lock(mutex_t *mp) {
-    int tid = tcb_get_entry((void*)asm_get_esp())->tid;
+    tcb_t* thr = tcb_get_entry((void*)asm_get_esp());
 
     spinlock_lock(&mp->inner_lock);
     if (mp->lock_holder == -2) {
@@ -109,23 +109,22 @@ void mutex_lock(mutex_t *mp) {
 
     if (mp->lock_holder == -1){
         // mutex is unlocked, get the mutex lock directly and set it to locked
-        mp->lock_holder = tid;
+        mp->lock_holder = thr->tid;
         spinlock_unlock(&mp->inner_lock);
     } else {
-        mutex_node_t node;
-        node.tid = tid;
+        simple_node_t node;
+        node.thr = thr;
 
         // mutex is locked, enter the tail of queue to wait, note that stack
         // memory is used for mutex_node. Because the stack of mutex_lock()
         // will not be destroied until this thread get the mutex, so it is safe
-        mutex_queue_enqueue(&mp->deque, &node);
+        simple_queue_enqueue(&mp->deque, &node);
 
         spinlock_unlock(&mp->inner_lock);
 
-        // while this thread doesn't get the mutex, let the thread that grab
-        // the mutex to run 
-        while(mp->lock_holder != tid) 
-            context_switch(0, mp->lock_holder);
+        // while this thread doesn't get the mutex, block itself
+        while(mp->lock_holder != thr->tid) 
+            context_switch(3, 0);
     }
 }
 
@@ -153,7 +152,7 @@ void mutex_unlock(mutex_t *mp) {
     }
     
 
-    mutex_node_t* node = mutex_queue_dequeue(&mp->deque);
+    simple_node_t* node = simple_queue_dequeue(&mp->deque);
 
     if (node == NULL) {
         // no thread is waiting on the mutex, set mutex as available 
@@ -161,9 +160,12 @@ void mutex_unlock(mutex_t *mp) {
     } else {
         // some threads are waiting the mutex, hand over the lock to the thread
         // in the head of queue
-        mp->lock_holder = node->tid;
+        mp->lock_holder = node->thr->tid;
     }
 
     spinlock_unlock(&mp->inner_lock);
+
+    if (node != NULL)
+        context_switch(4, (uint32_t)node->thr);
 }
 

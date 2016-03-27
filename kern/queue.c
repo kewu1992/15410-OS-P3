@@ -1,6 +1,7 @@
 /** @file queue.c
  *
- *  @brief This file contains the implementation of a double-ended queue
+ *  @brief This file contains the implementation of a double-ended queue 
+ *         (thread-unsafe)
  *
  *  @author Ke Wu <kewu@andrew.cmu.edu>
  *  @bug None known

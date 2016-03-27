@@ -60,7 +60,7 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     lprintf("Finish initialization");
 
     lprintf( "Ready to load first task" );
-    loadFirstTask("coolness");
+    loadFirstTask("io_test");
 
     // should never reach here
     return 0;
@@ -90,6 +90,10 @@ void kernel_init() {
 
     if (syscall_print_init() < 0)
         panic("Initialize syscall print() failed!");
+
+    if (syscall_read_init() < 0)
+        panic("Initialize syscall readline() failed!");
+
 
     clear_console();
 }

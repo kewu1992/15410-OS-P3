@@ -21,6 +21,8 @@
 #include <interrupt_defines.h>
 #include <asm.h>
 #include <keyhelp.h>
+#include <syscall_inter.h>
+#include <simics.h>
 
 /** @brief Size of buffer used to store scancode */
 #define KEY_BUF_SIZE 256
@@ -64,6 +66,9 @@ void keyboard_interrupt_handler(){
         keybuf[front] = scancode;
         front = (front + 1) % KEY_BUF_SIZE;
     }
+
+    make_reading_thr_runnable();
+
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
 }
 
@@ -72,27 +77,25 @@ void keyboard_interrupt_handler(){
  *  The top part of keyboard driver. It get scancode from buffer and process it.
  *  This function does not block if there are no characters in the keyboard
  *  buffer. Note that before it access the shared data structure buffer, it will
- *  disable all interrupts to avoid interrupt-related concurrency problem.
+ *  disable all interrupts to avoid interrupt-related concurrency problem 
+ *  (this is not done in readchar() but in the function that invoke readchar(), 
+ *  e.g. readline() and getchar()).
  *
  *  @return The next character in the keyboard buffer, or -1 if the keyboard
  *          buffer is currently empty
  **/
 int readchar(void) {
     int ret = -1;
-    // disable all interrupts before access buffer
-    disable_interrupts();
+    
     // check if keryboard buffer is empty
     if (front != rear) {
         uint8_t scancode = keybuf[rear];
         rear = (rear + 1) % KEY_BUF_SIZE;
-        // enable interrupts as soon as it get data from buffer
-        enable_interrupts();
-
+        
+        // process code
         kh_type augchar = process_scancode(scancode);
         if (KH_HASDATA(augchar) && KH_ISMAKE(augchar))
             ret = (int)KH_GETCHAR(augchar);
-    } else {
-        enable_interrupts();
-    }
+    } 
     return ret;
 }

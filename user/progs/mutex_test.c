@@ -89,9 +89,11 @@ int main() {
 
     if (fork() == 0){
         if (fork() == 0) {
+            lprintf("I am 1");
             while(1)
                 print(len ,text1);
         } else {
+            lprintf("I am 2");
             while(1)
                 print(len ,text2);
         }
@@ -99,9 +101,11 @@ int main() {
     }
     else{
         if (fork() == 0) {
+            lprintf("I am 3");
             while(1)
                 print(len ,text3);
         } else {
+            lprintf("I am 4");
             while(1)
                 print(len ,text4);
         }

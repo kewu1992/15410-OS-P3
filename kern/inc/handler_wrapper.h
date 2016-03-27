@@ -53,4 +53,8 @@ void remove_pages_wrapper();
 
 void swexn_wrapper();
 
+void halt_wrapper();
+
+void readline_wrapper();
+
 #endif

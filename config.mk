@@ -65,7 +65,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant 
+STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test
 ###########################################################################
 # Data files provided by course staff to build into the RAM disk
 ###########################################################################
@@ -98,7 +98,7 @@ THREAD_OBJS = malloc.o panic.o
 ###########################################################################
 # Object files for your syscall wrappers
 ###########################################################################
-SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o swexn.o
+SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o halt.o readline.o
 
 
 ###########################################################################
@@ -116,7 +116,7 @@ AUTOSTACK_OBJS = autostack.o
 #
 # Kernel object files you provide in from kern/
 #
-KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_helper.o asm_new_process_iret.o init_IDT.o handler_wrapper.o vm.o control_block.o context_switcher.o scheduler.o queue.o keyboard_driver.o timer_driver.o asm_invalidate_tlb.o asm_context_switch.o syscall_thr_management.o syscall_lifecycle.o pm.o list.o asm_atomic.o spinlock.o mutex.o syscall_consoleio.o syscall_memory.o mutex_queue.o
+KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_helper.o asm_new_process_iret.o init_IDT.o handler_wrapper.o vm.o control_block.o context_switcher.o scheduler.o queue.o keyboard_driver.o timer_driver.o asm_invalidate_tlb.o asm_context_switch.o syscall_thr_management.o syscall_lifecycle.o pm.o list.o asm_atomic.o spinlock.o mutex.o syscall_consoleio.o syscall_memory.o simple_queue.o syscall_misc.o
 
 ###########################################################################
 # WARNING: Do not put **test** programs into the REQPROGS variables.  Your

@@ -182,7 +182,13 @@ int init_IDT(void (*tickback)(unsigned int)) {
     install_IDT_entry(REMOVE_PAGES_INT, remove_pages_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // install swexn() syscall handler
-    install_IDT_entry(SWEXN_INT, swexn_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    //install_IDT_entry(SWEXN_INT, swexn_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install halt() syscall handler
+    install_IDT_entry(HALT_INT, halt_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install readline() syscall handler
+    install_IDT_entry(READLINE_INT, readline_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // initialize device drivers
     init_console_driver();
