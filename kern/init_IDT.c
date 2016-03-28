@@ -16,7 +16,7 @@
 #include <keyhelp.h>
 #include <timer_defines.h>
 #include <handler_wrapper.h>
-#include <console_driver.h>
+#include <console.h>
 #include <keyboard_driver.h>
 #include <timer_driver.h>
 #include <syscall_int.h>

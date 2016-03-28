@@ -1,3 +1,16 @@
+/** @file asm_new_process_iret.S
+ *  @brief This file contains code that will be used by loader when load a new
+ *         process.
+ *
+ *  It will set esp to the new value, set data segment selectors to 
+ *  SEGSEL_USER_DS and execute iret.
+ *
+ *  @author Ke Wu (kewu)
+ *  @author Jian Wang (jianwan3)
+ *
+ *  @bug No known bugs.
+ */
+
 #include <seg.h>
 
 .global asm_new_process_iret

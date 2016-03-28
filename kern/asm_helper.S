@@ -13,7 +13,6 @@
 .globl asm_get_ebp
 .globl asm_get_esp
 .globl asm_get_cs
-.globl asm_set_esp_w_ret
 .globl asm_pop_generic
 .globl asm_push_generic
 .globl asm_pop_ss
@@ -33,12 +32,6 @@ asm_get_esp:
 asm_get_cs:
     movl    %cs, %eax       # Get current %cs as return value
     ret
-
-asm_set_esp_w_ret:
-    movl    (%esp), %eax    # save ret addr to %eax
-    movl    4(%esp), %esp   # set new esp
-    pushl   %eax            # push ret addr
-    ret  
 
 asm_pop_generic:
     popl    24(%esp)         # move ret addr
