@@ -73,7 +73,7 @@ void fill_handler(void* base, void* handler) {
 
     memcpy(cbase+GATE_OFFSET_BEGIN, &handler_addr, GATE_OFFSET_SIZE1);
     memcpy(cbase+GATE_OFFSET_MID, ((char*)&handler_addr)+GATE_OFFSET_SIZE1, 
-                                                            GATE_OFFSET_SIZE2);
+            GATE_OFFSET_SIZE2);
 }
 
 /** @brief Fill segment selector to an IDT entry
@@ -116,7 +116,7 @@ void fill_option(void* base, int DPL, int gate_type) {
 
 
     uint16_t option = 
-            gate_type_option | GATE_OPTION_D | GATE_OPTION_P | dpl_option;
+        gate_type_option | GATE_OPTION_D | GATE_OPTION_P | dpl_option;
     memcpy((char*)base+GATE_OPTION_BEGIN, &option, GATE_OPTION_SIZE);
 }
 
@@ -136,7 +136,7 @@ void fill_option(void* base, int DPL, int gate_type) {
  */
 void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int gate_type) {
     void* idt_entry = 
-                (void*)((char*)idt_base() + index * IDT_ENTRY_SIZE);
+        (void*)((char*)idt_base() + index * IDT_ENTRY_SIZE);
     fill_handler(idt_entry, hanlder);
     fill_segsel(idt_entry, segsel);
     fill_option(idt_entry, DPL, gate_type);
@@ -153,7 +153,7 @@ void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int g
  *  @return A negative error code on error, or 0 on success
  **/
 int init_IDT(void (*tickback)(unsigned int)) {
-    
+
     // install keyboard interrupt handler
     install_IDT_entry(KEY_IDT_ENTRY, keyboard_wrapper, SEGSEL_KERNEL_CS, 0, 1);
 
@@ -189,6 +189,13 @@ int init_IDT(void (*tickback)(unsigned int)) {
 
     // install readline() syscall handler
     install_IDT_entry(READLINE_INT, readline_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install set_term_color() syscall handler
+    install_IDT_entry(SET_TERM_COLOR_INT, set_term_color_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install set_cursor_pos() syscall handler
+    install_IDT_entry(SET_CURSOR_POS_INT, set_cursor_pos_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
 
     // initialize device drivers
     init_console_driver();

@@ -843,6 +843,11 @@ int new_pages(void *base, int len) {
         return ERROR_LEN;
     }
 
+    // Region will overflow address space
+    if(UINT32_MAX - (uint32_t)base < len) {
+        return ERROR_LEN;
+    }
+
     // if any portion of the region intersects a part of the address space
     // reserved by the kernel
     if(!((uint32_t)base >= USER_MEM_START)) {
@@ -874,18 +879,33 @@ int remove_pages(void *base) {
 
 
 
-/** @brief Check if pages in region are allocated and of specified permission
+/** @brief Check user space memory validness
+ *
+ *  Can check if region are allocated, NULL terminated, and writable.
  *
  *  @param va The virtual address of the start of the region
- *  @param size_bytes The size of the region
- *  @param The permission to check: 0 for read-only, 1 for read-write
+ *  @param max_bytes Max bytes to check
+ *  @param is_check_null If 1, then check if a '\0' is encountered
+ *  before max_bytes are checked
+ *  @param need_writable If 1, check if the region is writable
  *
  *  @return 1 if true; 0 if false 
  */
-int is_region_alloc_perm(uint32_t va, int size_bytes, int rw_perm) {
+int is_mem_valid(char *va, int max_bytes, int is_check_null, 
+        int need_writable) {
 
-    uint32_t page_lowest = va & PAGE_ALIGN_MASK;
-    uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
+    // Region will overflow address space
+    if(UINT32_MAX - (uint32_t)va < max_bytes) {
+        return -1;
+    }
+
+    // Reference kernel memory
+    if((uint32_t)va < USER_MEM_START) {
+        return 0;
+    }
+
+    uint32_t page_lowest = (uint32_t)va & PAGE_ALIGN_MASK;
+    uint32_t page_highest = ((int32_t)va + (uint32_t)max_bytes - 1) &
         PAGE_ALIGN_MASK;
     int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
     int i;
@@ -893,6 +913,7 @@ int is_region_alloc_perm(uint32_t va, int size_bytes, int rw_perm) {
     uint32_t page = page_lowest;
     pd_t *pd = (pd_t *)get_cr3();
 
+    int bytes_checked = 0;
     for(i = 0; i < count; i++) {
         uint32_t pd_index = GET_PD_INDEX(page);
         pde_t *pde = &(pd->pde[pd_index]);
@@ -908,10 +929,28 @@ int is_region_alloc_perm(uint32_t va, int size_bytes, int rw_perm) {
 
             if(IS_SET(*pte, PG_P)) {
                 // Present
-                // Check rw permission
-                int pte_rw_bit = IS_SET(*pte, PG_RW);
-                if(rw_perm != pte_rw_bit) {
-                    return 0;
+
+                if(is_check_null) {
+
+                    while(((uint32_t)(va + bytes_checked) & PAGE_ALIGN_MASK) 
+                            == page) {
+
+                        if(bytes_checked == max_bytes) {
+                            return 0;
+                        }
+
+                        if(va[bytes_checked++] == '\0') {
+                            return 1;
+                        }
+                    }
+                } else if(need_writable) {
+                    if(!IS_SET(*pte, PG_RW)) {
+                        // Page is read-only
+                        // If it's marked ZFOD, then it's valid
+                        if(!is_page_ZFOD(page)) {
+                            return 0;
+                        }
+                    }
                 }
             } else {
                 // Page table entry not present

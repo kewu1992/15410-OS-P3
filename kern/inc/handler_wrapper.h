@@ -57,4 +57,8 @@ void halt_wrapper();
 
 void readline_wrapper();
 
+void set_term_color_wrapper();
+
+void set_cursor_pos_wrapper();
+
 #endif
