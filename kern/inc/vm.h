@@ -106,7 +106,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
 int free_user_space();
 int new_pages(void *base, int len);
 int remove_pages(void *base);
-int is_region_alloc_perm(uint32_t va, int size_bytes, int rw_perm);
+int is_mem_valid(char *va, int max_bytes, int is_check_null, int need_writable);
 
 typedef void (*swexn_handler_t)(void *arg, ureg_t *ureg);
 int swexn(void *esp3, swexn_handler_t eip, void *arg, ureg_t *newureg);

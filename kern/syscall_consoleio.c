@@ -5,8 +5,8 @@
 #include <asm_helper.h>
 #include <keyboard_driver.h>
 #include <context_switcher.h>
+#include <vm.h>
 
-#define NULL 0
 
 static mutex_t print_lock;
 
@@ -22,18 +22,27 @@ int syscall_print_init() {
 
 int syscall_read_init() {
     read_waiting_thr = NULL;
-    
+
     if (spinlock_init(&reading_lock) < 0)
         return -1;
-    
+
     if (mutex_init(&read_lock) < 0)
         return -2;
-    
+
     return 0;   
 }
 
+
 int print_syscall_handler(int len, char *buf) {
-    // CHECK validation of PARAMETERS
+
+    // Start argument check
+    int is_check_null = 0;
+    int need_writable = 0;
+    int max_len = len;
+    if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
+        return -1;
+    }
+    // Finish argument check
 
     mutex_lock(&print_lock);
     putbytes((const char*)buf, len);
@@ -43,9 +52,18 @@ int print_syscall_handler(int len, char *buf) {
 }
 
 int readline_syscall_handler(int len, char *buf) {
-    // CHECK validation of PARAMETERS
+
+    // Start argument check
+    int is_check_null = 0;
+    int max_len = len;
+    int need_writable = 1;
+    if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
+        return -1;
+    }
+    // Finish argument check
+
     mutex_lock(&read_lock);
-    
+
     int count = 0;
     while (count < len) {
         spinlock_lock(&reading_lock);
@@ -79,3 +97,30 @@ void make_reading_thr_runnable() {
         read_waiting_thr = NULL;
     }
 }
+
+int set_term_color_syscall_handler(int color) {
+
+    // Wait while other threads are printing stuff
+    int ret;
+    mutex_lock(&print_lock);
+    ret = set_term_color(color);
+    mutex_unlock(&print_lock);
+
+    return ret;
+
+}
+
+int set_cursor_pos_syscall_handler(int row, int col) {
+
+    // Wait while other threads are printing stuff
+    int ret;
+    mutex_lock(&print_lock);
+    ret = set_cursor(row, col);
+    mutex_unlock(&print_lock);
+
+    return ret;
+
+}
+
+
+
