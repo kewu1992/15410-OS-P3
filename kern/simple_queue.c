@@ -1,3 +1,12 @@
+/** @file simple_queue.c
+ *
+ *  @brief This file contains the implementation of a simple 
+ *         double-ended queue without using malloc().
+ *
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug None known
+ */
+
 #include <simple_queue.h>
 #include <control_block.h>
 #define NULL 0
