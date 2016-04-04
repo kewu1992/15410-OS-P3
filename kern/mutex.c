@@ -111,7 +111,8 @@ void mutex_lock(mutex_t *mp) {
         // mutex is unlocked, get the mutex lock directly and set it to locked
         mp->lock_holder = thr->tid;
         spinlock_unlock(&mp->inner_lock);
-    } else if(mp->lock_holder == thr->tid) {
+    }
+    /*else if(mp->lock_holder == thr->tid) {
         // Already have the lock, timer interrupt happened when this thread
         // was in critical section.
         spinlock_unlock(&mp->inner_lock);
@@ -121,6 +122,7 @@ void mutex_lock(mutex_t *mp) {
         // work in critical section.
         context_switch(3, 0);
     }
+    */
     
     
     else {

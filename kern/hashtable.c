@@ -50,6 +50,7 @@ void hashtable_put(hashtable_t *table, void* key, void* value) {
         lprintf("malloc failed, will try again...");
         printf("malloc failed, will try again...\n");
  //       yield(-1);
+        //MAGIC_BREAK;
         hp = malloc(sizeof(hashnode_t));
     }
     hp->key = key;

@@ -23,6 +23,8 @@ static tcb_t* internal_thread_fork(tcb_t* this_thr);
 
 static void* get_last_ebp(void* ebp);
 
+mutex_t *get_malloc_lib_lock();
+
 /** @brief Context switch from a thread to another thread. 
  *  
  *  There are multiple options for context_switch(): 
@@ -99,6 +101,15 @@ void context_switch(int op, uint32_t arg) {
     set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp));
 
     // Check if there's any thread to destroy
+
+    // Check mutext lib lock holder
+    if(mutex_get_lock_holder(get_malloc_lib_lock()) == this_thr->tid ||
+            mutex_get_lock_holder(get_zombie_list_lock()) == this_thr->tid) {
+        lprintf("Hit  !");
+        MAGIC_BREAK;
+        return; 
+    }
+
     tcb_t *thread_zombie;
     if(get_next_zombie(&thread_zombie) == 0) {
         // After putting self to zombie list, and on the way to

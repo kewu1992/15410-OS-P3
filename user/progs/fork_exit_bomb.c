@@ -33,6 +33,10 @@ int main(int argc, char *argv[]) {
             break;
         }
         count++;
+        if(pid == 0) {
+            lprintf("pid is 0, why?");
+            MAGIC_BREAK;
+        }
         report_fmt("child: %d", pid);
     }
 

@@ -168,6 +168,10 @@ int get_next_zombie(tcb_t **thread_zombie) {
 
 }
 
+mutex_t *get_zombie_list_lock() {
+    return &zombie_list.mutex;
+}
+
 /** @brief Put next zombie in the thread zombie list
   *
   * @param thread_zombie The place to store zombie thread
@@ -246,7 +250,7 @@ void vanish_syscall_handler() {
     //*******************Need to lock this operation
     // One less thread in current task
     //spinlock_lock(&this_task->lock_cur_thr_num);
-    //this_task->cur_thr_num--;
+    this_task->cur_thr_num--;
     //spinlock_unlock(&this_task->lock_cur_thr_num);
     //int cur_thr_num = this_task->cur_thr_num;
 
@@ -348,26 +352,26 @@ void vanish_syscall_handler() {
  */
 int vanish_wipe_thread(tcb_t *thread) {
 
- //   int ret;
- //   pcb_t *task = thread->pcb; 
-//    if(task->cur_thr_num == 0) {
+    int ret;
+    pcb_t *task = thread->pcb; 
+    if(task->cur_thr_num == 0) {
         lprintf("vanish_wipe_thread called for tid: %d, only thread in task", 
                 thread->tid);
         // Last thread in the task
-//        uint32_t old_pd = task->page_table_base;
+        uint32_t old_pd = task->page_table_base;
 
         // Free old address space
-//        ret = free_entire_space(old_pd);
-//        if(ret < 0) return ret;
+        ret = free_entire_space(old_pd);
+        if(ret < 0) return ret;
 
         // Free pcb, destroy stuff in the pcb
         // TBD*****************************
-/*    } else {
+    } else {
         lprintf("vanish_wipe_thread called for tid: %d,"
                 "cur_thr_num != 0?! %d", thread->tid, task->cur_thr_num);
         MAGIC_BREAK;
     }
-    */
+    
 
 
     // Free thread resource: tcb, kernel stack
