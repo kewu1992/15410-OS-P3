@@ -1,27 +1,10 @@
-/*
- *
- *  #     #
- *  ##    #   ####    #####     #     ####   ######
- *  # #   #  #    #     #       #    #    #  #
- *  #  #  #  #    #     #       #    #       #####
- *  #   # #  #    #     #       #    #       #
- *  #    ##  #    #     #       #    #    #  #
- *  #     #   ####      #       #     ####   ######
- *
- * Now that it's P3 instead of P1 you are allowed
- * to edit this file if it suits you.
- *
- * Please delete this notice.
- *
- */
-
 /** @file console.h
  *  @brief Function prototypes for the console driver.
  *
  *  This contains the prototypes and global variables for the console
  *  driver
  *
- *  @author Michael Berman (mberman)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
  *  @bug No known bugs.
  */
 
@@ -29,6 +12,8 @@
 #define _CONSOLE_H
 
 #include <video_defines.h>
+
+void init_console_driver();
 
 /** @brief Prints character ch at the current location
  *         of the cursor.

@@ -48,11 +48,6 @@ static void kernel_init();
  */
 int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
 {
-    /*
-     * When kernel_main() begins, interrupts are DISABLED.
-     * You should delete this comment, and enable them --
-     * when you are ready.
-     */
     lprintf( "Hello from a brand new kernel!" );
     
     lprintf("Initializing kernel");
@@ -79,16 +74,17 @@ void kernel_init() {
     if (tcb_init() < 0)
         panic("Initialize tcb failed!");
 
-
     // Initialize vm, all kernel 16 MB will be directly mapped and
     // paging will be enabled after this call
-    init_vm();
+    if (init_vm() < 0)
+        panic("Initialize virtual memory failed!");
 
     enable_interrupts();
 
     if (scheduler_init() < 0)
         panic("Initialize scheduler failed!");
 
+    // Initialize system call specific data structure
     if (syscall_print_init() < 0)
         panic("Initialize syscall print() failed!");
 

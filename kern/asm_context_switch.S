@@ -1,5 +1,21 @@
-
-# void asm_context_switch(int op, uint32_t arg, tcb_t *this_thr);
+/** @file asm_context_switch.S
+ *  @brief The assembly part (kernel part) of context switch
+ *  
+ *  Function prototype: 
+ *      void asm_context_switch(int op, uint32_t arg, tcb_t *this_thr);
+ *
+ *  Basically, this code does the following things:
+ *      1. save registers on stack
+ *      2. this_thr->esp = get_esp()
+ *      3. next_thr = context_switch_get_next()
+ *      4. set_esp(next_thr->esp)
+ *      5. restore registers from stack
+ *
+ *  @author Ke Wu (kewu)
+ *  @author Jian Wang (jianwan3)
+ *
+ *  @bug No known bugs.
+ */
 
 .globl asm_context_switch
 
@@ -9,7 +25,6 @@ asm_context_switch:
 
     pusha                   # push all generic registers
     pushf                   # push EFLAGS
-    #movl    8(%ebp), %ebx   # %ebx = mode
     movl    16(%ebp), %esi  # %esi = *this_thr
     movl    %esp, (%esi)    # this_thr->k_stack_esp = %esp
 

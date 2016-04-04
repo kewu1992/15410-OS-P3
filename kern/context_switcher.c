@@ -1,8 +1,10 @@
-/*  When context switch will happen?
- *      1. timer interrupt (context_switch(-1))
- *      2. yield(-1), yield(tid)
- *      3. I/O interrupt (context_switch(tid))
- *      4. system call that cause thread fork/blocked
+/** @file context_switcher.c
+ *  @brief This file contains implementation of a context switcher 
+ *
+ *  @author Ke Wu (kewu)
+ *  @author Jian Wang (jianwan3)
+ *
+ *  @bug No known bugs.
  */
 #include <scheduler.h>
 #include <asm_helper.h>
@@ -21,32 +23,31 @@ static tcb_t* internal_thread_fork(tcb_t* this_thr);
 
 static void* get_last_ebp(void* ebp);
 
-/*  op  arg             meaning
+/** @brief Context switch from a thread to another thread. 
+ *  
+ *  There are multiple options for context_switch(): 
+ *  op  arg             meaning
  *  0   -1 or 0-N       context switch (yield) to -1 or a given tid
  *
- *  1   0               fork
+ *  1   0               fork and context switch to new process
  *
- *  2   0               thread_fork
+ *  2   0               thread_fork and context switch to new thread
  *
- *  3   0               block the calling thread and yield -1
+ *  3   0               block the calling thread and yield(-1)
  *
  *  4   tcb_t*          make_runable a given thread identified by its tcb
  *
- *  5   tcb_t*          
+ *  5   tcb_t*          resume a blocked thread (make_runnable and context 
+ *                      switch to that thread immediately)     
+ *
+ *  @param op The option for context_switch()
+ *  @param arg The argument for context_switch(). With different options, this 
+ *             argument has different meannings.
+ *
+ *  @return void
  */
 void context_switch(int op, uint32_t arg) {
-    /*  The following are pseudocode 
-     *  
-     *  scheduler.enqueue_tail(this_thr);
-     *  next_thr = scheduler.getNextThread();
-     *
-     *  save registers on stack
-     *  this_thr->esp = get_esp();
-     *  
-     *  set_cr3(tcb->page_table_base);
-     *  set_esp(next_thr->esp);
-     *  restore registers on stack
-     *
+    /* 
      *  *****************
      *  What if interrupt during context switch???
      *  *****************
@@ -124,7 +125,22 @@ void context_switch(int op, uint32_t arg) {
     }
 }
 
-
+/** @brief Get the next thread for context switch
+ *  
+ *  The next thread might be:
+ *      1) Choosen by scheduler (regular context switch or yield -1)
+ *      2) A specific thread because of yield or resume
+ *      3) A newly created thread because of fork or thread_fork
+ *      4) The original thread to call this function (mostly it is becuase some
+ *         errors happen)    
+ *
+ *  @param op The option for context_switch()
+ *  @param arg The argument for context_switch(). With different options, this 
+ *             argument has different meannings.
+ *  @param this_thr The thread before context switch
+ *
+ *  @return The next thread for context switch
+ */
 tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
     tcb_t* new_thr;
 
@@ -198,6 +214,16 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
     }
 }
 
+/** @brief Implement the kernel part of thread_fork()
+ *  
+ *  Create a new thread and copy the entire kernel stack of this thread
+ *  (from very top to this_thr->k_stack_esp) to the kernel stack of the 
+ *  newly created thread
+ *
+ *  @param this_thr The thread that will be forked
+ *
+ *  @return A new thread that is the result of thread_fork() of this_thr
+ */
 tcb_t* internal_thread_fork(tcb_t* this_thr) {
     tcb_t* new_thr = tcb_create_thread_only(this_thr->pcb);
     if (new_thr == NULL)
@@ -206,11 +232,14 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
     void* high_addr = tcb_get_high_addr(this_thr->k_stack_esp);
     int len = (uint32_t)high_addr - (uint32_t)this_thr->k_stack_esp;
 
+    // set k_stack_esp value
     new_thr->k_stack_esp = (void*)((uint32_t)new_thr->k_stack_esp - len);
 
     // copy kernel stack
     memcpy(new_thr->k_stack_esp, this_thr->k_stack_esp, len);
 
+    // modify all %ebp values in the new thread's kernel stack so that all %ebp
+    // values point to the new stack instead of the original stack
     uint32_t diff = (uint32_t)new_thr->k_stack_esp - (uint32_t)this_thr->k_stack_esp;
     void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 36);
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
@@ -220,7 +249,9 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
     return new_thr;
 }
 
-/* Any syscall/interrupt need to call this function before iret.
+/* IS IT REALLY NECESSARY?
+ * 
+ * Any syscall/interrupt need to call this function before iret.
  * Context switch (change of esp0) can happen in anywhere
  */
 void context_switch_set_esp0(int offset, uint32_t esp) {
@@ -234,7 +265,6 @@ void context_switch_set_esp0(int offset, uint32_t esp) {
         // kernel --> kernel, don't need to set esp0
     }
 }
-
 
 
 /** @brief get old %ebp value based on current %ebp

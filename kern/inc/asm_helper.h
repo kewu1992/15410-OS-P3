@@ -3,15 +3,58 @@
 
 #include <stdint.h>
 
+/** @brief Get the current value of %esp
+ *  @return The value of %esp
+ */
 uint32_t asm_get_esp();
+
+/** @brief Get the current value of %ebp
+ *  @return The value of %ebp
+ */
 uint32_t asm_get_ebp();
+
+/** @brief Get the current value of %cs
+ *  @return The value of %cs
+ */
 uint32_t asm_get_cs();
 
-void asm_set_esp_w_ret(uint32_t new_esp);
+/** @brief Pop all generic registers except %esp and %eax from current stack
+ *  
+ *  Note that although only 6 values are poped from the stack, it actually pops
+ *  7*4 bytes of memory space. To obey stack discipline, an extra return address 
+ *  will also be poped. This function should be used with asm_push_generic() 
+ *  correspondingly.
+ */
+void asm_pop_generic();
 
-void asm_popa();
-void asm_pusha();
-void asm_popf();
-void asm_pushf();
+/** @brief Push all generic registers except %esp and %eax to current stack
+ *  
+ *  Note that although only 6 values are pushed to the stack, it actually costs
+ *  7*4 bytes of memory space. To obey stack discipline, an extra return address 
+ *  will also be pushed. This function should be used with asm_pop_generic() 
+ *  correspondingly.
+ */
+void asm_push_generic();
+
+/** @brief Pop all data segment selectors from current stack
+ *  
+ *  Note that although only 4 values are poped from the stack, it actually pops
+ *  5*4 bytes of memory space. To obey stack discipline, an extra return address 
+ *  will also be poped. This function should be used with asm_push_ss() 
+ *  correspondingly.
+ */
+void asm_pop_ss();
+
+/** @brief Push all data segment selectors to current stack
+ *  
+ *  Note that although only 4 values are pushed to the stack, it actually costs
+ *  5*4 bytes of memory space. To obey stack discipline, an extra return address 
+ *  will also be pushed. This function should be used with asm_pop_ss() 
+ *  correspondingly.
+ */
+void asm_push_ss();
+
+/** @brief Set all data segment selectors to SEGSEL_KERNEL_DS */
+void asm_set_ss();
 
 #endif

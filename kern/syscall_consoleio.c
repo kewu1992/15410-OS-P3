@@ -1,4 +1,4 @@
-#include <console_driver.h>
+#include <console.h>
 #include <simics.h>
 #include <mutex.h>
 #include <control_block.h>
