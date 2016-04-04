@@ -103,7 +103,8 @@ uint32_t create_pd();
 uint32_t clone_pd();
 int new_region(uint32_t va, int size_bytes, int rw_perm, 
         int is_new_pages_syscall, int is_ZFOD);
-int free_user_space();
+int free_space(uint32_t pd_base, int is_kernel_space);
+int free_entire_space(uint32_t pd_base);
 int new_pages(void *base, int len);
 int remove_pages(void *base);
 int is_mem_valid(char *va, int max_bytes, int is_check_null, int need_writable);

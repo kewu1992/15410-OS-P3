@@ -7,6 +7,8 @@ int syscall_print_init();
 
 int syscall_read_init();
 
+int syscall_vanish_init();
+
 void make_reading_thr_runnable();
 
 #endif

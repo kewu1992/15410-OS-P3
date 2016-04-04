@@ -13,6 +13,9 @@
 .global readline_wrapper
 .global set_term_color_wrapper
 .global set_cursor_pos_wrapper
+.global vanish_wrapper
+.global wait_wrapper
+.global set_status_wrapper
 
 keyboard_wrapper:
     pusha
@@ -302,5 +305,64 @@ set_cursor_pos_wrapper:
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
     iret
 
+vanish_wrapper:
+    call    asm_push_generic        # save all generic registers except %esp and %eax
+    call    asm_push_ss             # save all data segment selectors
+    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
+    
+    call    vanish_syscall_handler
 
+    # BELOW CODE SHOULDN'T BE EXECUTED
+
+    pushl   %eax                    # temporary save return value
+
+    #pushl   %esp                    # push argument: %esp
+    #pushl   $56                     # push argument: offset of cs
+    #call    context_switch_set_esp0 # call context_switch_set_esp0()
+    #addl    $8, %esp                # "pop" arguments
+    
+    popl    %eax                    # restore return value
+    call    asm_pop_ss              # restore all data segment selectors
+    call    asm_pop_generic         # restore all generic registers except %esp and %eax
+    iret
+
+wait_wrapper:
+    call    asm_push_generic        # save all generic registers except %esp and %eax
+    call    asm_push_ss             # save all data segment selectors
+    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
+
+    pushl   %esi                    # push arg1  
+    call    wait_syscall_handler
+    addl    $4, %esp                # "pop" arguments
+    pushl   %eax                    # temporary save return value
+
+    #pushl   %esp                    # push argument: %esp
+    #pushl   $56                     # push argument: offset of cs
+    #call    context_switch_set_esp0 # call context_switch_set_esp0()
+    #addl    $8, %esp                # "pop" arguments
+
+    popl    %eax                    # restore return value
+    call    asm_pop_ss              # restore all data segment selectors
+    call    asm_pop_generic         # restore all generic registers except %esp and %eax
+    iret
+
+set_status_wrapper:
+    call    asm_push_generic        # save all generic registers except %esp and %eax
+    call    asm_push_ss             # save all data segment selectors
+    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
+
+    pushl   %esi                    # push arg1  
+    call    set_status_syscall_handler
+    addl    $4, %esp                # "pop" arguments
+    pushl   %eax                    # temporary save return value
+
+    #pushl   %esp                    # push argument: %esp
+    #pushl   $56                     # push argument: offset of cs
+    #call    context_switch_set_esp0 # call context_switch_set_esp0()
+    #addl    $8, %esp                # "pop" arguments
+
+    popl    %eax                    # restore return value
+    call    asm_pop_ss              # restore all data segment selectors
+    call    asm_pop_generic         # restore all generic registers except %esp and %eax
+    iret
 

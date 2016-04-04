@@ -61,4 +61,10 @@ void set_term_color_wrapper();
 
 void set_cursor_pos_wrapper();
 
+void vanish_wrapper();
+
+void wait_wrapper();
+
+void set_status_wrapper();
+
 #endif

@@ -60,7 +60,8 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     lprintf("Finish initialization");
 
     lprintf( "Ready to load first task" );
-    loadFirstTask("io_test");
+    MAGIC_BREAK;
+    loadFirstTask("fork_exit_bomb");
 
     // should never reach here
     return 0;
@@ -93,6 +94,9 @@ void kernel_init() {
 
     if (syscall_read_init() < 0)
         panic("Initialize syscall readline() failed!");
+
+    if(syscall_vanish_init() < 0)
+        panic("Initialize syscall vanish() failed!");
 
 
     clear_console();

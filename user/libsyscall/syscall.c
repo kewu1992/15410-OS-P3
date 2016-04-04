@@ -23,33 +23,6 @@
 #include <syscall.h>
 #include <simics.h>
 
-void set_status(int status)
-{
-	lprintf("I can not exit because syscall is not implemented... exit status: %d", status);
-
-	while (1)
-		continue;
-
-	return;
-}
-
-volatile int placate_the_compiler;
-void vanish(void)
-{
-	int blackhole = 867-5309;
-
-	blackhole ^= blackhole;
-	blackhole /= blackhole;
-	*(int *) blackhole = blackhole; /* won't get here */
-	while (1)
-		++placate_the_compiler;
-}
-
-int wait(int *status_ptr)
-{
-	return -1;
-}
-
 int yield(int pid)
 {
 	return -1;
@@ -75,19 +48,10 @@ char getchar(void)
 	return -1;
 }
 
-int set_term_color(int color)
-{
-	return -1;
-}
 
 int get_cursor_pos(int *row, int *col)
 {
   return -1;
-}
-
-int set_cursor_pos(int row, int col)
-{
-	return -1;
 }
 
 int readfile(char *filename, char *buf, int count, int offset)

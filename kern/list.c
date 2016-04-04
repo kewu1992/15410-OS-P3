@@ -56,6 +56,40 @@ int list_append(list_t *list, void *data) {
     return 0;
 }
 
+/** @brief Get a private copy of the list
+ * 
+ *  @param list The list to copy
+ *
+ *  @return Pointer to a new copy of list on success; NULL on error
+ *
+ */
+list_t *list_get_copy(list_t *list) {
+
+    list_t *copy_list = malloc(sizeof(list_t));
+    if(copy_list == NULL) {
+        lprintf("malloc failed");
+        return NULL;
+    }
+    if(list_init(copy_list) == -1) {
+        lprintf("list_init failed");
+        return NULL;
+    }
+
+    mutex_lock(&(list->mutex));
+    list_node_t *node = list->head->next;
+    while(node != list->head) {
+        if(list_append(copy_list, node->data) < 0) {
+            lprintf("list append failed");
+            mutex_unlock(&(list->mutex));
+            return NULL;
+        }
+    }
+    mutex_unlock(&(list->mutex));
+
+    return copy_list;
+
+}
+
 /** @brief Remove first element of the list
  * 
  * @param list The list to operate on

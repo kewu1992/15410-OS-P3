@@ -111,7 +111,19 @@ void mutex_lock(mutex_t *mp) {
         // mutex is unlocked, get the mutex lock directly and set it to locked
         mp->lock_holder = thr->tid;
         spinlock_unlock(&mp->inner_lock);
-    } else {
+    } else if(mp->lock_holder == thr->tid) {
+        // Already have the lock, timer interrupt happened when this thread
+        // was in critical section.
+        spinlock_unlock(&mp->inner_lock);
+        // This thread must have another instance in scheduler's queue that
+        // was put when the timer interrupt happened, stop this term of 
+        // running and wait for the other term to run to finish the previsou
+        // work in critical section.
+        context_switch(3, 0);
+    }
+    
+    
+    else {
         simple_node_t node;
         node.thr = thr;
 
@@ -123,8 +135,11 @@ void mutex_lock(mutex_t *mp) {
         spinlock_unlock(&mp->inner_lock);
 
         // while this thread doesn't get the mutex, block itself
-        while(mp->lock_holder != thr->tid) 
+        while(mp->lock_holder != thr->tid) {
+//            lprintf("mutex lock holder is %d, %d will block", mp->lock_holder,
+//                    thr->tid);
             context_switch(3, 0);
+        }
     }
 }
 
@@ -160,12 +175,14 @@ void mutex_unlock(mutex_t *mp) {
     } else {
         // some threads are waiting the mutex, hand over the lock to the thread
         // in the head of queue
-        mp->lock_holder = node->thr->tid;
+        mp->lock_holder = ((tcb_t *)(node->thr))->tid;
     }
 
     spinlock_unlock(&mp->inner_lock);
 
-    if (node != NULL)
+    if (node != NULL) {
+        //lprintf("mutex unlock: old holder gives lock to %d", mp->lock_holder);
         context_switch(4, (uint32_t)node->thr);
+    }
 }
 

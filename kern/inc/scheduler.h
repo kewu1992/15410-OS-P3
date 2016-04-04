@@ -9,4 +9,8 @@ int scheduler_enqueue_tail(tcb_t *thread);
 
 tcb_t* scheduler_get_next(int mode);
 
+tcb_t* simple_scheduler_get_next(int mode);
+
+int scheduler_is_exist(int tid);
+
 #endif

@@ -4,7 +4,11 @@
 #include <common_kern.h>
 #include <cr.h>
 #include <asm_atomic.h>
-#include <simple_queue.h>
+#include <list.h>
+
+#include <simics.h>
+
+#include <syscall_lifecycle.h>
 
 /* k-stack size is 8192 */
 #define K_STACK_BITS    13
@@ -25,15 +29,56 @@ int tcb_init() {
 }
 
 pcb_t* tcb_create_process_only(process_state_t state, tcb_t* thread) {
+
+    lprintf("tcb_create_process_only called for tid %d", thread->tid);
+
     pcb_t *process = malloc(sizeof(pcb_t));
     if (process == NULL)
         return NULL;
     process->pid = thread->tid;
-    process->page_table_base = get_cr3();
+    process->page_table_base = thread->new_page_table_base;
     process->state = state;
+    process->ppid = thread->pthr->pcb->pid;
+    // ****************************Consider lock this operation
+    // There's no thread fork now, all fork.
+    // Parent task has one more child
+    // thread->pthr->pcb->cur_child_num++;
+
+    // Initially have one thread
+    process->cur_thr_num = 1;
+    // Initially exit status is 0
+    process->exit_status = 0;
+    // Initially no children task
+    process->cur_child_num = 0;
+
+    
+    if(spinlock_init(&process->lock_cur_thr_num) < 0) {
+        lprintf("spinlock_init failed");
+        panic("spinlock_init failed");
+    }
+
+    if(spinlock_init(&process->lock_cur_child_num) < 0) {
+        lprintf("spinlock_init failed");
+        panic("spinlock_init failed");
+    }
+    
+
+    if(list_init(&process->child_exit_status_list) < 0) {
+        lprintf("list_init failed");
+        panic("list_init failed");
+    }
+
+    if(list_init(&process->wait_list) < 0) {
+        lprintf("list_init failed");
+        panic("list_init failed");
+    }
+
+    // Put pid to pcb mapping in hashtable
+    ht_put_task(process->pid, process);
 
     // must be last step
     thread->pcb = process;
+
     return process;
 }
 
@@ -72,6 +117,20 @@ tcb_t* tcb_create_process(process_state_t state) {
 }
 
 void tcb_free_thread(tcb_t *thr) {
+
+    lprintf("free tid: %d", thr->tid);
+    // Free stack
+    void *stack_esp = thr->k_stack_esp;
+    void *stack_low = tcb_get_low_addr(stack_esp);
+    if(stack_low == NULL) {
+        lprintf("The stack to free is NULL");
+        panic("The stack to free is NULL");
+    }
+    sfree(stack_low, K_STACK_SIZE);
+
+    // Free tcb
+    free(thr);
+    tcb_table[GET_K_STACK_INDEX(stack_esp)] = NULL;
 
 }
 

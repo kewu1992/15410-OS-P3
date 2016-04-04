@@ -20,6 +20,7 @@ int list_append(list_t *list, void *data);
 int list_remove_first(list_t *list, void **datap);
 int list_delete(list_t *list, void *data);
 void list_destroy(list_t *list, int need_free_data);
+list_t *list_get_copy(list_t *list);
 
 #ifndef ERROR_MALLOC_LIB
 #define ERROR_MALLOC_LIB (-1)
