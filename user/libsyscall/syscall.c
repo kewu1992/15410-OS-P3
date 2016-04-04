@@ -65,11 +65,6 @@ int make_runnable(int pid)
 	return -1;
 }
 
-int sleep(int ticks)
-{
-	return -1;
-}
-
 char getchar(void)
 {
 	return -1;
@@ -101,11 +96,6 @@ void task_vanish(int status)
 	status /= status;
 	while (1)
 		continue;
-}
-
-unsigned int get_ticks()
-{
-	return 1;
 }
 
 void misbehave(int mode)

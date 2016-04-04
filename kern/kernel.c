@@ -55,7 +55,7 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     lprintf("Finish initialization");
 
     lprintf( "Ready to load first task" );
-    loadFirstTask("io_test");
+    loadFirstTask("sleep_test");
 
     // should never reach here
     return 0;
@@ -67,7 +67,7 @@ void kernel_init() {
     if (malloc_init() < 0)
          panic("Initialize malloc failed!");
     
-    if (init_IDT(NULL) < 0)
+    if (init_IDT(timer_callback) < 0)
         panic("Initialize IDT failed!");
 
     if (tcb_init() < 0)
@@ -90,6 +90,8 @@ void kernel_init() {
     if (syscall_read_init() < 0)
         panic("Initialize syscall readline() failed!");
 
+    if (syscall_sleep_init() < 0)
+        panic("Initialize syscall sleep() failed!");
 
     clear_console();
 }

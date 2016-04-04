@@ -61,4 +61,8 @@ void set_term_color_wrapper();
 
 void set_cursor_pos_wrapper();
 
+void sleep_wrapper();
+
+void get_ticks_wrapper();
+
 #endif

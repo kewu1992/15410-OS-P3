@@ -48,9 +48,16 @@ void init_timer_driver(void (*tickback)(unsigned int)) {
  *  @return Void.
  */
 void timer_interrupt_handler() {
+    callback(++numTicks);
 
-    //callback(++numTicks);
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
+
+    enable_interrupts();
 
     context_switch(0, -1);
 }
+
+unsigned int timer_get_ticks() {
+    return numTicks;
+}
+

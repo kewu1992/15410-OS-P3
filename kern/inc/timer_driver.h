@@ -8,4 +8,6 @@
 
 void init_timer_driver(void (*tickback)(unsigned int));
 
+unsigned int timer_get_ticks();
+
 #endif
