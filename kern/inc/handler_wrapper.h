@@ -65,4 +65,10 @@ void sleep_wrapper();
 
 void get_ticks_wrapper();
 
+void vanish_wrapper();
+
+void wait_wrapper();
+
+void set_status_wrapper();
+
 #endif

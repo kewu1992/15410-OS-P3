@@ -57,6 +57,7 @@ int sleep_syscall_handler(int ticks) {
 int sleep_queue_compare(void* this, void* that) {
     unsigned int t1 = ((sleep_queue_data_t*)this)->ticks;
     unsigned int t2 = ((sleep_queue_data_t*)that)->ticks;
+
     if (t1 > t2)
         return 1;
     else if (t1 < t2)

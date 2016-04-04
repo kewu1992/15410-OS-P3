@@ -203,6 +203,14 @@ int init_IDT(void (*tickback)(unsigned int)) {
     // install sleep() syscall handler
     install_IDT_entry(SLEEP_INT, sleep_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
+    // install vanish() syscall handler
+    install_IDT_entry(VANISH_INT, vanish_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install wait() syscall handler
+    install_IDT_entry(WAIT_INT, wait_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install set_status() syscall handler
+    install_IDT_entry(SET_STATUS_INT, set_status_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // initialize device drivers
     init_console_driver();

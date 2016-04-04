@@ -92,6 +92,9 @@ void kernel_init() {
 
     if (syscall_sleep_init() < 0)
         panic("Initialize syscall sleep() failed!");
+    
+    if(syscall_vanish_init() < 0)
+        panic("Initialize syscall vanish() failed!");
 
     clear_console();
 }

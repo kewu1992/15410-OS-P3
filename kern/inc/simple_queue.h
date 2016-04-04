@@ -6,12 +6,12 @@
 #ifndef _SIMPLE_QUEUE_H_
 #define _SIMPLE_QUEUE_H_
 
-#include <control_block.h>
+//#include <control_block.h>
 
 /** @brief The node strcuture of double-ended queue */
 typedef struct simple_node{
     /** @brief Data field */
-    tcb_t* thr;
+    void* thr;
     /** @brief Pointer to next node */
     struct simple_node *next;
     /** @brief Pointer to prev node */
@@ -35,6 +35,8 @@ simple_node_t* simple_queue_dequeue(simple_queue_t *deque);
 simple_node_t* simple_queue_remove_tid(simple_queue_t *deque, int tid);
 
 int simple_queue_destroy(simple_queue_t *deque);
+
+int simple_queue_is_exist(simple_queue_t *deque, int tid);
 
 
 #endif /* _SIMPLE_QUEUE_H_ */

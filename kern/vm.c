@@ -455,7 +455,7 @@ uint32_t create_pd() {
     int i;
     for(i = 0; i < NUM_PT_KERNEL; i++) {
         void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
-        if(pd == NULL) {
+        if(new_pt == NULL) {
             lprintf("smemalign failed");
             return ERROR_MALLOC_LIB;
         }
@@ -518,20 +518,24 @@ uint32_t clone_pd() {
         lprintf("smemalign failed");
         return ERROR_MALLOC_LIB;
     }
+    memset((void *)pd, 0, PAGE_SIZE);
+    
     memcpy(pd, (void *)old_pd, PAGE_SIZE);
     int i, j;
     for(i = 0; i < PAGE_SIZE/ENTRY_SIZE; i++) {
         if(IS_SET(pd->pde[i], PG_P)) {
             // Clone pt
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
-            if(pd == NULL) {
+            if(new_pt == NULL) {
                 lprintf("smemalign failed");
+                MAGIC_BREAK;
                 return ERROR_MALLOC_LIB;
-            }
+            } 
+            //memset((void *)new_pt, 0, PAGE_SIZE);
+
             uint32_t old_pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
             memcpy((void *)new_pt, (void *)old_pt_addr, PAGE_SIZE);
             pd->pde[i] = (uint32_t)new_pt | GET_CTRL_BITS(pd->pde[i]);
-
 
             // Use the same frames for kernel space
             if(i < NUM_PT_KERNEL) {
@@ -596,67 +600,88 @@ uint32_t clone_pd() {
 }
 
 
-/** @brief Free entire current user address space
+/** @brief Free entire address space (kernel and user)
+ *
+ *  @param pd_base The address space's page directory base
  *
  *  @return 0 on success; negative integer on error
  */
-/*
-   int free_user_space() {
+int free_entire_space(uint32_t pd_base) {
+    // Free user space
+    //int ret = free_space(pd_base, 0);
+    //if(ret < 0) return ret;
 
-   lprintf("free_user_space is called");
+    // Free kernel space
+    int ret = free_space(pd_base, 1);
+    if(ret < 0) return ret;
 
-   pd_t *pd = (pd_t *)get_cr3();
+    // Free page directory
+    sfree((void *)pd_base, PAGE_SIZE);
 
-   uint32_t frame_start = 0;
-   uint32_t cur_len = 0;
-
-   int i, j;
-// skip kernel page tables, starts from user space
-for(i = NUM_PT_KERNEL; i < PAGE_SIZE/ENTRY_SIZE; i++) {
-if(IS_SET(pd->pde[i], PG_P)) {
-
-uint32_t pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
-pt_t *pt = (pt_t *)pt_addr;
-for(j = 0; j < PAGE_SIZE/ENTRY_SIZE; j++) {
-if(IS_SET(pt->pte[j], PG_P)) {
-
-uint32_t cur_frame = pt->pte[j] & PAGE_ALIGN_MASK;
-if(cur_len == 0) {
-frame_start = cur_frame;
-cur_len = 1;
-} else if(cur_frame != frame_start + cur_len * PAGE_SIZE) {
-// Free contiguous frames described by frame_start and cur_len
-int ret = free_frames(frame_start, cur_len);
-if(ret < 0) return ret;
-
-frame_start = cur_frame;
-cur_len = 1;
-} else {
-cur_len++;
+    return 0;
 }
 
-// Remove page table entry
-pt->pte[j] = 0;
-}
+
+/** @brief Free current user address space
+ *
+ *  @param pd_base The address space's page directory base
+ *
+ *  @param is_kernel_space 1 for kernel space; 0 for user space
+ *
+ *  @return 0 on success; negative integer on error
+ */
+int free_space(uint32_t pd_base, int is_kernel_space) {
+
+    lprintf("free_space is called");
+
+    pd_t *pd = (pd_t *)pd_base;
+
+    // Start and end index of page directory entry
+    int pde_start = is_kernel_space ? 0 : NUM_PT_KERNEL;
+    int pde_end = is_kernel_space ? NUM_PT_KERNEL : PAGE_SIZE/ENTRY_SIZE;
+
+    int i, j;
+    for(i = pde_start; i < pde_end; i++) {
+        if(IS_SET(pd->pde[i], PG_P)) {
+            // Page table is present
+            uint32_t pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
+            pt_t *pt = (pt_t *)pt_addr;
+
+            if(!is_kernel_space) {
+                // Remove frames only for user space
+                for(j = 0; j < PAGE_SIZE/ENTRY_SIZE; j++) {
+                    if(IS_SET(pt->pte[j], PG_P)) {
+                        // Page is present, free the frame if it's not the 
+                        // system wide all-zero frame.
+
+                        if(!IS_SET(pt->pte[j], PG_ZFOD)) {
+                            uint32_t frame = pt->pte[j] & PAGE_ALIGN_MASK;
+                            int ret = free_frames_raw(frame, 0);
+                            if(ret < 0) {
+                                lprintf("free_frames failed, frame: %x", 
+                                        (unsigned)frame);
+                                return ret;
+                            }
+                        }
+
+                        // Remove page table entry
+    //                    pt->pte[j] = 0;
+                    }
+                }
+            }
+
+            // Free page table
+//            pd->pde[i] = 0;
+            sfree((void *)pt_addr, PAGE_SIZE);
+        }
+    }
+
+    lprintf("free_space finished");
+
+    return 0;
+
 }
 
-// Free page table
-pd->pde[i] = 0;
-sfree((void *)pt_addr, PAGE_SIZE);
-}
-}
-
-// Free last contiguous frames
-if(cur_len != 0) {
-free_frames(frame_start, cur_len);
-}
-
-lprintf("free_user_space finished");
-
-return 0;
-
-}
-*/
 
 
 
@@ -729,7 +754,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
             // Allocate a new page table,
             // May not check this way, will address it later
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
-            if(pd == NULL) {
+            if(new_pt == NULL) {
                 lprintf("smemalign failed");
                 return ERROR_MALLOC_LIB;
             }

@@ -50,3 +50,21 @@ tcb_t* scheduler_get_next(int mode) {
     else
         return node->thr;
 }
+
+/** @brief Thread safe version, check if an element is in scheduler's queue
+  *
+  * @param tid The tid of thread to search in the queue
+  *
+  * @return 1 on success; 0 on failure
+  *
+  */
+int scheduler_is_exist(int tid) {
+
+    spinlock_lock(&spinlock);
+    int ret = simple_queue_is_exist(&queue, tid);
+    spinlock_unlock(&spinlock);
+
+    return ret;
+
+}
+
