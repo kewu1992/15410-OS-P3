@@ -186,3 +186,7 @@ void mutex_unlock(mutex_t *mp) {
     }
 }
 
+
+int mutex_get_lock_holder(mutex_t *mp) {
+    return mp->lock_holder;
+}

@@ -42,13 +42,12 @@ int tcb_init() {
  *
  *  The current cr3 will be used as the page table base of the new process
  *
- *  @param state The state for created process
  *  @param thread The (first) thread for created process
  *
  *  @return Process control block data structure of the newly created process, 
  *          return NULL on error
  */
-pcb_t* tcb_create_process_only(process_state_t state, tcb_t* thread) {
+pcb_t* tcb_create_process_only(tcb_t* thread) {
 
     lprintf("tcb_create_process_only called for tid %d", thread->tid);
 
@@ -57,7 +56,6 @@ pcb_t* tcb_create_process_only(process_state_t state, tcb_t* thread) {
         return NULL;
     process->pid = thread->tid;
     process->page_table_base = thread->new_page_table_base;
-    process->state = state;
     process->ppid = thread->pthr->pcb->pid;
     // ****************************Consider lock this operation
     // There's no thread fork now, all fork.
@@ -112,13 +110,14 @@ pcb_t* tcb_create_process_only(process_state_t state, tcb_t* thread) {
  *  @return Thread control block data structure of the newly created thread, 
  *          return NULL on error
  */
-tcb_t* tcb_create_thread_only(pcb_t* process) {
+tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
     tcb_t *thread = malloc(sizeof(tcb_t));
     if (thread == NULL) {
         return NULL;
     }
     thread->tid = atomic_add(&id_count);
     thread->pcb = process;
+    thread->state = state;
     thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + 
                             K_STACK_SIZE - sizeof(simple_node_t);
     if (thread->k_stack_esp == NULL) {
@@ -137,18 +136,18 @@ tcb_t* tcb_create_thread_only(pcb_t* process) {
  *  The current cr3 will be used as the page table base of the new process.
  *  A kernel stack(K_STACK_SIZE) will be allocated for the new thread.
  *
- *  @param state The state for created process
+ *  @param state The state for created thread
  *
  *  @return Thread control block data structure of the newly created thread, 
  *          return NULL on error
  */
-tcb_t* tcb_create_process(process_state_t state) {
-    tcb_t *thread = tcb_create_thread_only(NULL);
+tcb_t* tcb_create_process(thread_state_t state) {
+    tcb_t *thread = tcb_create_thread_only(NULL, state);
     if (thread == NULL) {
         return NULL;
     }
     
-    pcb_t *process = tcb_create_process_only(state, thread);
+    pcb_t *process = tcb_create_process_only(thread);
     if (process == NULL) {
         tcb_free_thread(thread);
         return NULL;

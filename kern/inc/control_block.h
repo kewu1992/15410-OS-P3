@@ -7,13 +7,13 @@
 typedef enum {
     RUNNING,
     RUNNABLE,
-    BLOCKED
-} process_state_t;
+    BLOCKED,
+    WAKEUP
+} thread_state_t;
 
 typedef struct pcb_t {
     int pid;
     uint32_t page_table_base;
-    process_state_t state;
     /** @brief Parent task's pcb, there's no information regarding if it's 
       * dead, don't use it, instead, look it up in hashtable, 
       * key pid, value pcb.
@@ -49,16 +49,17 @@ typedef struct tcb_t {
     struct tcb_t *pthr;
     /** @brief New address space for forked process */
     uint32_t new_page_table_base;
+    thread_state_t state;
 } tcb_t;
 
 
 int tcb_init();
 
-pcb_t* tcb_create_process_only(process_state_t state, tcb_t* thread);
+pcb_t* tcb_create_process_only(tcb_t* thread);
 
-tcb_t* tcb_create_thread_only(pcb_t* process);
+tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state);
 
-tcb_t* tcb_create_process(process_state_t state);
+tcb_t* tcb_create_process(thread_state_t state);
 
 void tcb_free_thread(tcb_t *thr);
 

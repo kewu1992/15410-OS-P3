@@ -78,7 +78,7 @@ void context_switch(int op, uint32_t arg) {
 
     if (op == 1 && this_thr->result == 0) {
         // new task (fork)
-        tcb_create_process_only(RUNNING, this_thr);
+        tcb_create_process_only(this_thr);
 
         lprintf("thread create process finished");
 
@@ -225,7 +225,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
  *  @return A new thread that is the result of thread_fork() of this_thr
  */
 tcb_t* internal_thread_fork(tcb_t* this_thr) {
-    tcb_t* new_thr = tcb_create_thread_only(this_thr->pcb);
+    tcb_t* new_thr = tcb_create_thread_only(this_thr->pcb, RUNNING);
     if (new_thr == NULL)
         return NULL;
 
