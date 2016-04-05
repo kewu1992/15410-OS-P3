@@ -264,6 +264,7 @@ void vanish_syscall_handler() {
     this_task->cur_thr_num--;
     spinlock_unlock(&this_task->lock_cur_thr_num);
     int cur_thr_num = this_task->cur_thr_num;
+    // RACE CONDINTION!!!!
 
     // If this task has more than one thread left, do not report
     // exit status, proceed directly to remove resources used by this thread
