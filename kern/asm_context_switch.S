@@ -26,6 +26,7 @@ asm_context_switch:
     pusha                   # push all generic registers
     pushf                   # push EFLAGS
     movl    16(%ebp), %esi  # %esi = *this_thr
+    pushl   (%esi)          # push this_thr->k_stack_esp
     movl    %esp, (%esi)    # this_thr->k_stack_esp = %esp
 
     pushl   16(%ebp)          # push this_thr
@@ -34,6 +35,7 @@ asm_context_switch:
     call    context_switch_get_next  # %eax = *next_thr
 
     movl    (%eax), %esp    # %esp = next_thr->k_stack_esp
+    popl    (%eax)          # pop this_thr->k_stack_esp
     popf                    # pop EFLAGS
     popa                    # pop all generic registers
 

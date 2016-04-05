@@ -90,6 +90,8 @@ void loadFirstTask(const char *filename) {
     tcb_t *thread = tcb_create_process(RUNNING);
 
     set_init_pcb(thread->pcb);
+    thread->pcb->page_table_base = get_cr3();
+    lprintf("init result:%x", (unsigned int)get_cr3());
 
     load_kernel_stack(thread->k_stack_esp, usr_esp, my_program);
 

@@ -79,6 +79,9 @@ void context_switch(int op, uint32_t arg) {
     lprintf("context switch to tid: %d", this_thr->tid);
 
     if (op == 1 && this_thr->result == 0) {
+        if (this_thr->tid == 0)
+            MAGIC_BREAK;
+
         // new task (fork)
         tcb_create_process_only(this_thr);
 
@@ -99,6 +102,7 @@ void context_switch(int op, uint32_t arg) {
 
     // reset esp0
     set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp));
+    lprintf("kesp: %x", (unsigned int)this_thr->k_stack_esp);
 
     // Check if there's any thread to destroy
 
@@ -106,7 +110,6 @@ void context_switch(int op, uint32_t arg) {
     if(mutex_get_lock_holder(get_malloc_lib_lock()) == this_thr->tid ||
             mutex_get_lock_holder(get_zombie_list_lock()) == this_thr->tid) {
         lprintf("Hit  !");
-        MAGIC_BREAK;
         return; 
     }
 
@@ -210,16 +213,18 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
         case 4: // make_runnable a thread
             new_thr = (tcb_t*)arg;
             if (new_thr != NULL && scheduler_enqueue_tail(new_thr) == 0) {
-                this_thr->result = 0;
+                //this_thr->result = 0;
             } else {
-                this_thr->result = -1;
+                //this_thr->result = -1;
             }
 
+            /*
             if(this_thr->result == 0) {
                 lprintf("make runnable tid %d succeeded", new_thr->tid);
             } else {
                 lprintf("make runnable tid %d failed", new_thr->tid);
             }
+            */
 
             return this_thr;
         default:
@@ -246,15 +251,19 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
     int len = (uint32_t)high_addr - (uint32_t)this_thr->k_stack_esp;
 
     // set k_stack_esp value
+    void* init_k_esp = new_thr->k_stack_esp;
     new_thr->k_stack_esp = (void*)((uint32_t)new_thr->k_stack_esp - len);
 
     // copy kernel stack
     memcpy(new_thr->k_stack_esp, this_thr->k_stack_esp, len);
 
+    // modify pushed k_esp value
+    memcpy(new_thr->k_stack_esp, &init_k_esp, 4);
+
     // modify all %ebp values in the new thread's kernel stack so that all %ebp
     // values point to the new stack instead of the original stack
     uint32_t diff = (uint32_t)new_thr->k_stack_esp - (uint32_t)this_thr->k_stack_esp;
-    void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 36);
+    void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 40);
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
     ebp = get_last_ebp(ebp);
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
