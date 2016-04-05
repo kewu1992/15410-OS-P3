@@ -189,6 +189,11 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 // Set parent thread, can be in the same task or different task
                 new_thr->pthr = this_thr;
                 new_thr->new_page_table_base = clone_pd();
+                if (new_thr->new_page_table_base == ERROR_MALLOC_LIB ||
+                    new_thr->new_page_table_base == ERROR_NOT_ENOUGH_MEM) {
+                    lprintf("clone_pd() failed");
+                    MAGIC_BREAK;
+                }
                 lprintf("thread %d page table base: %x", new_thr->tid, 
                         (unsigned)new_thr->new_page_table_base);
             } else {
