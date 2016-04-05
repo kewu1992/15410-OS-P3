@@ -22,7 +22,6 @@ int main(int argc, char *argv[]) {
 
     report_start(START_CMPLT);
     report_fmt("parent: %d", gettid());
-    MAGIC_BREAK;
 
     while(count < 1000) {
         if((pid = fork()) == 0) {
@@ -33,18 +32,11 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        count++;
-
         report_fmt("child: %d", pid);
-/*        if(pid == 60) {
-            lprintf("pid is 60");
-            MAGIC_BREAK;
-        }
-*/
 
         wpid = wait(&ret_val);
 
-        if(wpid != pid || ret_val != count) {
+        if(wpid != pid || ret_val != count + 1) {
             lprintf("wpid %d, expect %d, ret_val %d, expect %d", 
                 wpid, pid, ret_val, count);
             MAGIC_BREAK;
@@ -52,6 +44,8 @@ int main(int argc, char *argv[]) {
             report_end(END_FAIL);
             exit(42);
         } 
+
+        count++;
     }
 
     report_end(END_SUCCESS);

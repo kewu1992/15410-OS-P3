@@ -57,7 +57,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the 410user/progs
 # directory.
 #
-410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait
+410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait 
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -65,7 +65,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_wait_bomb fork_exit_bomb
+STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb
 
 ###########################################################################
 # Data files provided by course staff to build into the RAM disk
