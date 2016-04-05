@@ -433,10 +433,6 @@ void ht_put_task(int pid, pcb_t *pcb) {
 #define ERR_PARAM -2
 #define ERR_NO_CHILD -1
 int wait_syscall_handler(int *status_ptr) {
-    return 0;
-    /*
-
-    lprintf("wait syscall handler called");
 
     // Check if status_ptr is valid memory
     int is_check_null = 0;
@@ -454,6 +450,10 @@ int wait_syscall_handler(int *status_ptr) {
         MAGIC_BREAK;
     }
 
+    // define a node for simple queue using stack space
+    simple_node_t node;
+    node.thr = this_thr;
+
     // Get current task
     pcb_t *this_task = this_thr->pcb;
     if(this_task == NULL) {
@@ -461,110 +461,46 @@ int wait_syscall_handler(int *status_ptr) {
         MAGIC_BREAK;
     }
 
-    // Check number of alive children tasks 
-    spinlock_lock(&this_task->lock_cur_child_num);
-    int cur_child_num = this_task->cur_child_num;
-    spinlock_unlock(&this_task->lock_cur_child_num);
-    if(cur_child_num == 0) {
-        lprintf("number of alive children tasks is 0");
-        return ERR_NO_CHILD;
-    }
+    task_wait_t *wait = &(this_task->task_wait_struct);
 
-    // Get current task's children exit status list and collect child's exit 
-    // status.
-    list_t *child_exit_status_list = &this_task->child_exit_status_list;
-    if(child_exit_status_list == NULL) {
-        lprintf("child_exit_status_list is NULL, but task is alive?!");
-        MAGIC_BREAK;
-    }
+    while (1) {
+        mutex_lock(&wait->lock);
+        // check if can reap
+        if (wait->num_zombie == 0 && 
+            (wait->num_alive == simple_queue_size())){
+            // impossible to reap, return error
+            mutex_unlock(&wait->lock);
+            return ERR_NO_CHILD;
+        } else if (wait->num_zombie == 0) {
+            // have alive task (potential zombie), need to block. Enter the
+            // tail of queue to wait, note that stack memory is used for 
+            // simple_node_t. Because the stack of wait_syscall_handler()
+            // will not be destroied until return, so it is safe
+            simple_queue_enqueue(&wait->wait_queue, &node);
+            mutex_unlock(&wait->lock);
 
-    // Get current task's wait list and put itself in it
-    list_t *wait_list = &(this_task->wait_list);
-    if(wait_list == NULL) {
-        lprintf("wait_list is NULL, but task is alive?!");
-        MAGIC_BREAK;
-    }
-    if(list_append(wait_list, (void *)this_thr) < 0) {
-        lprintf("list_append failed");
-        MAGIC_BREAK;
-    }
+            context_switch(3, 0);
+            continue;
+        } else {
+            // have zombie task, can reap directly
+            wait->num_zombie--;
+            mutex_unlock(&wait->lock);
 
-    exit_status_t *es;
-    while(list_remove_first(&zombie_list, (void **)&es) < 0) {
-        // There's no child in zombie list
-
-        // There's a race condition that other thread collects the zombie
-        // task, but isn't fast enough to update cur_child_num, so this
-        // thread will block again, but later the thread that collects
-        // the zombie will make runnable its peers so this this thread
-        // will wake up anyway.
-
-        // Check number of alive children tasks, probably a child has been
-        // reaped by someone else.
-        spinlock_lock(&this_task->lock_cur_child_num);
-        cur_child_num = this_task->cur_child_num;
-        spinlock_unlock(&this_task->lock_cur_child_num);
-        if(cur_child_num == 0) {
-            lprintf("number of alive children tasks is 0");
-            // Delete itself from wait list
-            if(list_delete(wait_list, (void *)this_thr) < 0) {
-                lprintf("thread %d is not in list", this_thr->tid);
+            exit_status_t *es;
+            if (list_remove_first(&this_task->child_exit_status_list, (void **)&es) < 0) {
+                // something wrong
+                lprintf("wait_syscall_handler() --> list_remove_first() failed!");
                 MAGIC_BREAK;
             }
-            return ERR_NO_CHILD;
+
+            if(status_ptr != NULL)
+                *status_ptr = es->status;
+            int rv = es->pid;
+            free(es);
+            return rv;
         }
-
-        // There's no children in zombie list yet, add current thread to
-        // wait list and block.
-        context_switch(3, 0);
     }
-
-    // Delete itself from wait list
-    if(list_delete(wait_list, (void *)this_thr) < 0) {
-        lprintf("thread %d is not in list", this_thr->tid);
-        MAGIC_BREAK;
-    }
-
-    // One less child task of current task
-    spinlock_lock(&this_task->lock_cur_child_num);
-    this_task->cur_child_num--;
-    spinlock_unlock(&this_task->lock_cur_child_num);
-
-    // Store result
-    if(status_ptr != NULL) {
-        *status_ptr = es->status;
-    }
-    if(es->pid == 0) {
-        lprintf("in wait, es->pid is 0 ?!");
-        MAGIC_BREAK;
-    }
-
-    int ret = es->pid;
-    free(es);
-    //lprintf("task %d wait found one! pid: %d, status: %d", this_task->pid,
-    //        es->pid, es->status);
-    // lprintf("wait ret: %d", es->pid);
-
-    if(cur_child_num == 0) {
-        // Make runnable peers in wait list in case they haven't noticed 
-        // that there's no children to reap anymore
-        list_t *wait_list_copy = list_get_copy(wait_list);
-        if(wait_list_copy == NULL) {
-            lprintf("list_get_copy failed");
-            return -1;
-        }
-        tcb_t *wait_thr;
-        while(list_remove_first(wait_list_copy, (void **)&wait_thr) == 0) {
-            lprintf("wake up thread %d", wait_thr->tid);
-            context_switch(4, (uint32_t)wait_thr);
-        }
-        list_destroy(wait_list_copy, 0);
-        free(wait_list_copy);
-
-    }
-
-    return ret;
-    */
+    
 }
 
 
