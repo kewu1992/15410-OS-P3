@@ -26,13 +26,17 @@ static uint32_t all_zero_frame;
 
 /* Implementations for functions used internally in this file */
 
-/** @brief Get default control bits for page directory or page table entry
- *  
- *  @param type 0 for page directory entry; 1 for page table entry
- *
- *  @return Void
- */
-static uint32_t get_pg_ctrl_bits(int type) {
+/** @brief Default page directory entry control bits */
+static uint32_t ctrl_bits_pde;
+/** @brief Default page table entry control bits */
+static uint32_t ctrl_bits_pte;
+
+/** @brief Initialize default control bits for page directory and page table 
+  * entry
+  *
+  * @return void
+  */
+static void init_pg_ctrl_bits() {
 
     uint32_t ctrl_bits = 0;
     /* Common bits for pde and pte */
@@ -49,24 +53,24 @@ static uint32_t get_pg_ctrl_bits(int type) {
     // Indicates page table hasn't been accessed when cleared
     CLR_BIT(ctrl_bits, PG_A);
 
-    /* Different bits for pde and pte */
-    if(type == 0) {
-        // pde bits
-        // Page size: 0 indicates 4KB
-        CLR_BIT(ctrl_bits, PG_PS);
-    } else {
-        // pte bits
-        // Indicates page is dirty when set
-        SET_BIT(ctrl_bits, PG_D);
-        // Page table attribute index, used with PCD, clear
-        CLR_BIT(ctrl_bits, PG_PAT);
-        // Global page, clear to not preserve page in TLB
-        CLR_BIT(ctrl_bits, PG_G);
-    }
+    ctrl_bits_pde = ctrl_bits;
+    ctrl_bits_pte = ctrl_bits;
 
-    return ctrl_bits;
+    /* Different bits for pde and pte */
+    // pde bits
+    // Page size: 0 indicates 4KB
+    CLR_BIT(ctrl_bits_pde, PG_PS);
+
+    // pte bits
+    // Indicates page is dirty when set
+    SET_BIT(ctrl_bits_pte, PG_D);
+    // Page table attribute index, used with PCD, clear
+    CLR_BIT(ctrl_bits_pte, PG_PAT);
+    // Global page, clear to not preserve page in TLB
+    CLR_BIT(ctrl_bits_pte, PG_G);
 
 }
+
 
 /** @brief Enable paging
  *
@@ -102,7 +106,7 @@ static int count_pages_user_space() {
     pd_t *pd = (pd_t *)get_cr3();
 
     int i, j;
-    // skip kernel page tables, starts from user space
+    // skip kernel page tables, start from user space
     for(i = NUM_PT_KERNEL; i < PAGE_SIZE/ENTRY_SIZE; i++) {
         if((pd->pde[i] & (1 << PG_P)) == 1) {
 
@@ -280,7 +284,12 @@ static int is_page_ZFOD(uint32_t va) {
             // Set as read-write
             SET_BIT(*pte, PG_RW);
             // Allocate a new frame
+            // Reserved allocate before, should have enough memory
             uint32_t new_f = get_frames_raw(0);
+            if(new_f == ERROR_NOT_ENOUGH_MEM) {
+                lprintf("get_frames_raw failed in is_page_ZFOD");
+                MAGIC_BREAK;
+            }
 
             // Set page table entry
             *pte = new_f | (*pte & (~PAGE_ALIGN_MASK));
@@ -399,6 +408,9 @@ void pf_handler(uint32_t error_code) {
  *  @return 0 on success; negative integer on error
  */
 int init_vm() {
+    
+    // Configure default page table entry and page diretory entry control bits
+    init_pg_ctrl_bits();
 
     // Get page direcotry base for a new task
     uint32_t pdb = create_pd();
@@ -450,7 +462,7 @@ uint32_t create_pd() {
     memset(pd, 0, PAGE_SIZE);
 
     // Get pde ctrl bits
-    uint32_t pde_ctrl_bits = get_pg_ctrl_bits(0);
+    uint32_t pde_ctrl_bits = ctrl_bits_pde;
 
     int i;
     for(i = 0; i < NUM_PT_KERNEL; i++) {
@@ -465,10 +477,10 @@ uint32_t create_pd() {
     }
 
     // Get pte ctrl bits
-    uint32_t pte_ctrl_bits = get_pg_ctrl_bits(1);
+    uint32_t pte_ctrl_bits = ctrl_bits_pte;
     // Set kernel pages as global pages, so that TLB wouldn't
     // clear them when %cr3 is reset
-    // SET_BIT(pte_ctrl_bits, PG_G);
+    SET_BIT(pte_ctrl_bits, PG_G);
 
     int j;
     for(i = 0; i < NUM_PT_KERNEL; i++) {
@@ -500,13 +512,12 @@ uint32_t clone_pd() {
 
     // Number of pages allocated in this user space
     int num_pages_allocated = count_pages_user_space();
-    // lprintf("clone_pd: num_pages_allocated:%d", num_pages_allocated);
-    list_t list;
-    if(get_frames(num_pages_allocated, &list) == -1) {
+
+    // Reserve all frames that will be needed in this round of clone_pd
+    if(reserve_frames(num_pages_allocated) < 0) {
+        lprintf("not enough memory when doing clone_pd");
         return ERROR_NOT_ENOUGH_MEM;
     }
-    int frames_left = 0;
-    uint32_t cur_frame = 0;
 
     /* The following code creates a new address space */
 
@@ -524,22 +535,21 @@ uint32_t clone_pd() {
     for(i = 0; i < PAGE_SIZE/ENTRY_SIZE; i++) {
         if(IS_SET(pd->pde[i], PG_P)) {
             // Clone pt
+
+            // Use the same pts and frames for kernel space
+            if(i < NUM_PT_KERNEL) {
+                continue;
+            }
+
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
             if(new_pt == NULL) {
                 lprintf("smemalign failed");
-                MAGIC_BREAK;
                 return ERROR_MALLOC_LIB;
             } 
-            //memset((void *)new_pt, 0, PAGE_SIZE);
 
             uint32_t old_pt_addr = pd->pde[i] & PAGE_ALIGN_MASK;
             memcpy((void *)new_pt, (void *)old_pt_addr, PAGE_SIZE);
             pd->pde[i] = (uint32_t)new_pt | GET_CTRL_BITS(pd->pde[i]);
-
-            // Use the same frames for kernel space
-            if(i < NUM_PT_KERNEL) {
-                continue;
-            }
 
             // Clone frames
             pt_t *pt = (pt_t *)new_pt;
@@ -547,24 +557,9 @@ uint32_t clone_pd() {
                 if(IS_SET(pt->pte[j], PG_P)) {
 
                     uint32_t old_frame_addr = pt->pte[j] & PAGE_ALIGN_MASK;
-
-                    if(frames_left == 0) {
-                        uint32_t *data;
-                        if(!list_remove_first(&list, (void **)(&data))) {
-                            frames_left = data[0];
-                            cur_frame = data[1];
-                            free(data);
-                        } else {
-                            // Shouldn't happen
-                            lprintf("list_remove_first returns negative");
-                            return ERROR_UNKNOWN;
-                        }
-                    } 
-
-                    frames_left--;
-                    uint32_t new_f = cur_frame;
-                    cur_frame += PAGE_SIZE;
-
+                    
+                    // Allocate a new frame
+                    uint32_t new_f = get_frames_raw(0);
 
                     // Find out the corresponding va of current page
                     uint32_t va = (i << 22) | (j << 12);
@@ -587,11 +582,6 @@ uint32_t clone_pd() {
                 }
             }
         }
-    }
-
-    // Destroy result list
-    if(num_pages_allocated > 0) {
-        list_destroy(&list, TRUE);
     }
 
     return (uint32_t)pd;
@@ -662,15 +652,14 @@ int free_space(uint32_t pd_base, int is_kernel_space) {
                             }
                         }
 
-                        // Remove page table entry
-    //                    pt->pte[j] = 0;
                     }
                 }
             }
 
-            // Free page table
-//            pd->pde[i] = 0;
-            sfree((void *)pt_addr, PAGE_SIZE);
+            // Free page table only for user space
+            if(!is_kernel_space) {
+                sfree((void *)pt_addr, PAGE_SIZE);
+            }
         }
     }
 
@@ -725,19 +714,11 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
         }
     }
 
-    // Reserve how many frames will be used in the worst case
+    // Reserve how many frames will be used in the worst case in the future 
+    // including the case where ZFOD pages are actually requested in the future
     if(reserve_frames(count - num_pages_allocated) == -1) {
         return -1;
     }
-
-    /*
-       list_t list;
-       if(get_frames(count - num_pages_allocated, &list) == -1) {
-       return -1;
-       }
-       int frames_left = 0;
-       uint32_t cur_frame = 0;
-       */
 
     uint32_t page = page_lowest;
     pd_t *pd = (pd_t *)get_cr3();
@@ -749,8 +730,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
         // Check page directory entry presence
         if(!IS_SET(*pde, PG_P)) {
             // not present
-            // Allocate a new page table,
-            // May not check this way, will address it later
+            // Allocate a new page table
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
             if(new_pt == NULL) {
                 lprintf("smemalign failed");
@@ -759,7 +739,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
             // Clear
             memset(new_pt, 0, PAGE_SIZE);
 
-            uint32_t pde_ctrl_bits = get_pg_ctrl_bits(0);
+            uint32_t pde_ctrl_bits = ctrl_bits_pde;
 
             // Change privilege level to user
             // Allow user mode access when set
@@ -777,7 +757,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
             // Not present
 
             // Get page table entry default bits
-            uint32_t pte_ctrl_bits = get_pg_ctrl_bits(1);
+            uint32_t pte_ctrl_bits = ctrl_bits_pte;
 
             // Change privilege level to user
             // Allow user mode access when set
@@ -808,6 +788,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
                 // Set rw permission
                 rw_perm ? SET_BIT(pte_ctrl_bits, PG_RW) :
                     CLR_BIT(pte_ctrl_bits, PG_RW);
+
                 // Allocate a new frame
                 new_f = get_frames_raw(0);
             }
@@ -823,20 +804,10 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
                 memset((void *)page, 0, PAGE_SIZE);
             }
 
-            //            lprintf("frame %x allocated to page %x", (unsigned)new_f,
-            //                    (unsigned)page);
-
         }
 
         page += PAGE_SIZE;
     }
-
-    /*
-    // Destroy result list
-    if(count - num_pages_allocated > 0) {
-    list_destroy(&list, TRUE);
-    }
-    */
 
     return 0;
 }
