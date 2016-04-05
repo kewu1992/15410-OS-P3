@@ -258,12 +258,13 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
     memcpy(new_thr->k_stack_esp, this_thr->k_stack_esp, len);
 
     // modify pushed k_esp value
-    memcpy(new_thr->k_stack_esp, &init_k_esp, 4);
+    void *k_esp = (void*)((unsigned int)new_thr->k_stack_esp + 12);
+    memcpy(k_esp, &init_k_esp, 4);
 
     // modify all %ebp values in the new thread's kernel stack so that all %ebp
     // values point to the new stack instead of the original stack
     uint32_t diff = (uint32_t)new_thr->k_stack_esp - (uint32_t)this_thr->k_stack_esp;
-    void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 40);
+    void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 52);
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
     ebp = get_last_ebp(ebp);
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;

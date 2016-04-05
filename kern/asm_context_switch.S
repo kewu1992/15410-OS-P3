@@ -27,6 +27,7 @@ asm_context_switch:
     pushf                   # push EFLAGS
     movl    16(%ebp), %esi  # %esi = *this_thr
     pushl   (%esi)          # push this_thr->k_stack_esp
+    subl    $12, %esp       # reserve space for node of queue of sheduler
     movl    %esp, (%esi)    # this_thr->k_stack_esp = %esp
 
     pushl   16(%ebp)          # push this_thr
@@ -35,6 +36,7 @@ asm_context_switch:
     call    context_switch_get_next  # %eax = *next_thr
 
     movl    (%eax), %esp    # %esp = next_thr->k_stack_esp
+    addl    $12, %esp       # reclaim space
     popl    (%eax)          # pop this_thr->k_stack_esp
     popf                    # pop EFLAGS
     popa                    # pop all generic registers

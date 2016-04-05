@@ -25,7 +25,9 @@ int scheduler_enqueue_tail(tcb_t *thread) {
 
     spinlock_lock(&spinlock);
     // using the very top kernel stack space of this thread to store its queue node 
-    simple_node_t* node = (simple_node_t*)tcb_get_high_addr(thread->k_stack_esp);
+    // simple_node_t* node = (simple_node_t*)tcb_get_high_addr(thread->k_stack_esp);
+    simple_node_t* node = (simple_node_t*)thread->k_stack_esp;
+    
     node->thr = thread;
     rv = simple_queue_enqueue(&queue, node);
     if (rv == 0)
