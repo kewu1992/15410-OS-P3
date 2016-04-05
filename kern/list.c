@@ -104,11 +104,14 @@ int list_remove_first(list_t *list, void **datap) {
     mutex_lock(&list->mutex);
     if(list->head->next != list->head) {   
         *datap = list->head->next->data;
+        list_node_t *tmp = list->head->next->next;
         free(list->head->next);
-        list->head->next = list->head->next->next;
-        if(list->head->next == list->head) {
-            list->head->prev = list->head;
-        }
+        //list->head->next = list->head->next->next;
+        list->head->next = tmp;
+        tmp->prev = list->head;
+        //if(list->head->next == list->head) {
+        //    list->head->prev = list->head;
+        //}
         ret = 0;
     } else {
         ret = -1;
@@ -137,9 +140,9 @@ int list_delete(list_t *list, void *data) {
             free(node->next);
             node->next = tmp;
             node->next->prev = node;
-            if(node->next == list->head) {
-                node->prev = list->head;
-            }
+            //if(node->next == list->head) {
+            //    node->prev = list->head;
+            //}
             ret = 0;
         }
         node = node->next;
