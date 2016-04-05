@@ -262,8 +262,8 @@ void vanish_syscall_handler() {
     // One less thread in current task
     spinlock_lock(&this_task->lock_cur_thr_num);
     this_task->cur_thr_num--;
-    spinlock_unlock(&this_task->lock_cur_thr_num);
     int cur_thr_num = this_task->cur_thr_num;
+    spinlock_unlock(&this_task->lock_cur_thr_num);
 
     // If this task has more than one thread left, do not report
     // exit status, proceed directly to remove resources used by this thread
@@ -308,7 +308,7 @@ void vanish_syscall_handler() {
         }
 
         // Make runnable thread block on wait if there's any
-        task_wait_t *task_wait = &this_task->task_wait_struct;
+        task_wait_t *task_wait = &parent_task->task_wait_struct;
         mutex_lock(&task_wait->lock);
         task_wait->num_zombie++;
         task_wait->num_alive--;
