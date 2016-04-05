@@ -518,7 +518,6 @@ uint32_t clone_pd() {
         lprintf("smemalign failed");
         return ERROR_MALLOC_LIB;
     }
-    memset((void *)pd, 0, PAGE_SIZE);
     
     memcpy(pd, (void *)old_pd, PAGE_SIZE);
     int i, j;
@@ -549,7 +548,6 @@ uint32_t clone_pd() {
 
                     uint32_t old_frame_addr = pt->pte[j] & PAGE_ALIGN_MASK;
 
-                    //uint32_t new_f = new_frame();
                     if(frames_left == 0) {
                         uint32_t *data;
                         if(!list_remove_first(&list, (void **)(&data))) {
@@ -608,11 +606,11 @@ uint32_t clone_pd() {
  */
 int free_entire_space(uint32_t pd_base) {
     // Free user space
-    //int ret = free_space(pd_base, 0);
-    //if(ret < 0) return ret;
+    int ret = free_space(pd_base, 0);
+    if(ret < 0) return ret;
 
     // Free kernel space
-    int ret = free_space(pd_base, 1);
+    ret = free_space(pd_base, 1);
     if(ret < 0) return ret;
 
     // Free page directory

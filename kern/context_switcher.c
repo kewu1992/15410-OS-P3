@@ -173,7 +173,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             }
 
         case 1:    // fork and context switch to new thread
-            this_thr->pcb->cur_child_num++;
+            mutex_lock(&((this_thr->pcb->task_wait_struct).lock));
+            (this_thr->pcb->task_wait_struct).num_alive++;
+            mutex_unlock(&((this_thr->pcb->task_wait_struct).lock));
         case 2:    // thread_fork and context switch to new thread
             new_thr = internal_thread_fork(this_thr);
 

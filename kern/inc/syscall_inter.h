@@ -1,6 +1,9 @@
 #ifndef _SYSCALL_INTER_H_
 #define _SYSCALL_INTER_H_
 
+#include <simple_queue.h>
+#include <mutex.h>
+
 int malloc_init();
 
 int syscall_print_init();
@@ -17,7 +20,7 @@ void timer_callback(unsigned int ticks);
 
 /* @brief Data structure for wait() syscall */
 typedef struct {
-    int num_running, num_zombie;
+    int num_alive, num_zombie;
     simple_queue_t wait_queue;
     mutex_t lock;
 } task_wait_t;

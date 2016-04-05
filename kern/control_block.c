@@ -66,8 +66,6 @@ pcb_t* tcb_create_process_only(tcb_t* thread) {
     process->cur_thr_num = 1;
     // Initially exit status is 0
     process->exit_status = 0;
-    // Initially no children task
-    process->cur_child_num = 0;
 
     
     if(spinlock_init(&process->lock_cur_thr_num) < 0) {
@@ -75,21 +73,27 @@ pcb_t* tcb_create_process_only(tcb_t* thread) {
         panic("spinlock_init failed");
     }
 
-    if(spinlock_init(&process->lock_cur_child_num) < 0) {
-        lprintf("spinlock_init failed");
-        panic("spinlock_init failed");
-    }
-    
-
     if(list_init(&process->child_exit_status_list) < 0) {
         lprintf("list_init failed");
         panic("list_init failed");
     }
 
-    if(list_init(&process->wait_list) < 0) {
-        lprintf("list_init failed");
-        panic("list_init failed");
+
+    // Initialize task wait struct
+    task_wait_t *task_wait = &process->task_wait_struct;
+    // Initially 0 alive child task
+    task_wait->num_alive = 0;
+    // Initially 0 zombie child task
+    task_wait->num_zombie = 0;
+    if(simple_queue_init(&task_wait->wait_queue) < 0) {
+        lprintf("simple_queue_init failed");
+        panic("simple_queue_init failed");
     }
+    if(mutex_init(&task_wait->lock) < 0) {
+        lprintf("mutex_init failed");
+        panic("mutex_init failed");
+    }
+
 
     // Put pid to pcb mapping in hashtable
     ht_put_task(process->pid, process);

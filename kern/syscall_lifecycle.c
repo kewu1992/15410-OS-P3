@@ -260,12 +260,10 @@ void vanish_syscall_handler() {
 
     //*******************Need to lock this operation
     // One less thread in current task
-    //spinlock_lock(&this_task->lock_cur_thr_num);
+    spinlock_lock(&this_task->lock_cur_thr_num);
     this_task->cur_thr_num--;
-    //spinlock_unlock(&this_task->lock_cur_thr_num);
-    //int cur_thr_num = this_task->cur_thr_num;
-
-    /*
+    spinlock_unlock(&this_task->lock_cur_thr_num);
+    int cur_thr_num = this_task->cur_thr_num;
 
     // If this task has more than one thread left, do not report
     // exit status, proceed directly to remove resources used by this thread
@@ -309,41 +307,31 @@ void vanish_syscall_handler() {
             MAGIC_BREAK;
         }
 
-        // Make runnable all waiting threads in parent task
-        list_t *wait_list = &parent_task->wait_list;
-        if(wait_list == NULL) {
-            lprintf("wait_list is NULL, but parent is alive?!");
-            MAGIC_BREAK;
-        }
-        list_t *wait_list_copy = list_get_copy(wait_list);
-        if(wait_list_copy == NULL) {
-            lprintf("list_get_copy failed");
-            MAGIC_BREAK;
-        }
+        // Make runnable thread block on wait if there's any
+        task_wait_t *task_wait = &this_task->task_wait_struct;
+        mutex_lock(&task_wait->lock);
+        task_wait->num_zombie++;
+        task_wait->num_alive--;
+
+        simple_node_t* node = simple_queue_dequeue(&task_wait->wait_queue);
         tcb_t *wait_thr;
-        while(list_remove_first(wait_list_copy, (void **)&wait_thr) == 0) {
-            lprintf("wake up thread %d", wait_thr->tid);
+        if(node != NULL) {
+            wait_thr = (tcb_t *)node->thr;
+            mutex_unlock(&task_wait->lock);
             context_switch(4, (uint32_t)wait_thr);
+        } else {
+            mutex_unlock(&task_wait->lock);
         }
-        list_destroy(wait_list_copy, 0);
-        free(wait_list_copy);
+
     } else {
         lprintf("cur_thr_num != 0?! %d", cur_thr_num);
         MAGIC_BREAK;
     }
 
-    */
 
     lprintf("task %d vanish syscall handler finished, cr3: %x", this_task->pid,
             (unsigned)get_cr3());
 
-    // Add self to system wide zombie list, let next thread in scheduler's 
-    // queue run.
-    
-    if(put_next_zombie(this_thr) < 0) {
-        lprintf("put_next_zombie failed");
-        MAGIC_BREAK;
-    }
     
     lprintf("Some useless words");
     lprintf("Some more useless words");
@@ -373,7 +361,13 @@ void vanish_syscall_handler() {
         MAGIC_BREAK;
     }
     
-//    lprintf("Some more more useless words");
+    // Add self to system wide zombie list, let next thread in scheduler's 
+    // queue run.
+    if(put_next_zombie(this_thr) < 0) {
+        lprintf("put_next_zombie failed");
+        MAGIC_BREAK;
+    }
+
     context_switch(3, 0);
 
     lprintf("Vanished thread will never reach here");
@@ -438,8 +432,9 @@ void ht_put_task(int pid, pcb_t *pcb) {
 
 #define ERR_PARAM -2
 #define ERR_NO_CHILD -1
-
 int wait_syscall_handler(int *status_ptr) {
+    return 0;
+    /*
 
     lprintf("wait syscall handler called");
 
@@ -569,7 +564,9 @@ int wait_syscall_handler(int *status_ptr) {
     }
 
     return ret;
+    */
 }
+
 
 /*************************** set_status *************************/
 
