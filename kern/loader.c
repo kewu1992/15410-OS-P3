@@ -31,6 +31,8 @@
 
 #include <asm_helper.h>
 
+#include <syscall_lifecycle.h>
+
 #define MAX_ADDR 0xFFFFFFFF
 
 #define SIZE_USER_STACK  20
@@ -86,6 +88,8 @@ void loadFirstTask(const char *filename) {
 
     // create new process
     tcb_t *thread = tcb_create_process(RUNNING);
+
+    set_init_pcb(thread->pcb);
 
     load_kernel_stack(thread->k_stack_esp, usr_esp, my_program);
 

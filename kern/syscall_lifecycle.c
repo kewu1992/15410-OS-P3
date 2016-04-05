@@ -137,6 +137,17 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
 
 /*************************** vanish *****************************/
+/** @brief The init task */
+static pcb_t *init_task;
+
+/** @brief Record init task's pcb
+  *
+  * @param init_pcb The init task's pcb
+  * @return Void
+  */
+void set_init_pcb(pcb_t *init_pcb) {
+    init_task = init_pcb; 
+}
 
 /** @brief Hashtable to pid to pcb map, dead process doesn't have
   * entry in hashtable
@@ -336,6 +347,32 @@ void vanish_syscall_handler() {
     
     lprintf("Some useless words");
     lprintf("Some more useless words");
+
+    // Free resources that this task itself can free
+    if(this_task->cur_thr_num == 0) {
+        lprintf("vanish_wipe_thread called for tid: %d, only thread in task", 
+                this_thr->tid);
+        // Last thread in the task
+        uint32_t old_pd = this_task->page_table_base;
+
+        // Use init task's page table until death
+        set_cr3(init_task->page_table_base);
+
+        // Free old address space
+        int ret = free_entire_space(old_pd);
+        if(ret < 0) {
+            lprintf("free_entire_space failed");    
+            MAGIC_BREAK;
+        }
+
+        // Free pcb, destroy stuff in the pcb
+        // TBD*****************************
+    } else {
+        lprintf("vanish_wipe_thread called for tid: %d,"
+                "cur_thr_num != 0?! %d", this_thr->tid, this_task->cur_thr_num);
+        MAGIC_BREAK;
+    }
+    
 //    lprintf("Some more more useless words");
     context_switch(3, 0);
 
@@ -352,6 +389,7 @@ void vanish_syscall_handler() {
  */
 int vanish_wipe_thread(tcb_t *thread) {
 
+    /*
     int ret;
     pcb_t *task = thread->pcb; 
     if(task->cur_thr_num == 0) {
@@ -371,6 +409,7 @@ int vanish_wipe_thread(tcb_t *thread) {
                 "cur_thr_num != 0?! %d", thread->tid, task->cur_thr_num);
         MAGIC_BREAK;
     }
+    */
     
 
 
@@ -504,6 +543,7 @@ int wait_syscall_handler(int *status_ptr) {
         lprintf("in wait, es->pid is 0 ?!");
         MAGIC_BREAK;
     }
+
     int ret = es->pid;
     free(es);
     //lprintf("task %d wait found one! pid: %d, status: %d", this_task->pid,

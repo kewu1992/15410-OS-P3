@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <list.h>
+#include <syscall_inter.h>
 
 typedef enum {
     RUNNING,
@@ -25,16 +26,14 @@ typedef struct pcb_t {
     list_t child_exit_status_list;
     /** @brief Exit status of the task */
     int exit_status;
-    /** @brief Current number of alive threads in the task */
+    /** @brief Current number of alive threads in the task, determine if 
+      * report task exit status and free task resources
+      */
     int cur_thr_num;
     spinlock_t lock_cur_thr_num;
-    /** @brief Current number of alive children task, if there's no child 
-      * child task, return directly with an negative integer error.
-      */
-    int cur_child_num;
-    spinlock_t lock_cur_child_num;
-    /** @brief List of threads that are waiting to reap children */
-    list_t wait_list;
+
+    task_wait_t task_wait_struct;
+
 } pcb_t;
 
 typedef struct tcb_t {
