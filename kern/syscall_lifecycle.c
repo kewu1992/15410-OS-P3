@@ -467,7 +467,7 @@ int wait_syscall_handler(int *status_ptr) {
         mutex_lock(&wait->lock);
         // check if can reap
         if (wait->num_zombie == 0 && 
-            (wait->num_alive == simple_queue_size())){
+            (wait->num_alive == simple_queue_size(&wait->wait_queue))){
             // impossible to reap, return error
             mutex_unlock(&wait->lock);
             return ERR_NO_CHILD;

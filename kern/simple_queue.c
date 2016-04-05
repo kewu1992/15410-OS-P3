@@ -87,3 +87,13 @@ int simple_queue_is_exist(simple_queue_t *deque, int tid) {
     return 0;
 }
 
+int simple_queue_size(simple_queue_t *deque) {
+    int count = 0;
+    simple_node_t* node = &(deque->head);
+    while(node->next != &(deque->tail)) {
+        count++;
+        node = node->next;
+    }
+    return count;
+}
+

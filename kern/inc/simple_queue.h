@@ -38,5 +38,7 @@ int simple_queue_destroy(simple_queue_t *deque);
 
 int simple_queue_is_exist(simple_queue_t *deque, int tid);
 
+int simple_queue_size(simple_queue_t *deque);
+
 
 #endif /* _SIMPLE_QUEUE_H_ */
