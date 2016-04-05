@@ -441,8 +441,6 @@ void ht_put_task(int pid, pcb_t *pcb) {
 
 int wait_syscall_handler(int *status_ptr) {
 
-    lprintf("wait syscall handler called");
-
     // Check if status_ptr is valid memory
     int is_check_null = 0;
     int max_len = sizeof(int);
@@ -459,6 +457,10 @@ int wait_syscall_handler(int *status_ptr) {
         MAGIC_BREAK;
     }
 
+    // define a node for simple queue using stack space
+    simple_node_t node;
+    node.thr = this_thr;
+
     // Get current task
     pcb_t *this_task = this_thr->pcb;
     if(this_task == NULL) {
@@ -466,6 +468,48 @@ int wait_syscall_handler(int *status_ptr) {
         MAGIC_BREAK;
     }
 
+    task_wait_t wait = &(this_task->task_wait_struct);
+
+    while (1) {
+        mutex_lock(&wait->lock);
+        // check if can reap
+        if (wait->num_zombie == 0 && 
+            (wait->num_alive == simple_queue_size())){
+            // impossible to reap, return error
+            mutex_unlock(&wait->lock);
+            return ERR_NO_CHILD;
+        } else if (wait->num_zombie == 0) {
+            // have alive task (potential zombie), need to block. Enter the
+            // tail of queue to wait, note that stack memory is used for 
+            // simple_node_t. Because the stack of wait_syscall_handler()
+            // will not be destroied until return, so it is safe
+            simple_queue_enqueue(&wait->wait_queue, &node);
+            mutex_unlock(&wait->lock);
+
+            context_switch(3, 0);
+            continue;
+        } else {
+            // have zombie task, can reap directly
+            wait->num_zombie--;
+            mutex_unlock(&wait->lock);
+
+            exit_status_t *es;
+            if (list_remove_first(&this_task->child_exit_status_list, (void **)&es) < 0) {
+                // something wrong
+                lprintf("wait_syscall_handler() --> list_remove_first() failed!");
+                MAGIC_BREAK;
+            }
+
+            if(status_ptr != NULL)
+                *status_ptr = es->status;
+            int rv = es->pid;
+            free(es);
+            return rv;
+        }
+    }
+    
+
+    /*
     // Check number of alive children tasks 
     spinlock_lock(&this_task->lock_cur_child_num);
     int cur_child_num = this_task->cur_child_num;
@@ -474,6 +518,7 @@ int wait_syscall_handler(int *status_ptr) {
         lprintf("number of alive children tasks is 0");
         return ERR_NO_CHILD;
     }
+
 
     // Get current task's children exit status list and collect child's exit 
     // status.
@@ -567,8 +612,7 @@ int wait_syscall_handler(int *status_ptr) {
         free(wait_list_copy);
 
     }
-
-    return ret;
+    */
 }
 
 /*************************** set_status *************************/
