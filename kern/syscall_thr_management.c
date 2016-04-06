@@ -87,10 +87,8 @@ void* timer_callback(unsigned int ticks) {
  */
 int yield_syscall_handler(int tid) {
 
-    context_switch(0, tid);
-    int ret = tcb_get_entry((void*)asm_get_esp())->result;
-    lprintf("yield ret: %d", ret);
-    return ret;
+    context_switch(6, tid);
+    return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
 

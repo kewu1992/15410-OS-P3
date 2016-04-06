@@ -20,36 +20,36 @@ void test_yield_success() {
 
     int pid = fork();
     if(pid == 0) {
-        // In pid 1
-        // Without shell parent should be pid 0
-        int ret = yield(0);
+        // In pid 2
+        // Without shell parent should be pid 1
+        lprintf("ready to yield to 1");
+        int ret = yield(1);
         lprintf("Parent hasn't exited, ret should be 0, ret = %d", ret);
-        ret = yield(4);
+        ret = yield(1);
         lprintf("Try a non existent tid, ret should be -1, ret = %d", ret);
-        lprintf("Test ends, pid 1 is going to exit");
+        lprintf("Test ends, pid 2 is going to exit");
         exit(43);
     }
 
     // Parent task
-    int i;
-    for(i = 0; i < 100000; i++) {
-        // Loop forever
-        ;
-    }
-
+    exit(42);
 }
 
 
 int main() {
 
-    test_yield_failure();
 
-    // test_yield_success();
+    if (fork() != 0) {
+        while(1) {
+            wait(NULL);
+        }
+    }
 
-    lprintf("test ends");
+    // test_yield_failure();
 
-    while(1) ;
-
+    
+    test_yield_success();
+    return 0;
 }
 
 
