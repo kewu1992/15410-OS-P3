@@ -10,8 +10,6 @@
 #ifndef _HASHTABLE_H_
 #define _HASHTABLE_H_
 
-#include <mutex.h>
-
 /** @brief The node strcuture of linked list of hash table
  * Separate chaining is used to resolve collision. 
  */
@@ -32,8 +30,6 @@ typedef struct {
     int size;
     /** @brief The hash function used by this hashtable */
     int (*func)(void *);
-    /** A mutex to ensure thread-safety of this hashtable */
-    mutex_t lock;
 } hashtable_t;
 
 int hashtable_init(hashtable_t *table);

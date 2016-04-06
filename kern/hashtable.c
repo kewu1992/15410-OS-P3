@@ -31,7 +31,7 @@ int hashtable_init(hashtable_t *table) {
     for (i = 0; i < table->size; i++)
         table->array[i].next = NULL;
 
-    return mutex_init(&table->lock);
+    return 0;
 }
 
 /** @brief Put a <key, value> pair to a hash table
@@ -56,10 +56,8 @@ void hashtable_put(hashtable_t *table, void* key, void* value) {
     hp->key = key;
     hp->value = value;
 
-    mutex_lock(&table->lock);
     hp->next = table->array[index].next;
     table->array[index].next = hp;
-    mutex_unlock(&table->lock);
 }
 
 
@@ -78,18 +76,15 @@ void hashtable_put(hashtable_t *table, void* key, void* value) {
 void* hashtable_get(hashtable_t *table, void* key, int *is_find) {
     int index = table->func(key);
 
-    mutex_lock(&table->lock);
     hashnode_t *hp = &(table->array[index]);
     while (hp->next) {
         if (hp->next->key == key) {
             void* rv = hp->next->value;
-            mutex_unlock(&table->lock);
             *is_find = 1;
             return rv;
         }
         hp = hp->next;
     }
-    mutex_unlock(&table->lock);
 
     *is_find = 0;
     return NULL;
@@ -111,13 +106,11 @@ void* hashtable_get(hashtable_t *table, void* key, int *is_find) {
 void* hashtable_remove(hashtable_t *table, void* key, int *is_find) {
     int index = table->func(key);
 
-    mutex_lock(&table->lock);
     hashnode_t *hp = &(table->array[index]);
     while (hp->next) {
         if (hp->next->key == key) {
             hashnode_t *tmp = hp->next;
             hp->next = hp->next->next;
-            mutex_unlock(&table->lock);
 
             void *rv = tmp->value;
             free(tmp);
@@ -126,7 +119,6 @@ void* hashtable_remove(hashtable_t *table, void* key, int *is_find) {
         }
         hp = hp->next;
     }
-    mutex_unlock(&table->lock);
 
     *is_find = 0;
     return NULL;
