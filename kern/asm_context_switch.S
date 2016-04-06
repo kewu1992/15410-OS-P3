@@ -38,6 +38,7 @@ asm_context_switch:
     movl    (%eax), %esp    # %esp = next_thr->k_stack_esp
     addl    $12, %esp       # reclaim space
     popl    (%eax)          # pop this_thr->k_stack_esp
+    call    context_switch_block_unlock # unlock block_lock, only useful when block() and resume()
     popf                    # pop EFLAGS
     popa                    # pop all generic registers
 

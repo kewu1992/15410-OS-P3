@@ -76,3 +76,36 @@ int scheduler_is_exist(int tid) {
 
 }
 
+tcb_t* scheduler_block() {
+    simple_node_t* node = simple_queue_dequeue(&queue);
+
+    if (node == NULL)
+        return idle_thr;
+    else 
+        return node->thr;
+}
+
+int scheduler_make_runnable(tcb_t *thread) {
+    spinlock_lock(&spinlock);
+    // using the kernel stack space of this thread to store its queue node
+    // it is safe because the stack memory will not be reclaimed until 
+    // the next time context switch 
+    simple_node_t* node = (simple_node_t*)thread->k_stack_esp;
+    
+    node->thr = thread;
+    int rv = simple_queue_enqueue(&queue, node);
+    if (rv == 0) {
+        // update state of thread that is made runnable
+        if (thread->state == BLOCKED)
+            thread->state = NORMAL;
+        else if (thread->state == NORMAL)
+            thread->state = MADE_RUNNABLE;
+        else {
+            lprintf("strange state in scheduler_make_runnable()");
+            MAGIC_BREAK;
+        }
+    }
+    spinlock_unlock(&spinlock);
+    return rv;
+}
+

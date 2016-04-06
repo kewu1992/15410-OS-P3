@@ -8,6 +8,7 @@
 typedef enum {
     NORMAL,
     BLOCKED,
+    MADE_RUNNABLE,
     WAKEUP
 } thread_state_t;
 

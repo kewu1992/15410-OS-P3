@@ -25,6 +25,8 @@ static void* get_last_ebp(void* ebp);
 
 extern mutex_t *get_malloc_lib_lock();
 
+static spinlock_t block_lock;
+
 /** @brief Context switch from a thread to another thread. 
  *  
  *  There are multiple options for context_switch(): 
@@ -204,19 +206,58 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             }
             return new_thr;
         case 3: // block
-            // let sheduler to choose the next thread to run
-            new_thr = scheduler_get_next(-1);
-            if (new_thr == NULL) {
-                panic("no other process is running, %d can not be blocked", this_thr->tid);
-            } else
-                return new_thr;
+            // will unlock in asm_context_switch() --> after context switch to the next thread successfully
+            spinlock_lock(&block_lock);
+            if (this_thr->state == WAKEUP) {
+                // already be waked up, should not block
+                this_thr->state = NORMAL;
+                return this_thr;
+            } else {
+                // decide to block itself, can not be waked up (resume) by other thread unitl
+                // context switch to the next thread successfully
+                if (this_thr->state == MADE_RUNNABLE) {
+                    // another instance of this_thr has been put to scheduler queue
+                    this_thr->state = NORMAL;
+                } else if (this_thr->state == NORMAL){
+                    this_thr->state = BLOCKED;
+                } else  {
+                    lprintf("strange state in context_switch(3,0)");
+                    MAGIC_BREAK;
+                }
+
+                // let sheduler to choose the next thread to run
+                new_thr = scheduler_block();
+                if (new_thr == NULL) {
+                    panic("no other process is running, %d can not be blocked", this_thr->tid);
+                } else
+                    return new_thr;
+            }            
         case 4: // make_runnable a thread
             new_thr = (tcb_t*)arg;
-            if (new_thr != NULL && scheduler_enqueue_tail(new_thr) < 0) {
-                printf("scheduler_enqueue_tail() failed, context switch \
+            if (new_thr != NULL && scheduler_make_runnable(new_thr) < 0) {
+                printf("scheduler_enqueue_tail() failed, make runnable \
                         failed for thread %d", new_thr->tid);
             }
             return this_thr;
+        case 5: // resume a thread
+            new_thr = (tcb_t*)arg;
+            if (scheduler_enqueue_tail(this_thr) < 0) {
+                printf("scheduler_enqueue_tail() failed, resume \
+                        failed to thread %d", new_thr->tid);
+                return this_thr;
+            }
+
+            spinlock_lock(&block_lock);
+            if (new_thr->state == BLOCKED)
+                new_thr->state = NORMAL;
+            else if (new_thr->state == NORMAL)
+                new_thr->state = WAKEUP;
+            else {
+                lprintf("strange state in context_switch(5,thr)");
+                MAGIC_BREAK;
+            }
+
+            return new_thr;
         default:
             return this_thr;
     }
@@ -289,4 +330,12 @@ void context_switch_set_esp0(int offset, uint32_t esp) {
 void* get_last_ebp(void* ebp) {
     uint32_t last_ebp = *((uint32_t*) ebp);
     return (void*) last_ebp;
+}
+
+int context_switcher_init() {
+    return spinlock_init(&block_lock);
+}
+
+void context_switch_block_unlock() {
+    spinlock_unlock(&block_lock);
 }

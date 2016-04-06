@@ -37,6 +37,7 @@
 
 #include <console.h>
 #include <syscall_inter.h>
+#include <context_switcher.h>
 
 static void kernel_init();
 
@@ -55,7 +56,7 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     lprintf("Finish initialization");
 
     lprintf( "Ready to load first task" );
-    loadFirstTask("io_test");
+    loadFirstTask("sleep_test");
 
     // should never reach here
     return 0;
@@ -79,6 +80,10 @@ void kernel_init() {
         panic("Initialize virtual memory failed!");
 
     enable_interrupts();
+
+    if (context_switcher_init() < 0) {
+        panic("Initialize context_switcher failed!");
+    }
 
     if (scheduler_init() < 0)
         panic("Initialize scheduler failed!");
