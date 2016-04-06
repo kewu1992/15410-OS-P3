@@ -87,7 +87,7 @@ void loadFirstTask(const char *filename) {
         panic("Load first task failed");
 
     // create new process
-    tcb_t *thread = tcb_create_process(RUNNING);
+    tcb_t *thread = tcb_create_process(NORMAL);
 
     set_init_pcb(thread->pcb);
     thread->pcb->page_table_base = get_cr3();

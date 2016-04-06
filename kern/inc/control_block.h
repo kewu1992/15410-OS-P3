@@ -6,8 +6,7 @@
 #include <syscall_inter.h>
 
 typedef enum {
-    RUNNING,
-    RUNNABLE,
+    NORMAL,
     BLOCKED,
     WAKEUP
 } thread_state_t;
