@@ -540,6 +540,7 @@ int wait_syscall_handler(int *status_ptr) {
             if(status_ptr != NULL)
                 *status_ptr = es->status;
             int rv = es->pid;
+            lprintf("task %d reaped task %d, with exit status %d", this_task->pid, rv, es->status);
             free(es);
             return rv;
         }
