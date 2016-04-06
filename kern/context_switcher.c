@@ -101,7 +101,7 @@ void context_switch(int op, uint32_t arg) {
         set_cr3(this_thr->pcb->page_table_base);
 
     // reset esp0
-    set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp));
+    set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp-1));
 
     // Check if there's any thread to destroy
 
