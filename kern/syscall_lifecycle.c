@@ -141,18 +141,21 @@ int exec_syscall_handler(char* execname, char **argvec) {
 static pcb_t *init_task;
 
 /** @brief Record init task's pcb
-  *
-  * @param init_pcb The init task's pcb
-  * @return Void
-  */
+ *
+ * @param init_pcb The init task's pcb
+ * @return Void
+ */
 void set_init_pcb(pcb_t *init_pcb) {
     init_task = init_pcb; 
 }
 
 /** @brief Hashtable to pid to pcb map, dead process doesn't have
-  * entry in hashtable
-  */
+ * entry in hashtable
+ */
 static hashtable_t ht_pid_pcb;
+/** @brief Lock for ht_pid_pcb */
+static mutex_t ht_pid_pcb_lock;
+
 
 /** @brief The size of hash table to stroe pid to pcb map */
 #define PID_PCB_HASH_SIZE 1021
@@ -163,17 +166,15 @@ static int ht_pid_pcb_hashfunc(void *key) {
     return tid % PID_PCB_HASH_SIZE;
 }
 
-//void asm_vanish(void *safe_stack_high, tcb_t *this_thr, 
-//        int is_only_thread_in_task);
 static list_t zombie_list;
 
 /** @brief Get next zombie in the thread zombie list
-  *
-  * @param thread_zombie The place to store zombie thread
-  *
-  * @return 0 on success; -1 on error
-  *
-  */
+ *
+ * @param thread_zombie The place to store zombie thread
+ *
+ * @return 0 on success; -1 on error
+ *
+ */
 int get_next_zombie(tcb_t **thread_zombie) {
     return list_remove_first(&zombie_list, (void **)thread_zombie);
 
@@ -184,12 +185,12 @@ mutex_t *get_zombie_list_lock() {
 }
 
 /** @brief Put next zombie in the thread zombie list
-  *
-  * @param thread_zombie The place to store zombie thread
-  *
-  * @return 0 on success; -1 on error
-  *
-  */
+ *
+ * @param thread_zombie The place to store zombie thread
+ *
+ * @return 0 on success; -1 on error
+ *
+ */
 int put_next_zombie(tcb_t *thread_zombie) {
 
     return list_append(&zombie_list, (void *)thread_zombie);
@@ -208,6 +209,11 @@ int syscall_vanish_init() {
     ht_pid_pcb.func = ht_pid_pcb_hashfunc;
     if(hashtable_init(&ht_pid_pcb) < 0) {
         lprintf("hashtable_init failed");
+        return -1;
+    }
+
+    if(mutex_init(&ht_pid_pcb_lock) < 0) {
+        lprintf("mutex init failed");
         return -1;
     }
 
@@ -233,6 +239,29 @@ void *get_parent_task(int pid) {
     return NULL;
 }
 
+/** @brief Free pcb and all resources that are associated with it */
+static void vanish_free_pcb(pcb_t *task) {
+
+    spinlock_destroy(&task->lock_cur_thr_num);
+
+    // The list should be empty now
+    void *data;
+    if (list_remove_first(&task->child_exit_status_list, (void **)&data) == 0) {
+        // something's wrong
+        lprintf("child_exit_status_list isn't empty when task is freeing itself");
+        MAGIC_BREAK;
+    }
+    int need_free_data = 1;
+    list_destroy(&task->child_exit_status_list, need_free_data);
+
+    task_wait_t *task_wait_struct = &task->task_wait_struct;
+    mutex_destroy(&task_wait_struct->lock);
+    // No need to destroy task->wait_queue because it's a simple (use stack as
+    // node place holder).
+
+    free(task);
+
+}
 
 void vanish_syscall_handler() {
 
@@ -240,7 +269,7 @@ void vanish_syscall_handler() {
 
     // Who is my parent?
     // Get tcb of current thread
-    
+
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     if(this_thr == NULL) {
         lprintf("tcb is NULL");
@@ -252,7 +281,7 @@ void vanish_syscall_handler() {
     if(this_task == NULL) {
         panic("This task's pcb is NULL");
     }
-    
+
 
     //*******************Need to lock this operation
     // One less thread in current task
@@ -272,7 +301,6 @@ void vanish_syscall_handler() {
 
         // *****************Assume now this task isn't the task init
 
-        // ****************Assume task's parent is alive
         // Report exit status to it
 
         // Construct exit_status
@@ -284,13 +312,23 @@ void vanish_syscall_handler() {
         exit_status->pid = this_task->pid;
         exit_status->status = this_task->exit_status;
 
+        // Get hashtable's lock
+        mutex_lock(&ht_pid_pcb_lock);
         // Get parent task's pcb
         pcb_t *parent_task = get_parent_task(this_task->ppid);
         if(parent_task == NULL) {
             // Parent is dead 
             lprintf("parent %d is dead", this_task->ppid);
-            MAGIC_BREAK;
+            // Report to init task
+            // Assume init task is not dead**************
+            parent_task = init_task;
         }
+
+        // Get pcb's lock
+        task_wait_t *task_wait = &parent_task->task_wait_struct;
+        mutex_lock(&task_wait->lock);
+        // Release hashtable's lock
+        mutex_unlock(&ht_pid_pcb_lock);
 
         // Put exit_status into parent's child exit status list  
         list_t *child_exit_status_list = &parent_task->child_exit_status_list;
@@ -303,9 +341,9 @@ void vanish_syscall_handler() {
             MAGIC_BREAK;
         }
 
-        // Make runnable thread block on wait if there's any
-        task_wait_t *task_wait = &parent_task->task_wait_struct;
-        mutex_lock(&task_wait->lock);
+        // Make runnable a thread that's block on wait if there's any
+        //task_wait_t *task_wait = &parent_task->task_wait_struct;
+        //mutex_lock(&task_wait->lock);
         task_wait->num_zombie++;
         task_wait->num_alive--;
 
@@ -339,14 +377,54 @@ void vanish_syscall_handler() {
             MAGIC_BREAK;
         }
 
-        // Free pcb, destroy stuff in the pcb
-        // TBD*****************************
+        // Get hashtable's lock
+        mutex_lock(&ht_pid_pcb_lock);
+        // Get this task's pcb's lock
+        task_wait_t *this_task_wait = &this_task->task_wait_struct;
+        mutex_lock(&this_task_wait->lock);
+        // Delete this task's hashtable entry in hashtable
+        int is_find; 
+        hashtable_remove(&ht_pid_pcb, (void*)this_task->pid, &is_find);
+        if(is_find == 0) {
+            lprintf("delete task %d in hashtable failed", this_task->pid);
+            MAGIC_BREAK;
+        }
+        // Release pcb's lock
+        mutex_unlock(&this_task_wait->lock);
+        // Release hashtable's lock
+        mutex_unlock(&ht_pid_pcb_lock);
+
+
+        // Now nobody can alter resources in current task's pcb except itself
+        // Report unreaped children's exit statuses to task init
+        // Assume init task's alive ***************
+        // Put thses exit_status into init task's child exit status list
+        list_t *init_task_child_exit_status_list = 
+            &init_task->child_exit_status_list;
+        if(init_task_child_exit_status_list == NULL) {
+            lprintf("init_child_exit_status_list is NULL, but task is alive?!");
+            MAGIC_BREAK;
+        }
+        exit_status_t *es;
+        while(list_remove_first(&this_task->child_exit_status_list, (void **)&es) == 0) {
+            if(list_append(init_task_child_exit_status_list, (void *)es) < 0) {
+                lprintf("list_append failed");
+                MAGIC_BREAK;
+            }
+        }
+
+        // Delete resources in pcb and free pcb
+        // Set init as the thread's temporary task
+        this_thr->pcb = init_task;
+        // Free resources in pcb
+        vanish_free_pcb(this_task);
+
     } else {
         lprintf("vanish_wipe_thread called for tid: %d,"
                 "cur_thr_num != 0?! %d", this_thr->tid, this_task->cur_thr_num);
         MAGIC_BREAK;
     }
-    
+
     // Add self to system wide zombie list, let next thread in scheduler's 
     // queue run.
     if(put_next_zombie(this_thr) < 0) {
@@ -360,6 +438,7 @@ void vanish_syscall_handler() {
     MAGIC_BREAK;
 
 }
+
 /** @brief Release resources used by a thread and get the next thread to run
  *
  * @param thread The thread to release resources
@@ -368,30 +447,6 @@ void vanish_syscall_handler() {
  *
  */
 int vanish_wipe_thread(tcb_t *thread) {
-
-    /*
-    int ret;
-    pcb_t *task = thread->pcb; 
-    if(task->cur_thr_num == 0) {
-        lprintf("vanish_wipe_thread called for tid: %d, only thread in task", 
-                thread->tid);
-        // Last thread in the task
-        uint32_t old_pd = task->page_table_base;
-
-        // Free old address space
-        ret = free_entire_space(old_pd);
-        if(ret < 0) return ret;
-
-        // Free pcb, destroy stuff in the pcb
-        // TBD*****************************
-    } else {
-        lprintf("vanish_wipe_thread called for tid: %d,"
-                "cur_thr_num != 0?! %d", thread->tid, task->cur_thr_num);
-        MAGIC_BREAK;
-    }
-    */
-    
-
 
     // Free thread resource: tcb, kernel stack
     tcb_free_thread(thread);
@@ -410,7 +465,9 @@ int vanish_wipe_thread(tcb_t *thread) {
  */
 void ht_put_task(int pid, pcb_t *pcb) {
 
+    mutex_lock(&ht_pid_pcb_lock);
     hashtable_put(&ht_pid_pcb, (void *)pid, (void *)pcb); 
+    mutex_unlock(&ht_pid_pcb_lock);
 
 }
 
@@ -453,7 +510,7 @@ int wait_syscall_handler(int *status_ptr) {
         mutex_lock(&wait->lock);
         // check if can reap
         if (wait->num_zombie == 0 && 
-            (wait->num_alive == simple_queue_size(&wait->wait_queue))){
+                (wait->num_alive == simple_queue_size(&wait->wait_queue))){
             // impossible to reap, return error
             mutex_unlock(&wait->lock);
             return ERR_NO_CHILD;
@@ -486,7 +543,7 @@ int wait_syscall_handler(int *status_ptr) {
             return rv;
         }
     }
-    
+
 }
 
 
