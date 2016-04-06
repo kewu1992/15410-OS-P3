@@ -65,7 +65,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world
+STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield
 
 ###########################################################################
 # Data files provided by course staff to build into the RAM disk
