@@ -77,3 +77,19 @@ void timer_callback(unsigned int ticks) {
     }
 
 }
+
+
+/*************************** yield *************************/
+
+/** @brief Yield
+ *
+ *  @return 0 on success; An integer error less than 0 on failure
+ */
+int yield_syscall_handler(int tid) {
+
+    context_switch(0, tid);
+    return tcb_get_entry((void*)asm_get_esp())->result;
+}
+
+
+

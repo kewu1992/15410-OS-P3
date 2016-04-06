@@ -71,4 +71,6 @@ void wait_wrapper();
 
 void set_status_wrapper();
 
+void yield_wrapper();
+
 #endif

@@ -57,7 +57,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the 410user/progs
 # directory.
 #
-410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait 
+410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait actual_wait sleep_test1
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -99,7 +99,7 @@ THREAD_OBJS = malloc.o panic.o
 ###########################################################################
 # Object files for your syscall wrappers
 ###########################################################################
-SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o halt.o readline.o vanish.o wait.o set_cursor_pos.o set_term_color.o set_status.o sleep.o get_ticks.o
+SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o halt.o readline.o vanish.o wait.o set_cursor_pos.o set_term_color.o set_status.o sleep.o get_ticks.o yield.o
 
 
 ###########################################################################

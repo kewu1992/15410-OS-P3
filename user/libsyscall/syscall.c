@@ -23,10 +23,6 @@
 #include <syscall.h>
 #include <simics.h>
 
-int yield(int pid)
-{
-	return -1;
-}
 
 int deschedule(int *flag)
 {
