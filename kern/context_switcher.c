@@ -106,9 +106,10 @@ void context_switch(int op, uint32_t arg) {
     // Check if there's any thread to destroy
 
     // Check mutext lib lock holder
-    if(mutex_get_lock_holder(get_malloc_lib_lock()) == this_thr->tid ||
+    if(op == 4 ||
+        mutex_get_lock_holder(get_malloc_lib_lock()) == this_thr->tid ||
             mutex_get_lock_holder(get_zombie_list_lock()) == this_thr->tid) {
-        MAGIC_BREAK;
+
         return; 
     }
 
