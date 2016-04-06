@@ -1,20 +1,23 @@
 
-# int atomic_add(int* num)
+# int atomic_add(int* num, int val)
 .globl atomic_add
 
-# int asm_xchg(int *lock_available, int val);
+# int asm_xchg(int *lock_available, val);
 .globl asm_xchg
 
 atomic_add:
-    movl    4(%esp), %ecx           # %ecx = num
+    pushl   %ebx                    # save old %ebx
+    movl    12(%esp), %ebx          # %ebx = val
+    movl    8(%esp), %ecx           # %ecx = num
     movl    (%ecx), %eax            # %eax = *num
 .L1:
-    leal    1(%eax), %edx           # %edx = *num + 1
+    leal    (%eax, %ebx, 1), %edx        # %edx = *num + val
     lock cmpxchgl   %edx, (%ecx)    # Compare %eax with (%ecx), 
                                     # If equal (%ecx) = %edx
                                     # If not equal, %eax = (%ecx)
     jnz     .L1
-    addl    $1, %eax                # %eax = *num (after atomic add)
+    addl    %ebx, %eax              # %eax = *num (after atomic add)
+    popl    %ebx                    # restore %ebx
     ret
 
 asm_xchg:

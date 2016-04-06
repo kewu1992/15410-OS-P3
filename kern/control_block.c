@@ -119,7 +119,7 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
     if (thread == NULL) {
         return NULL;
     }
-    thread->tid = atomic_add(&id_count);
+    thread->tid = atomic_add(&id_count, 1);
     thread->pcb = process;
     thread->state = state;
     thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;

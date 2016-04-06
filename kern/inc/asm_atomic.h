@@ -1,15 +1,16 @@
 #ifndef _ASM_ATOMIC_H_
 #define _ASM_ATOMIC_H_
 
-/** @brief Atomically execute num++
+/** @brief Atomically execute addition
  *  
- *  This function using instruction cmpxchg (CAS) to implement atomic counter
+ *  This function using instruction cmpxchg (CAS) to implement atomic addition
  *
- *  @param num Pointer points to the integer to execute num++ 
+ *  @param num Pointer points to the integer to execute atomic addition
+ *  @parak val Value that will be added to *num atomically
  *
  *  @return The value of num after addition
  */
-int atomic_add(int* num);
+int atomic_add(int* num, int val);
 
 
 /** @brief Atomically exchange values
