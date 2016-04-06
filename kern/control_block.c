@@ -122,15 +122,14 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
     thread->tid = atomic_add(&id_count);
     thread->pcb = process;
     thread->state = state;
-    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + 
-                            K_STACK_SIZE - sizeof(simple_node_t);
+    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;
     if (thread->k_stack_esp == NULL) {
         free(thread);
         return NULL;
     }
     
     // set tcb table entry
-    tcb_set_entry(thread->k_stack_esp, thread);
+    tcb_set_entry(thread->k_stack_esp-1, thread);
 
     return thread;
 }
@@ -200,10 +199,7 @@ tcb_t* tcb_get_entry(void *addr) {
  *  @return The highest kernel stack address of the thread
  */
 void* tcb_get_high_addr(void *addr) {
-    // the very top of kernel stack for each thread is used for context switch
-    // scheduler to store queue node
-    return (void*)((GET_K_STACK_INDEX(addr) + 1) * K_STACK_SIZE 
-                                                    - sizeof(simple_node_t));
+    return (void*)((GET_K_STACK_INDEX(addr) + 1) * K_STACK_SIZE);
 }
 
 /** @brief Get the lowest kernel stack address of a thread 
