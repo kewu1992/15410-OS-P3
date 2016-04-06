@@ -23,7 +23,7 @@ static tcb_t* internal_thread_fork(tcb_t* this_thr);
 
 static void* get_last_ebp(void* ebp);
 
-mutex_t *get_malloc_lib_lock();
+extern mutex_t *get_malloc_lib_lock();
 
 /** @brief Context switch from a thread to another thread. 
  *  
@@ -59,7 +59,7 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
-    lprintf("context switch for tid: %d", this_thr->tid);
+    //lprintf("context switch for tid: %d", this_thr->tid);
 
     // before context switch, save cr3
     this_thr->pcb->page_table_base = get_cr3();
@@ -76,7 +76,7 @@ void context_switch(int op, uint32_t arg) {
     // lprintf("after: %p", this_thr);
     // lprintf("after: %d", this_thr->tid);
 
-    lprintf("context switch to tid: %d", this_thr->tid);
+    //lprintf("context switch to tid: %d", this_thr->tid);
 
     if (op == 1 && this_thr->result == 0) {
         if (this_thr->tid == 0)

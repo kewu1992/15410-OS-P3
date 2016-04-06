@@ -47,7 +47,12 @@ extern const exec2obj_userapp_TOC_entry exec2obj_userapp_TOC[MAX_NUM_APP_ENTRIES
 
 extern void asm_new_process_iret(void *esp);
 
+extern void asm_idle_process_iret(void *esp);
+
 static uint32_t init_eflags;
+
+
+tcb_t* idle_thr;
 
 /* --- Local function prototypes --- */ 
 static void* push_to_stack(void *esp, uint32_t value);
@@ -91,9 +96,10 @@ void loadFirstTask(const char *filename) {
 
     set_init_pcb(thread->pcb);
     thread->pcb->page_table_base = get_cr3();
-    lprintf("init result:%x", (unsigned int)get_cr3());
 
-    load_kernel_stack(thread->k_stack_esp, usr_esp, my_program);
+    idle_thr = NULL;
+
+    load_kernel_stack(thread->k_stack_esp, usr_esp, my_program, strcmp(filename, "idle") == 0);
 
     // should never reach here
 }
@@ -194,7 +200,7 @@ void* loadTask(const char *filename, int argc, const char **argv, void** usr_esp
     return (void*)simple_elf.e_entry;
 }
 
-void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program) {
+void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, int is_idle) {
     //set esp0
     set_esp0((uint32_t)(k_stack_esp));
 
@@ -212,7 +218,10 @@ void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program) {
     k_stack_esp = push_to_stack(k_stack_esp, SEGSEL_USER_DS);
 
     // set esp and call iret
-    asm_new_process_iret(k_stack_esp);
+    if (is_idle)
+        asm_idle_process_iret(k_stack_esp);
+    else
+        asm_new_process_iret(k_stack_esp);
 
     // should never reach here
 }
@@ -222,5 +231,41 @@ void* push_to_stack(void *esp, uint32_t value) {
     memcpy(new_esp, &value, 4);
     return new_esp;
 }
+
+ void idle_process_init() {
+
+    if (fork_syscall_handler() == 0) {
+        // child process, exec(init)
+        char my_execname[] = "init";
+        char *argv[] = {my_execname, 0};
+
+        //uint32_t old_pd = get_cr3();
+
+        // create new page table
+        set_cr3(create_pd());
+        // load task
+
+        void *my_program, *usr_esp;
+        if ((my_program = loadTask(my_execname, 1, (const char**)argv, &usr_esp)) == NULL) {
+            panic("load init failed");
+        }
+
+        // free_pd(old_pd);
+
+        // modify tcb
+        tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+        this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
+
+        // reset init_pcb
+        set_init_pcb(this_thr->pcb);
+
+        // load kernel stack, jump to new program
+        load_kernel_stack(this_thr->k_stack_esp, usr_esp, my_program, 0);
+    } else {
+        // parent process(idle)
+        idle_thr = tcb_get_entry((void*)asm_get_esp());
+        return;
+    }
+ }
 
 /*@}*/

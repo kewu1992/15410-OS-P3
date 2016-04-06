@@ -18,6 +18,8 @@ void make_reading_thr_runnable();
 
 void timer_callback(unsigned int ticks);
 
+int fork_syscall_handler();
+
 /* @brief Data structure for wait() syscall */
 typedef struct {
     int num_alive, num_zombie;

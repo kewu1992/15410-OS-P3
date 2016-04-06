@@ -6,6 +6,8 @@
 
 #define NULL 0
 
+extern tcb_t* idle_thr;
+
 static simple_queue_t queue;
 static spinlock_t spinlock;
 
@@ -23,6 +25,9 @@ int scheduler_init() {
 int scheduler_enqueue_tail(tcb_t *thread) {
     int rv;
 
+    if (thread == idle_thr)
+        return 0;
+    
     spinlock_lock(&spinlock);
     // using the kernel stack space of this thread to store its queue node
     // it is safe because the stack memory will not be reclaimed until 
@@ -49,7 +54,7 @@ tcb_t* scheduler_get_next(int mode) {
     spinlock_unlock(&spinlock);
 
     if (node == NULL)
-        return NULL;
+        return idle_thr;
     else 
         return node->thr;
 }

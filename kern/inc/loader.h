@@ -22,6 +22,6 @@ void loadFirstTask(const char *filename);
 
 void* loadTask(const char *filename, int argc, const char **argv, void** usr_esp);
 
-void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program);
+void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, int is_idle);
 
 #endif /* _LOADER_H */

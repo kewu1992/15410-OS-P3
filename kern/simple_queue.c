@@ -96,4 +96,3 @@ int simple_queue_size(simple_queue_t *deque) {
     }
     return count;
 }
-

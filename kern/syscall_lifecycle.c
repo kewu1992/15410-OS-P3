@@ -129,7 +129,7 @@ int exec_syscall_handler(char* execname, char **argvec) {
     this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
 
     // load kernel stack, jump to new program
-    load_kernel_stack(this_thr->k_stack_esp, usr_esp, my_program);
+    load_kernel_stack(this_thr->k_stack_esp, usr_esp, my_program, 0);
 
     // should never reach here
     return 0;
