@@ -11,6 +11,7 @@
 
 #include <scheduler.h>
 #include <syscall_lifecycle.h>
+#include <asm_atomic.h>
 
 #define EXEC_MAX_ARGC   32
 #define EXEC_MAX_ARG_SIZE   128
@@ -242,8 +243,6 @@ void *get_parent_task(int pid) {
 /** @brief Free pcb and all resources that are associated with it */
 static void vanish_free_pcb(pcb_t *task) {
 
-    spinlock_destroy(&task->lock_cur_thr_num);
-
     // The list should be empty now
     void *data;
     if (list_remove_first(&task->child_exit_status_list, (void **)&data) == 0) {
@@ -265,6 +264,8 @@ static void vanish_free_pcb(pcb_t *task) {
 
 void vanish_syscall_handler() {
 
+    lprintf("vanish syscall handler called");
+
     // For the moment, assume there's only one thread for each task
 
     // Who is my parent?
@@ -285,10 +286,7 @@ void vanish_syscall_handler() {
 
     //*******************Need to lock this operation
     // One less thread in current task
-    spinlock_lock(&this_task->lock_cur_thr_num);
-    this_task->cur_thr_num--;
-    int cur_thr_num = this_task->cur_thr_num;
-    spinlock_unlock(&this_task->lock_cur_thr_num);
+    int cur_thr_num = atomic_add(&this_task->cur_thr_num, -1);
 
     // If this task has more than one thread left, do not report
     // exit status, proceed directly to remove resources used by this thread
@@ -305,6 +303,10 @@ void vanish_syscall_handler() {
 
         // Construct exit_status
         exit_status_t *exit_status = malloc(sizeof(exit_status_t));
+        if(exit_status == NULL) {
+            lprintf("malloc failed");
+            MAGIC_BREAK;
+        }
         if(this_task->pid == 0) {
             lprintf("Exit task init? this_task pid 0?!");
             MAGIC_BREAK;
@@ -356,7 +358,6 @@ void vanish_syscall_handler() {
         } else {
             mutex_unlock(&task_wait->lock);
         }
-
     } else {
         lprintf("cur_thr_num != 0?! %d", cur_thr_num);
         MAGIC_BREAK;

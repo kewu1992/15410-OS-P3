@@ -67,12 +67,6 @@ pcb_t* tcb_create_process_only(tcb_t* thread) {
     // Initially exit status is 0
     process->exit_status = 0;
 
-    
-    if(spinlock_init(&process->lock_cur_thr_num) < 0) {
-        lprintf("spinlock_init failed");
-        panic("spinlock_init failed");
-    }
-
     if(list_init(&process->child_exit_status_list) < 0) {
         lprintf("list_init failed");
         panic("list_init failed");
