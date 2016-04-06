@@ -21,16 +21,16 @@ char *args[2];
 int main() {
 
     int pid = fork();
-    
+
     int i;
     if(pid == 0) {
-        for(i = 0; i < 1000000; i++) {
-            ;
-        }
 
         exit(42);
     }
-    
+
+    for(i = 0; i < 1000000; i++) {
+        ;
+    }
     exit(43);  
-    
+
 }
