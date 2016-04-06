@@ -85,7 +85,7 @@ void context_switch(int op, uint32_t arg) {
         // new task (fork)
         tcb_create_process_only(this_thr);
 
-        lprintf("thread create process finished");
+        lprintf("create process %d with thread %d", this_thr->pcb->pid, this_thr->tid);
 
         // Can't wait until this point to clone pd, because parent process 
         // may have executed and changed its user space stack or even 

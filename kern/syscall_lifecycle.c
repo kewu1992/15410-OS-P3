@@ -112,14 +112,14 @@ int exec_syscall_handler(char* execname, char **argvec) {
     if ((my_program = loadTask(my_execname, argc, (const char**)argv, &usr_esp)) == NULL) {
         // load task failed
 
-        // free_pd(get_cr3());
+        free_entire_space(get_cr3());
 
         set_cr3(old_pd);
 
         return -1;
     }
 
-    // free_pd(old_pd);
+    free_entire_space(old_pd);
 
     for(i = 0; i < argc; i++)
         free(argv[i]);

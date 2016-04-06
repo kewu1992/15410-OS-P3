@@ -49,8 +49,6 @@ int tcb_init() {
  */
 pcb_t* tcb_create_process_only(tcb_t* thread) {
 
-    lprintf("tcb_create_process_only called for tid %d", thread->tid);
-
     pcb_t *process = malloc(sizeof(pcb_t));
     if (process == NULL)
         return NULL;

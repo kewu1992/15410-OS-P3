@@ -233,13 +233,14 @@ void* push_to_stack(void *esp, uint32_t value) {
 }
 
  void idle_process_init() {
+    lprintf("Initializing idle process");
 
     if (fork_syscall_handler() == 0) {
         // child process, exec(init)
         char my_execname[] = "init";
         char *argv[] = {my_execname, 0};
 
-        //uint32_t old_pd = get_cr3();
+        uint32_t old_pd = get_cr3();
 
         // create new page table
         set_cr3(create_pd());
@@ -250,7 +251,8 @@ void* push_to_stack(void *esp, uint32_t value) {
             panic("load init failed");
         }
 
-        // free_pd(old_pd);
+        if(free_entire_space(old_pd) < 0)
+            panic("free pd for init failed");
 
         // modify tcb
         tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
@@ -259,6 +261,7 @@ void* push_to_stack(void *esp, uint32_t value) {
         // reset init_pcb
         set_init_pcb(this_thr->pcb);
 
+        lprintf("ready to load init process");
         // load kernel stack, jump to new program
         load_kernel_stack(this_thr->k_stack_esp, usr_esp, my_program, 0);
     } else {

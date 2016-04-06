@@ -88,7 +88,7 @@ int readchar(void) {
     int ret = -1;
     
     // check if keryboard buffer is empty
-    if (front != rear) {
+    while (ret == -1 && front != rear) {
         uint8_t scancode = keybuf[rear];
         rear = (rear + 1) % KEY_BUF_SIZE;
         
