@@ -6,7 +6,7 @@
 #ifndef _TIMER_DRIVER_H_
 #define _TIMER_DRIVER_H_
 
-void init_timer_driver(void (*tickback)(unsigned int));
+void init_timer_driver(void* (*tickback)(unsigned int));
 
 unsigned int timer_get_ticks();
 

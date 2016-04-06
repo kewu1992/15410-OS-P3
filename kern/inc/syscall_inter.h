@@ -14,9 +14,9 @@ int syscall_sleep_init();
 
 int syscall_vanish_init();
 
-void make_reading_thr_runnable();
+void* resume_reading_thr();
 
-void timer_callback(unsigned int ticks);
+void* timer_callback(unsigned int ticks);
 
 int fork_syscall_handler();
 

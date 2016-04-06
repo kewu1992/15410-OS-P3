@@ -23,6 +23,7 @@
 #include <keyhelp.h>
 #include <syscall_inter.h>
 #include <simics.h>
+#include <context_switcher.h>
 
 /** @brief Size of buffer used to store scancode */
 #define KEY_BUF_SIZE 256
@@ -67,9 +68,14 @@ void keyboard_interrupt_handler(){
         front = (front + 1) % KEY_BUF_SIZE;
     }
 
-    make_reading_thr_runnable();
+    void* thr = resume_reading_thr();
 
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
+
+    if (thr) {
+        enable_interrupts();
+        context_switch(5, (uint32_t)thr);
+    }
 }
 
 /** @brief Returns the next character in the keyboard buffer

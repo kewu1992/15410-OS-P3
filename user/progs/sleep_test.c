@@ -8,11 +8,11 @@ int main(int argc, char *argv[]) {
     if (fork() == 0) {
         if (fork() == 0) {
             lprintf("I am child1, ready to sleep at %d", (int)get_ticks());
-            sleep(10);
+            sleep(1);
             lprintf("I am child1, wake up at %d", (int)get_ticks());
 
             int i = 0;
-            while (1) {
+            while (10) {
                 i++;
                 if (i % 30000 == 0)
                     lprintf("current ticks:%d from child1", (int)get_ticks());

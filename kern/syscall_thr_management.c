@@ -6,6 +6,7 @@
 #include <timer_driver.h>
 #include <context_switcher.h>
 
+#define NULL 0
 
 typedef struct {
     unsigned int ticks;
@@ -67,15 +68,14 @@ int sleep_queue_compare(void* this, void* that) {
 }
 
 // shoule be called by timer interrupt
-void timer_callback(unsigned int ticks) {   
-    // what about thread with same ticks???
+void* timer_callback(unsigned int ticks) {   
     pri_node_t* node = pri_queue_get_first(&sleep_queue);
-    if (node && ((sleep_queue_data_t*)node->data)->ticks == timer_get_ticks()) {
+    if (node && ((sleep_queue_data_t*)node->data)->ticks <= timer_get_ticks()) {
         pri_queue_dequeue(&sleep_queue);
-        // make sleeping thread runnable
-        context_switch(4, (uint32_t)((sleep_queue_data_t*)node->data)->thr); 
-    }
-
+        // resume to sleeping thread
+        return (void*)((sleep_queue_data_t*)node->data)->thr; 
+    } else
+        return NULL;
 }
 
 

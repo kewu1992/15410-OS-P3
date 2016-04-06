@@ -67,6 +67,7 @@ int readline_syscall_handler(int len, char *buf) {
     int count = 0;
     while (count < len) {
         spinlock_lock(&reading_lock);
+
         int ch = readchar();
         if (ch == -1) {
             read_waiting_thr = tcb_get_entry((void*)asm_get_esp());
@@ -90,12 +91,12 @@ int readline_syscall_handler(int len, char *buf) {
 
 // should only be called by keyboard interrupt, so this function call 
 // will not be interrupted
-void make_reading_thr_runnable() {
-    if (read_waiting_thr != NULL) {
-        // HOW ABOUT resume to it ???????
-        context_switch(4, (uint32_t)read_waiting_thr); // make waiting thread runnable
-        read_waiting_thr = NULL;
-    }
+void* resume_reading_thr() {
+    tcb_t* rv = read_waiting_thr;
+
+    read_waiting_thr = NULL;
+    
+    return (void*)rv;
 }
 
 int set_term_color_syscall_handler(int color) {

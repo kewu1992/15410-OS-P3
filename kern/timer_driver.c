@@ -14,9 +14,12 @@
 #include <timer_defines.h>
 #include <context_switcher.h>
 #include <simics.h>
+#include <control_block.h>
+
+#define NULL 0
 
 /** @brief Function pointer points to callback function of timer */
-static void (*callback)(unsigned int);
+static void* (*callback)(unsigned int);
 
 /** @brief Stores the total number of timer interrupts that handler has caught*/
 static unsigned int numTicks;
@@ -29,7 +32,7 @@ static unsigned int numTicks;
  *  @param tickback Pointer to clock-tick callback function
  *  @return Void.
  */
-void init_timer_driver(void (*tickback)(unsigned int)) {
+void init_timer_driver(void* (*tickback)(unsigned int)) {
     uint16_t interrupt_rate = (int)(TIMER_RATE * 0.01);
 
     outb(TIMER_MODE_IO_PORT, TIMER_SQUARE_WAVE);
@@ -48,13 +51,16 @@ void init_timer_driver(void (*tickback)(unsigned int)) {
  *  @return Void.
  */
 void timer_interrupt_handler() {
-    callback(++numTicks);
+    tcb_t* next_thr = (tcb_t*)callback(++numTicks);
 
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
 
     enable_interrupts();
 
-    context_switch(0, -1);
+    if (next_thr == NULL)
+        context_switch(0, -1);
+    else
+        context_switch(5, (uint32_t)next_thr);
 }
 
 unsigned int timer_get_ticks() {

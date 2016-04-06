@@ -152,7 +152,7 @@ void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int g
  *   
  *  @return A negative error code on error, or 0 on success
  **/
-int init_IDT(void (*tickback)(unsigned int)) {
+int init_IDT(void* (*tickback)(unsigned int)) {
 
     // install keyboard interrupt handler
     install_IDT_entry(KEY_IDT_ENTRY, keyboard_wrapper, SEGSEL_KERNEL_CS, 0, 1);
