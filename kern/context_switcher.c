@@ -159,6 +159,40 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
     switch(op) {
         case 0: // context switch (yield)
+            if((int)arg == -1) {
+                // Normal context switch or yield to any thread
+                if (scheduler_enqueue_tail(this_thr) < 0) {
+                    printf("scheduler_enqueue_tail() failed, context switch \
+                            failed for thread %d", this_thr->tid);
+                    return this_thr;
+                }
+                // let sheduler choose the next thread to run
+                new_thr = scheduler_get_next((int)arg);
+                if (new_thr == NULL) {
+                    lprintf("Normal context switch or yield to any thread: \
+                            simple queue is empty");
+                    MAGIC_BREAK;
+                } else {
+                    return new_thr;
+                }
+            } else {
+                // Yield to a specific thread
+                // Check if the requested thread exists
+                new_thr = scheduler_get_next((int)arg);
+                if (new_thr == NULL) {
+                    // The requested thread doesn't exist
+                    this_thr->result = -1;
+                    return this_thr;
+                } else {
+                    if (scheduler_enqueue_tail(this_thr) < 0) {
+                        printf("scheduler_enqueue_tail() failed, context switch \
+                                failed for thread %d", this_thr->tid);
+                        return this_thr;
+                    }
+                    return new_thr;
+                }
+            }
+
             if (scheduler_enqueue_tail(this_thr) < 0) {
                 printf("scheduler_enqueue_tail() failed, context switch \
                         failed for thread %d", this_thr->tid);

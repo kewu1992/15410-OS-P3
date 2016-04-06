@@ -438,11 +438,7 @@ void vanish_syscall_handler() {
         // Free resources in pcb
         vanish_free_pcb(this_task);
 
-    } else {
-        lprintf("vanish_wipe_thread called for tid: %d,"
-                "cur_thr_num != 0?! %d", this_thr->tid, this_task->cur_thr_num);
-        MAGIC_BREAK;
-    }
+    } 
 
     // Add self to system wide zombie list, let next thread in scheduler's 
     // queue run.
