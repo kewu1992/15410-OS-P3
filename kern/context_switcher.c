@@ -211,20 +211,10 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 return new_thr;
         case 4: // make_runnable a thread
             new_thr = (tcb_t*)arg;
-            if (new_thr != NULL && scheduler_enqueue_tail(new_thr) == 0) {
-                //this_thr->result = 0;
-            } else {
-                //this_thr->result = -1;
+            if (new_thr != NULL && scheduler_enqueue_tail(new_thr) < 0) {
+                printf("scheduler_enqueue_tail() failed, context switch \
+                        failed for thread %d", new_thr->tid);
             }
-
-            /*
-            if(this_thr->result == 0) {
-                lprintf("make runnable tid %d succeeded", new_thr->tid);
-            } else {
-                lprintf("make runnable tid %d failed", new_thr->tid);
-            }
-            */
-
             return this_thr;
         default:
             return this_thr;
@@ -242,7 +232,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
  *  @return A new thread that is the result of thread_fork() of this_thr
  */
 tcb_t* internal_thread_fork(tcb_t* this_thr) {
-    tcb_t* new_thr = tcb_create_thread_only(this_thr->pcb, RUNNING);
+    tcb_t* new_thr = tcb_create_thread_only(this_thr->pcb, NORMAL);
     if (new_thr == NULL)
         return NULL;
 
