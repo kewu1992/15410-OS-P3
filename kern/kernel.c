@@ -55,7 +55,7 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     lprintf("Finish initialization");
 
     lprintf( "Ready to load first task" );
-    loadFirstTask("fork_wait_bomb");
+    loadFirstTask("init");
 
     // should never reach here
     return 0;
