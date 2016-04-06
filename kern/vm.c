@@ -620,8 +620,6 @@ int free_entire_space(uint32_t pd_base) {
  */
 int free_space(uint32_t pd_base, int is_kernel_space) {
 
-    lprintf("free_space is called");
-
     pd_t *pd = (pd_t *)pd_base;
 
     // Start and end index of page directory entry
@@ -662,8 +660,6 @@ int free_space(uint32_t pd_base, int is_kernel_space) {
             }
         }
     }
-
-    lprintf("free_space finished");
 
     return 0;
 

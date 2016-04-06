@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     while(count < 1000) {
         if((pid = fork()) == 0) {
             lprintf("child returns");
-            exit(count+1);
+            exit(gettid());
         }
         if(pid < 0) {
             break;
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
 
         wpid = wait(&ret_val);
 
-        if(wpid != pid || ret_val != count + 1) {
+        if(wpid != pid || ret_val != pid) {
             lprintf("wpid %d, expect %d, ret_val %d, expect %d", 
                 wpid, pid, ret_val, count);
             MAGIC_BREAK;

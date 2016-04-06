@@ -102,14 +102,13 @@ void context_switch(int op, uint32_t arg) {
 
     // reset esp0
     set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp));
-    lprintf("kesp: %x", (unsigned int)this_thr->k_stack_esp);
 
     // Check if there's any thread to destroy
 
     // Check mutext lib lock holder
     if(mutex_get_lock_holder(get_malloc_lib_lock()) == this_thr->tid ||
             mutex_get_lock_holder(get_zombie_list_lock()) == this_thr->tid) {
-        lprintf("Hit  !");
+        MAGIC_BREAK;
         return; 
     }
 
@@ -131,10 +130,7 @@ void context_switch(int op, uint32_t arg) {
             if(vanish_wipe_thread(thread_zombie) < 0) {
                 lprintf("reap thread failed");
                 MAGIC_BREAK;
-            } else {
-                lprintf("reap thread succeeded");
             }
-            lprintf("some useless words");
         }
     }
 }
@@ -194,8 +190,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                     lprintf("clone_pd() failed");
                     MAGIC_BREAK;
                 }
-                lprintf("thread %d page table base: %x", new_thr->tid, 
-                        (unsigned)new_thr->new_page_table_base);
             } else {
                 // fork error
                 this_thr->result = -1;

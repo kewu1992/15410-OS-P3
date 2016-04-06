@@ -236,8 +236,6 @@ void *get_parent_task(int pid) {
 
 void vanish_syscall_handler() {
 
-    lprintf("vanish syscall handler called, cr3: %x", (unsigned)get_cr3());
-
     // For the moment, assume there's only one thread for each task
 
     // Who is my parent?
@@ -248,8 +246,6 @@ void vanish_syscall_handler() {
         lprintf("tcb is NULL");
         panic("tcb is NULL");
     }
-
-    lprintf("tid: %d", this_thr->tid);
 
     // Get pcb of current task
     pcb_t *this_task = this_thr->pcb;
@@ -328,18 +324,8 @@ void vanish_syscall_handler() {
         MAGIC_BREAK;
     }
 
-
-    lprintf("task %d vanish syscall handler finished, cr3: %x", this_task->pid,
-            (unsigned)get_cr3());
-
-    
-    lprintf("Some useless words");
-    lprintf("Some more useless words");
-
     // Free resources that this task itself can free
     if(this_task->cur_thr_num == 0) {
-        lprintf("vanish_wipe_thread called for tid: %d, only thread in task", 
-                this_thr->tid);
         // Last thread in the task
         uint32_t old_pd = this_task->page_table_base;
 
