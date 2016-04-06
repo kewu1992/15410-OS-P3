@@ -395,11 +395,14 @@ void vanish_syscall_handler() {
         // Release hashtable's lock
         mutex_unlock(&ht_pid_pcb_lock);
 
-
         // Now nobody can alter resources in current task's pcb except itself
-        // Report unreaped children's exit statuses to task init
+
+        // Report unreaped children's status to task init
         // Assume init task's alive ***************
-        // Put thses exit_status into init task's child exit status list
+        task_wait_t *task_wait = &init_task->task_wait_struct;
+        mutex_lock(&task_wait->lock);
+
+        // Put children tasks' exit_status into init task's child exit status list
         list_t *init_task_child_exit_status_list = 
             &init_task->child_exit_status_list;
         if(init_task_child_exit_status_list == NULL) {
@@ -412,7 +415,22 @@ void vanish_syscall_handler() {
                 lprintf("list_append failed");
                 MAGIC_BREAK;
             }
+            task_wait->num_zombie++;
+            // Modify number of alive children tasks for task init doesn't make
+            // sense.
+            // task_wait->num_alive--;
         }
+        // Make runnable init task
+        simple_node_t* node = simple_queue_dequeue(&task_wait->wait_queue);
+        tcb_t *wait_thr;
+        if(node != NULL) {
+            wait_thr = (tcb_t *)node->thr;
+            mutex_unlock(&task_wait->lock);
+            context_switch(4, (uint32_t)wait_thr);
+        } else {
+            mutex_unlock(&task_wait->lock);
+        }
+
 
         // Delete resources in pcb and free pcb
         // Set init as the thread's temporary task
