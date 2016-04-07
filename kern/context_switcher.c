@@ -27,11 +27,13 @@ extern mutex_t *get_malloc_lib_lock();
 
 static spinlock_t block_lock;
 
+extern tcb_t* idle_thr;
+
 /** @brief Context switch from a thread to another thread. 
  *  
  *  There are multiple options for context_switch(): 
  *  op  arg             meaning
- *  0   -1 or 0-N       context switch (yield) to -1 or a given tid
+ *  0   0               normal context switch by timer interupt
  *
  *  1   0               fork and context switch to new process
  *
@@ -42,7 +44,8 @@ static spinlock_t block_lock;
  *  4   tcb_t*          make_runable a given thread identified by its tcb
  *
  *  5   tcb_t*          resume a blocked thread (make_runnable and context 
- *                      switch to that thread immediately)     
+ *                      switch to that thread immediately)  
+ *  6   -1 or 0-N       yield to -1 or a given tid
  *
  *  @param op The option for context_switch()
  *  @param arg The argument for context_switch(). With different options, this 
@@ -61,7 +64,7 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
-    //lprintf("context switch for tid: %d", this_thr->tid);
+    // lprintf("context switch for tid: %d by op %d", this_thr->tid, op);
 
     // before context switch, save cr3
     this_thr->pcb->page_table_base = get_cr3();
@@ -78,29 +81,20 @@ void context_switch(int op, uint32_t arg) {
     // lprintf("after: %p", this_thr);
     // lprintf("after: %d", this_thr->tid);
 
-    //lprintf("context switch to tid: %d", this_thr->tid);
+    // lprintf("context switch to tid: %d", this_thr->tid);
 
-    if (op == 1 && this_thr->result == 0) {
-        if (this_thr->tid == 0)
-            MAGIC_BREAK;
+    if (op == 1 && this_thr->result < 0 && this_thr->result != -1) {        
+        lprintf("fork process %d with thread %d", this_thr->pcb->pid, this_thr->tid);
+        set_cr3((uint32_t)(-this_thr->result));
 
-        // new task (fork)
-        tcb_create_process_only(this_thr);
-
-        lprintf("create process %d with thread %d", this_thr->pcb->pid, this_thr->tid);
-
-        // Can't wait until this point to clone pd, because parent process 
-        // may have executed and changed its user space stack or even 
-        // vanished and the old address space has gone.
-
-        // set_cr3(clone_pd());
-        set_cr3(this_thr->new_page_table_base);
-        this_thr->pcb->page_table_base = this_thr->new_page_table_base;
+        this_thr->pcb->page_table_base = (uint32_t)(-this_thr->result);
+        this_thr->result = 0;
     }
 
     // after context switch, restore cr3
     if (this_thr->pcb->page_table_base != get_cr3())
         set_cr3(this_thr->pcb->page_table_base);
+
 
     // reset esp0
     set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp-1));
@@ -158,101 +152,110 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
     tcb_t* new_thr;
 
     switch(op) {
-        case 0: // context switch (yield)
-            if((int)arg == -1) {
-                // Normal context switch or yield to any thread
-                if (scheduler_enqueue_tail(this_thr) < 0) {
-                    printf("scheduler_enqueue_tail() failed, context switch \
-                            failed for thread %d", this_thr->tid);
-                    return this_thr;
-                }
-                // let sheduler choose the next thread to run
-                new_thr = scheduler_get_next((int)arg);
-                if (new_thr == NULL) {
-                    lprintf("Normal context switch or yield to any thread: \
-                            simple queue is empty");
-                    MAGIC_BREAK;
-                } else {
-                    return new_thr;
-                }
-            } else {
-                // Yield to a specific thread
-                // Check if the requested thread exists
-                new_thr = scheduler_get_next((int)arg);
-                if (new_thr == NULL) {
-                    // The requested thread doesn't exist
-                    this_thr->result = -1;
-                    return this_thr;
-                } else {
-                    if (scheduler_enqueue_tail(this_thr) < 0) {
-                        printf("scheduler_enqueue_tail() failed, context switch \
-                                failed for thread %d", this_thr->tid);
-                        return this_thr;
-                    }
-                    return new_thr;
-                }
-            }
-
-            if (scheduler_enqueue_tail(this_thr) < 0) {
-                printf("scheduler_enqueue_tail() failed, context switch \
-                        failed for thread %d", this_thr->tid);
-                return this_thr;
-            }
-            // let sheduler to choose the next thread to run
-            new_thr = scheduler_get_next((int)arg);
+        case 0: // Normal context switch 
+            // let sheduler choose the next thread to run
+            new_thr = scheduler_get_next(-1);
             if (new_thr == NULL) {
-                // yield error
-                this_thr->result = -1;
+                // no other thread to context switch, just return this thread
                 return this_thr;
-            } else {
-                return new_thr;
-            }
+            } 
+
+            // will unlock in asm_context_switch() --> after context switch to 
+            // the next thread successfully
+            spinlock_lock(&block_lock);
+            // decide to enqueue this thread, should not be interrupted until 
+            // context switch to the next thread successfully
+            if (this_thr != idle_thr)
+                scheduler_make_runnable(this_thr);
+            return new_thr;
 
         case 1:    // fork and context switch to new thread
-            mutex_lock(&((this_thr->pcb->task_wait_struct).lock));
-            (this_thr->pcb->task_wait_struct).num_alive++;
-            mutex_unlock(&((this_thr->pcb->task_wait_struct).lock));
-        case 2:    // thread_fork and context switch to new thread
             new_thr = internal_thread_fork(this_thr);
 
-            if (new_thr != NULL) {
-                // fork success
-                this_thr->result = new_thr->tid;
-                new_thr->result = 0;
-                // Set parent thread, can be in the same task or different task
-                new_thr->pthr = this_thr;
-                new_thr->new_page_table_base = clone_pd();
-                if (new_thr->new_page_table_base == ERROR_MALLOC_LIB ||
-                    new_thr->new_page_table_base == ERROR_NOT_ENOUGH_MEM) {
-                    lprintf("clone_pd() failed");
-                    MAGIC_BREAK;
-                }
-            } else {
+            if (new_thr == NULL) {
                 // fork error
                 this_thr->result = -1;
                 return this_thr;
             }
+            
+            // clone page table
+            uint32_t new_page_table_base = clone_pd();
+            if (new_page_table_base == ERROR_MALLOC_LIB ||
+                new_page_table_base == ERROR_NOT_ENOUGH_MEM) {
+                lprintf("clone_pd() failed");
+                MAGIC_BREAK;
 
-            if (scheduler_enqueue_tail(this_thr) < 0) {
-                printf("scheduler_enqueue_tail() failed, context switch \
-                        failed for thread %d", this_thr->tid);
+                printf("clone_pd() failed when fork()");
+                tcb_free_thread(new_thr);
+                this_thr->result = -1;
                 return this_thr;
             }
-            return new_thr;
-        case 3: // block
-            // will unlock in asm_context_switch() --> after context switch to the next thread successfully
+
+            // create new process
+            if (tcb_create_process_only(new_thr, this_thr, 
+                                                new_page_table_base) == NULL) {
+                lprintf("tcb_create_process_only() failed");
+                MAGIC_BREAK;
+
+                printf("tcb_create_process_only() failed when fork()");
+                free_entire_space(new_page_table_base);
+                tcb_free_thread(new_thr);
+                this_thr->result = -1;
+                return this_thr;
+            }
+
+            // add num_alive of child process for parent process
+            mutex_lock(&((this_thr->pcb->task_wait_struct).lock));
+            (this_thr->pcb->task_wait_struct).num_alive++;
+            mutex_unlock(&((this_thr->pcb->task_wait_struct).lock));
+
+            // fork success
+            this_thr->result = new_thr->tid;
+            // note that (int)new_page_table_base can not be a negative number
+            new_thr->result = -((int)new_page_table_base);
+
+            // will unlock in asm_context_switch() --> after context switch to 
+            // the next thread successfully
             spinlock_lock(&block_lock);
-            if (this_thr->state == WAKEUP) {
-                // already be waked up, should not block
+            // decide to enqueue this thread, should not be interrupted until 
+            // context switch to the next thread successfully
+            scheduler_make_runnable(this_thr);
+            return new_thr;
+
+        case 2:    // thread_fork and context switch to new thread
+            new_thr = internal_thread_fork(this_thr);
+
+            if (new_thr != NULL) {
+                // thread fork success
+                this_thr->result = new_thr->tid;
+                new_thr->result = 0;
+            } else {
+                // thread fork error
+                this_thr->result = -1;
+                return this_thr;
+            }
+
+            // will unlock in asm_context_switch() --> after context switch to 
+            // the next thread successfully
+            spinlock_lock(&block_lock);
+            // decide to enqueue this thread, should not be interrupted until 
+            // context switch to the next thread successfully
+            scheduler_make_runnable(this_thr);
+            return new_thr;
+
+        case 3: // block
+            // will unlock in asm_context_switch() --> after context switch to 
+            // the next thread successfully
+            spinlock_lock(&block_lock);
+            if (this_thr->state == WAKEUP || this_thr->state == MADE_RUNNABLE) {
+                // already be waked up or made runnable, should not block
                 this_thr->state = NORMAL;
                 return this_thr;
             } else {
-                // decide to block itself, can not be waked up (resume) by other thread unitl
-                // context switch to the next thread successfully
-                if (this_thr->state == MADE_RUNNABLE) {
-                    // another instance of this_thr has been put to scheduler queue
-                    this_thr->state = NORMAL;
-                } else if (this_thr->state == NORMAL){
+                // decide to block itself, can not be waked up (resume) or made
+                // runnable by other thread unitl context switch to the next 
+                // thread successfully
+                if (this_thr->state == NORMAL) {
                     this_thr->state = BLOCKED;
                 } else  {
                     lprintf("strange state in context_switch(3,0)");
@@ -262,29 +265,47 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 // let sheduler to choose the next thread to run
                 new_thr = scheduler_block();
                 if (new_thr == NULL) {
-                    panic("no other process is running, %d can not be blocked", this_thr->tid);
+                    if (idle_thr == NULL)
+                        panic("no other process is running, %d can not be blocked", this_thr->tid);
+                    else
+                        return idle_thr;
                 } else
                     return new_thr;
             }            
         case 4: // make_runnable a thread
             new_thr = (tcb_t*)arg;
-            if (new_thr != NULL && scheduler_make_runnable(new_thr) < 0) {
-                printf("scheduler_enqueue_tail() failed, make runnable \
-                        failed for thread %d", new_thr->tid);
+            if (new_thr == NULL)
+                return this_thr;
+
+            // will unlock in asm_context_switch() --> after context switch to 
+            // the next thread successfully
+            spinlock_lock(&block_lock);
+            if (new_thr->state == BLOCKED) {
+                // the thread has already blocked, put it to the queue of scheduler
+                new_thr->state = NORMAL;
+                scheduler_make_runnable(new_thr);
+            } else if (new_thr->state == NORMAL) {
+                // the thread hasn't blocked, set state to tell it do not block
+                new_thr->state = MADE_RUNNABLE;
+            } else {
+                lprintf("strange state in scheduler_make_runnable()");
+                MAGIC_BREAK;
             }
+
             return this_thr;
         case 5: // resume a thread
             new_thr = (tcb_t*)arg;
-            if (scheduler_enqueue_tail(this_thr) < 0) {
-                printf("scheduler_enqueue_tail() failed, resume \
-                        failed to thread %d", new_thr->tid);
-                return this_thr;
-            }
-
+            
+            // will unlock in asm_context_switch() --> after context switch to 
+            // the next thread successfully
             spinlock_lock(&block_lock);
+            scheduler_make_runnable(this_thr);
+
             if (new_thr->state == BLOCKED)
+                // the thread has already blocked, context switch to it directly
                 new_thr->state = NORMAL;
             else if (new_thr->state == NORMAL)
+                 // the thread hasn't blocked, set state to tell it not block
                 new_thr->state = WAKEUP;
             else {
                 lprintf("strange state in context_switch(5,thr)");
@@ -292,6 +313,48 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             }
 
             return new_thr;
+        case 6:
+            if((int)arg == -1) { 
+                // yield -1
+
+                // let sheduler choose the next thread to run
+                new_thr = scheduler_get_next(-1);
+                if (new_thr == NULL) {
+                    // no other thread to yield to, just return this thread
+                    this_thr->result = 0;
+                    return this_thr;
+                } 
+
+                this_thr->result = 0;
+
+                // will unlock in asm_context_switch() --> after context switch 
+                // to the next thread successfully
+                spinlock_lock(&block_lock);
+                // decide to enqueue this thread, should not be interrupted 
+                // until context switch to the next thread successfully
+                scheduler_make_runnable(this_thr);
+                return new_thr;
+            } else {
+                // Yield to a specific thread
+                
+                // Check if the requested thread exists
+                new_thr = scheduler_get_next((int)arg);
+                if (new_thr == NULL) {
+                    // The requested thread doesn't exist
+                    this_thr->result = -1;
+                    return this_thr;
+                } 
+
+                this_thr->result = 0;
+
+                // will unlock in asm_context_switch() --> after context switch
+                // to the next thread successfully
+                spinlock_lock(&block_lock);
+                // decide to enqueue this thread, should not be interrupted 
+                // until context switch to the next thread successfully
+                scheduler_make_runnable(this_thr);
+                return new_thr;
+            }
         default:
             return this_thr;
     }

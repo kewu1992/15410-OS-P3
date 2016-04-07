@@ -6,7 +6,7 @@
 
 #define NULL 0
 
-extern tcb_t* idle_thr;
+
 
 static simple_queue_t queue;
 static spinlock_t spinlock;
@@ -19,28 +19,7 @@ int scheduler_init() {
     return 0;
 }
 
-/*
- *  @return 0 on success; -1 on error
- */
-int scheduler_enqueue_tail(tcb_t *thread) {
-    int rv;
-
-    if (thread == idle_thr)
-        return 0;
-    
-    spinlock_lock(&spinlock);
-    // using the kernel stack space of this thread to store its queue node
-    // it is safe because the stack memory will not be reclaimed until 
-    // the next time context switch 
-    simple_node_t* node = (simple_node_t*)thread->k_stack_esp;
-    
-    node->thr = thread;
-    rv = simple_queue_enqueue(&queue, node);
-    spinlock_unlock(&spinlock);
-
-    return rv;
-}
-
+// thread-safe
 tcb_t* scheduler_get_next(int mode) {
     simple_node_t* node;
 
@@ -54,7 +33,7 @@ tcb_t* scheduler_get_next(int mode) {
     spinlock_unlock(&spinlock);
 
     if (node == NULL)
-        return idle_thr;
+        return NULL;
     else 
         return node->thr;
 }
@@ -76,36 +55,24 @@ int scheduler_is_exist(int tid) {
 
 }
 
+// thread-unsafe
 tcb_t* scheduler_block() {
     simple_node_t* node = simple_queue_dequeue(&queue);
 
     if (node == NULL)
-        return idle_thr;
+        return NULL;
     else 
         return node->thr;
 }
 
-int scheduler_make_runnable(tcb_t *thread) {
-    spinlock_lock(&spinlock);
-    // using the kernel stack space of this thread to store its queue node
+// thread-unsafe
+void scheduler_make_runnable(tcb_t *thread) {
+    // using the kernel stack space of thread to store its queue node
     // it is safe because the stack memory will not be reclaimed until 
     // the next time context switch 
     simple_node_t* node = (simple_node_t*)thread->k_stack_esp;
     
     node->thr = thread;
-    int rv = simple_queue_enqueue(&queue, node);
-    if (rv == 0) {
-        // update state of thread that is made runnable
-        if (thread->state == BLOCKED)
-            thread->state = NORMAL;
-        else if (thread->state == NORMAL)
-            thread->state = MADE_RUNNABLE;
-        else {
-            lprintf("strange state in scheduler_make_runnable()");
-            MAGIC_BREAK;
-        }
-    }
-    spinlock_unlock(&spinlock);
-    return rv;
+    simple_queue_enqueue(&queue, node);
 }
 

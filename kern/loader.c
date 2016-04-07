@@ -32,6 +32,7 @@
 #include <asm_helper.h>
 
 #include <syscall_lifecycle.h>
+#include <context_switcher.h>
 
 #define MAX_ADDR 0xFFFFFFFF
 
@@ -99,11 +100,13 @@ void loadFirstTask(const char *filename) {
         panic("Load first task failed");
 
     // create new process
-    tcb_t *thread = tcb_create_process(NORMAL);
+    tcb_t *thread = tcb_create_process(NORMAL, get_cr3());
 
+    // set init pcb (who-to-reap-orphan-process) as the first pcb 
+    // (will reset if the first pcb is idle)
     set_init_pcb(thread->pcb);
-    thread->pcb->page_table_base = get_cr3();
 
+    // set idle thread as NULL (will reset if the first thread is idle)
     idle_thr = NULL;
 
     load_kernel_stack(thread->k_stack_esp, usr_esp, my_program, strcmp(filename, "idle") == 0);
@@ -242,7 +245,11 @@ void* push_to_stack(void *esp, uint32_t value) {
  void idle_process_init() {
     lprintf("Initializing idle process");
 
-    if (fork_syscall_handler() == 0) {
+    idle_thr = tcb_get_entry((void*)asm_get_esp());
+    
+    // fork
+    context_switch(1, 0);
+    if (tcb_get_entry((void*)asm_get_esp())->result == 0) {        
         // child process, exec(init)
         char my_execname[] = "init";
         char *argv[] = {my_execname, 0};
@@ -251,21 +258,21 @@ void* push_to_stack(void *esp, uint32_t value) {
 
         // create new page table
         set_cr3(create_pd());
+        
         // load task
-
         void *my_program, *usr_esp;
         if ((my_program = loadTask(my_execname, 1, (const char**)argv, &usr_esp)) == NULL) {
             panic("load init failed");
         }
 
         if(free_entire_space(old_pd) < 0)
-            panic("free pd for init failed");
+            panic("free free_entire_space for init failed");
 
         // modify tcb
         tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
         this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
 
-        // reset init_pcb
+        // reset init_pcb (who-to-reap-orphan-process) as the second pcb 
         set_init_pcb(this_thr->pcb);
 
         lprintf("ready to load init process");
@@ -273,7 +280,6 @@ void* push_to_stack(void *esp, uint32_t value) {
         load_kernel_stack(this_thr->k_stack_esp, usr_esp, my_program, 0);
     } else {
         // parent process(idle)
-        idle_thr = tcb_get_entry((void*)asm_get_esp());
         return;
     }
  }
