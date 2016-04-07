@@ -215,6 +215,9 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     // install yield() syscall handler
     install_IDT_entry(YIELD_INT, yield_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
+    // install thread_fork() syscall handler
+    install_IDT_entry(THREAD_FORK_INT, thread_fork_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
     // initialize device drivers
     init_console_driver();
     init_keyboard_driver();

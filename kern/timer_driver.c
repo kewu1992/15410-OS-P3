@@ -58,7 +58,7 @@ void timer_interrupt_handler() {
     enable_interrupts();
 
     if (next_thr == NULL)
-        context_switch(0, 0);
+        context_switch(0, -1);
     else
         context_switch(5, (uint32_t)next_thr);
 }

@@ -19,6 +19,7 @@
 .global wait_wrapper
 .global set_status_wrapper
 .global yield_wrapper
+.global thread_fork_wrapper
 
 keyboard_wrapper:
     pusha
@@ -425,6 +426,17 @@ yield_wrapper:
     #addl    $8, %esp                # "pop" arguments
 
     popl    %eax                    # restore return value
+    call    asm_pop_ss              # restore all data segment selectors
+    call    asm_pop_generic         # restore all generic registers except %esp and %eax
+    iret
+
+thread_fork_wrapper:
+    call    asm_push_generic        # save all generic registers except %esp and %eax
+    call    asm_push_ss             # save all data segment selectors
+    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
+
+    call    thread_fork_syscall_handler
+    
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
     iret

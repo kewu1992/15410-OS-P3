@@ -73,4 +73,6 @@ void set_status_wrapper();
 
 void yield_wrapper();
 
+void thread_fork_wrapper();
+
 #endif

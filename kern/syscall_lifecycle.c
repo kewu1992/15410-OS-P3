@@ -21,6 +21,11 @@ int fork_syscall_handler() {
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
+int thread_fork_syscall_handler() {
+    context_switch(2, 0);
+    return tcb_get_entry((void*)asm_get_esp())->result;
+}
+
 int exec_syscall_handler(char* execname, char **argvec) {
 
     // Start argument check
@@ -292,14 +297,12 @@ void vanish_syscall_handler() {
     // exit status, proceed directly to remove resources used by this thread
     // int is_only_thread_in_task = 0;
     if(cur_thr_num == 0) {
-        // The thread to vanish is the last thread in the task, will remove
-        // resources used by this task
-
-        // Assume task init, pid 0, shouldn't vanish
+        // The thread to vanish is the last thread in the task, will report 
+        // exit status to its father and remove resources used by this task and 
 
         // *****************Assume now this task isn't the task init
 
-        // Report exit status to it
+        // ======== Report exit status to its father or init task ================
 
         // Construct exit_status
         exit_status_t *exit_status = malloc(sizeof(exit_status_t));
@@ -358,14 +361,12 @@ void vanish_syscall_handler() {
         } else {
             mutex_unlock(&task_wait->lock);
         }
-    } else {
-        lprintf("cur_thr_num != 0?! %d", cur_thr_num);
-        MAGIC_BREAK;
-    }
 
-    // Free resources that this task itself can free
-    if(this_task->cur_thr_num == 0) {
-        // Last thread in the task
+
+
+
+        // Free resources (page table, hash table entry and pcb) for this task itself
+
         uint32_t old_pd = this_task->page_table_base;
 
         // Use init task's page table until death
@@ -399,8 +400,8 @@ void vanish_syscall_handler() {
 
         // Report unreaped children's status to task init
         // Assume init task's alive ***************
-        task_wait_t *task_wait = &init_task->task_wait_struct;
-        mutex_lock(&task_wait->lock);
+        task_wait_t *init_task_wait = &init_task->task_wait_struct;
+        mutex_lock(&init_task_wait->lock);
 
         // Put children tasks' exit_status into init task's child exit status list
         list_t *init_task_child_exit_status_list = 
@@ -415,20 +416,19 @@ void vanish_syscall_handler() {
                 lprintf("list_append failed");
                 MAGIC_BREAK;
             }
-            task_wait->num_zombie++;
+            init_task_wait->num_zombie++;
             // Modify number of alive children tasks for task init doesn't make
             // sense.
-            // task_wait->num_alive--;
+            // init_task_wait->num_alive--;
         }
         // Make runnable init task
-        simple_node_t* node = simple_queue_dequeue(&task_wait->wait_queue);
-        tcb_t *wait_thr;
+        node = simple_queue_dequeue(&init_task_wait->wait_queue);
         if(node != NULL) {
             wait_thr = (tcb_t *)node->thr;
-            mutex_unlock(&task_wait->lock);
+            mutex_unlock(&init_task_wait->lock);
             context_switch(4, (uint32_t)wait_thr);
         } else {
-            mutex_unlock(&task_wait->lock);
+            mutex_unlock(&init_task_wait->lock);
         }
 
 
@@ -437,8 +437,7 @@ void vanish_syscall_handler() {
         this_thr->pcb = init_task;
         // Free resources in pcb
         vanish_free_pcb(this_task);
-
-    } 
+    }
 
     // Add self to system wide zombie list, let next thread in scheduler's 
     // queue run.
@@ -588,5 +587,4 @@ void set_status_syscall_handler(int status) {
     lprintf("set status for task %d: %d", this_task->pid, status);
 
 }
-
 
