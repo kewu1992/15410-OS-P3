@@ -476,14 +476,12 @@ int vanish_wipe_thread(tcb_t *thread) {
 /** @brief Store pid to pcb maping for a task
  *  The list stores a map from pid to pcb for an alive task
  *
- *  @return 0 on success; -1 on error
+ *  @return Void
  */
 void ht_put_task(int pid, pcb_t *pcb) {
-
     mutex_lock(&ht_pid_pcb_lock);
     hashtable_put(&ht_pid_pcb, (void *)pid, (void *)pcb); 
     mutex_unlock(&ht_pid_pcb_lock);
-
 }
 
 

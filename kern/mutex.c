@@ -69,7 +69,7 @@ void mutex_destroy(mutex_t *mp) {
         printf("Destroy mutex %p failed, mutex is locked, "
                 "will try again...\n", mp);
         spinlock_unlock(&mp->inner_lock);
-        context_switch(0, -1);
+        context_switch(0, 0);
         spinlock_lock(&mp->inner_lock);
     }
 
@@ -78,7 +78,7 @@ void mutex_destroy(mutex_t *mp) {
         printf("Destroy mutex %p failed, some threads are blocking on it, "
                 "will try again later...\n", mp);
         spinlock_unlock(&mp->inner_lock);
-        context_switch(0, -1);
+        context_switch(0, 0);
         spinlock_lock(&mp->inner_lock);
     }
 

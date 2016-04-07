@@ -9,6 +9,7 @@
 #include <simics.h>
 
 #include <syscall_lifecycle.h>
+#include <stdio.h>
 
 /** @brief The lowest 13 bits of kernel memory are within the same k-stack */
 #define K_STACK_BITS    13
@@ -47,14 +48,19 @@ int tcb_init() {
  *  @return Process control block data structure of the newly created process, 
  *          return NULL on error
  */
-pcb_t* tcb_create_process_only(tcb_t* thread) {
+pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_table_base) {
 
     pcb_t *process = malloc(sizeof(pcb_t));
-    if (process == NULL)
+    if (process == NULL) {
+        printf("malloc() failed");
         return NULL;
+    }
     process->pid = thread->tid;
-    process->page_table_base = thread->new_page_table_base;
-    process->ppid = thread->pthr->pcb->pid;
+    process->page_table_base = new_page_table_base;
+    if (pthr)
+        process->ppid = pthr->pcb->pid;
+    else
+        process->ppid = -1;
     // ****************************Consider lock this operation
     // There's no thread fork now, all fork.
     // Parent task has one more child
@@ -64,28 +70,32 @@ pcb_t* tcb_create_process_only(tcb_t* thread) {
     process->cur_thr_num = 1;
     // Initially exit status is 0
     process->exit_status = 0;
-
+    
     if(list_init(&process->child_exit_status_list) < 0) {
-        lprintf("list_init failed");
-        panic("list_init failed");
+        printf("list_init() failed");
+        free(process);
+        return NULL;
     }
-
 
     // Initialize task wait struct
     task_wait_t *task_wait = &process->task_wait_struct;
+    if(simple_queue_init(&task_wait->wait_queue) < 0) {
+        printf("simple_queue_init() failed");
+        list_destroy(&process->child_exit_status_list, 1);
+        free(process);
+        return NULL;
+    }
+    if(mutex_init(&task_wait->lock) < 0) {
+        printf("mutex_init() failed");
+        simple_queue_destroy(&task_wait->wait_queue);
+        list_destroy(&process->child_exit_status_list, 1);
+        free(process);
+        return NULL;
+    }
     // Initially 0 alive child task
     task_wait->num_alive = 0;
     // Initially 0 zombie child task
     task_wait->num_zombie = 0;
-    if(simple_queue_init(&task_wait->wait_queue) < 0) {
-        lprintf("simple_queue_init failed");
-        panic("simple_queue_init failed");
-    }
-    if(mutex_init(&task_wait->lock) < 0) {
-        lprintf("mutex_init failed");
-        panic("mutex_init failed");
-    }
-
 
     // Put pid to pcb mapping in hashtable
     ht_put_task(process->pid, process);
@@ -136,13 +146,13 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
  *  @return Thread control block data structure of the newly created thread, 
  *          return NULL on error
  */
-tcb_t* tcb_create_process(thread_state_t state) {
+tcb_t* tcb_create_process(thread_state_t state, uint32_t new_page_table_base) {
     tcb_t *thread = tcb_create_thread_only(NULL, state);
     if (thread == NULL) {
         return NULL;
     }
     
-    pcb_t *process = tcb_create_process_only(thread);
+    pcb_t *process = tcb_create_process_only(thread, NULL, new_page_table_base);
     if (process == NULL) {
         tcb_free_thread(thread);
         return NULL;
@@ -153,20 +163,19 @@ tcb_t* tcb_create_process(thread_state_t state) {
 
 void tcb_free_thread(tcb_t *thr) {
 
-    lprintf("free tid: %d", thr->tid);
+    lprintf("free tcb and stack for thr %d", thr->tid);
     // Free stack
     void *stack_esp = thr->k_stack_esp;
     void *stack_low = tcb_get_low_addr(stack_esp);
-    if(stack_low == NULL) {
+    if(tcb_get_entry(stack_esp) == NULL) {
         lprintf("The stack to free is NULL");
         panic("The stack to free is NULL");
     }
+    tcb_table[GET_K_STACK_INDEX(stack_esp)] = NULL;
     sfree(stack_low, K_STACK_SIZE);
 
     // Free tcb
     free(thr);
-    tcb_table[GET_K_STACK_INDEX(stack_esp)] = NULL;
-
 }
 
 
