@@ -119,6 +119,9 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
         free(thread);
         return NULL;
     }
+
+    // Initially no swexn handler registered
+    thread->swexn_struct = NULL;
     
     // set tcb table entry
     tcb_set_entry(thread->k_stack_esp-1, thread);
@@ -162,6 +165,12 @@ void tcb_free_thread(tcb_t *thr) {
         panic("The stack to free is NULL");
     }
     sfree(stack_low, K_STACK_SIZE);
+
+    // Free swexn struct
+    if(thr->swexn_struct != NULL) {
+        free(thr->swexn_struct);
+        thr->swexn_struct = NULL;
+    }
 
     // Free tcb
     free(thr);

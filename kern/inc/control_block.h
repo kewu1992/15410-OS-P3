@@ -49,6 +49,9 @@ typedef struct tcb_t {
     /** @brief New address space for forked process */
     uint32_t new_page_table_base;
     thread_state_t state;
+    
+    /** @brief The parameters for registered swexn handler */
+    swexn_t *swexn_struct;
 } tcb_t;
 
 

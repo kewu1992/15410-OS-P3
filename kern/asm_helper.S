@@ -55,17 +55,17 @@ asm_push_generic:
 
 asm_pop_ss:
     popl    16(%esp)         # move ret addr
-    popl    %gs              # restore all data segment selectors
-    popl    %fs
+    popl    %ds              # restore all data segment selectors
     popl    %es
-    popl    %ds
+    popl    %fs
+    popl    %gs
     ret
 
 asm_push_ss:
-    pushl   %ds              # save all data segment selectors
-    pushl   %es
+    pushl   %gs              # save all data segment selectors
     pushl   %fs
-    pushl   %gs
+    pushl   %es
+    pushl   %ds
     pushl   16(%esp)         # push ret addr
     ret
 

@@ -21,7 +21,6 @@
 
 #include <common_kern.h>
 #include <cr.h>
-#include <ureg.h> 
 
 
 /* @brief Page alignment mask */
@@ -108,9 +107,8 @@ int free_entire_space(uint32_t pd_base);
 int new_pages(void *base, int len);
 int remove_pages(void *base);
 int is_mem_valid(char *va, int max_bytes, int is_check_null, int need_writable);
+int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code);
 
-typedef void (*swexn_handler_t)(void *arg, ureg_t *ureg);
-int swexn(void *esp3, swexn_handler_t eip, void *arg, ureg_t *newureg);
 
 
 

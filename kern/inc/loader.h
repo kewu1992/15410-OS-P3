@@ -8,7 +8,10 @@
 
 #ifndef _LOADER_H
 #define _LOADER_H
+
+#include <stdint.h>
      
+uint32_t get_init_eflags();
 
 /* --- Prototypes --- */
 
