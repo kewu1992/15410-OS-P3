@@ -32,10 +32,10 @@ static uint32_t ctrl_bits_pde;
 static uint32_t ctrl_bits_pte;
 
 /** @brief Initialize default control bits for page directory and page table 
-  * entry
-  *
-  * @return void
-  */
+ * entry
+ *
+ * @return void
+ */
 static void init_pg_ctrl_bits() {
 
     uint32_t ctrl_bits = 0;
@@ -251,11 +251,30 @@ static int remove_region(uint32_t va) {
 /** @brief Check and fix ZFOD
  *  
  *  @param va The virtual address of the page to inspect
+ *  @param error_code The error code for page fault
+ *  @param need_check_error_code If there's need to check error code
+ *  before proceeding to check page itself (Kernel can eliminate
+ *  the step of error code checking if it wants to inspect user memory
+ *  and there's literally no page fault at all)
  *
  *  @return 1 on true; 0 on false 
  */
-static int is_page_ZFOD(uint32_t va) {
+int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
 
+    // To be eligible for ZFOD check, the faulting must be 
+    // a write from user space to a page that is present.
+    if(need_check_error_code) {
+        if(!(IS_SET(error_code, PG_P) && IS_SET(error_code, PG_US) && 
+            IS_SET(error_code, PG_RW))) {
+            return 0;
+        }
+    }
+
+    // Pages in kernel space are not marked as ZFOD, so there wouldn't
+    // be confusion for permission.
+
+    // Check the corresponding page table entry for faulting addr.
+    // If it's marked as ZFOD, allocate a frame for it.
     uint32_t page = va & PAGE_ALIGN_MASK;
 
     pd_t *pd = (pd_t *)get_cr3();
@@ -346,7 +365,6 @@ void pf_handler(uint32_t error_code) {
     }
 
 
-
     if(IS_SET(error_code, PG_US)) {
         // The access causing the fault originated when the processor
         // was executing in user mode
@@ -365,9 +383,11 @@ void pf_handler(uint32_t error_code) {
             // Check the corresponding page table entry for faulting addr.
             // If it's marked as ZFOD, allocate a frame for it, and retry
             // the faulting address.
-            if(is_page_ZFOD(fault_va)) {
+            //if(is_page_ZFOD(fault_va)) {
 
-                //lprintf("ZFOD solved");
+                //lprintf("Kernel resolved ZFOD");
+                MAGIC_BREAK;
+                /*
                 return;
 
             } else {
@@ -377,6 +397,7 @@ void pf_handler(uint32_t error_code) {
                 // Kill the thread?!
                 MAGIC_BREAK;
             }
+            */
         } else {
             // The access causing the fault was a read
 
@@ -387,7 +408,6 @@ void pf_handler(uint32_t error_code) {
 
         }
     } else {
-
 
         // The access causing the fault originated when the processor
         // was executing in kernel mode
@@ -408,7 +428,7 @@ void pf_handler(uint32_t error_code) {
  *  @return 0 on success; negative integer on error
  */
 int init_vm() {
-    
+
     // Configure default page table entry and page diretory entry control bits
     init_pg_ctrl_bits();
 
@@ -529,7 +549,7 @@ uint32_t clone_pd() {
         lprintf("smemalign failed");
         return ERROR_MALLOC_LIB;
     }
-    
+
     memcpy(pd, (void *)old_pd, PAGE_SIZE);
     int i, j;
     for(i = 0; i < PAGE_SIZE/ENTRY_SIZE; i++) {
@@ -557,7 +577,7 @@ uint32_t clone_pd() {
                 if(IS_SET(pt->pte[j], PG_P)) {
 
                     uint32_t old_frame_addr = pt->pte[j] & PAGE_ALIGN_MASK;
-                    
+
                     // Allocate a new frame
                     uint32_t new_f = get_frames_raw(0);
 
@@ -871,7 +891,8 @@ int remove_pages(void *base) {
 
 /** @brief Check user space memory validness
  *
- *  Can check if region are allocated, NULL terminated, and writable.
+ *  Can check if region are allocated, NULL terminated, writable
+ *  and solve ZFOD.
  *
  *  @param va The virtual address of the start of the region
  *  @param max_bytes Max bytes to check
@@ -937,7 +958,8 @@ int is_mem_valid(char *va, int max_bytes, int is_check_null,
                     if(!IS_SET(*pte, PG_RW)) {
                         // Page is read-only
                         // If it's marked ZFOD, then it's valid
-                        if(!is_page_ZFOD(page)) {
+                        int need_check_error_code = 0;
+                        if(!is_page_ZFOD(page, 0, need_check_error_code)) {
                             return 0;
                         }
                     }

@@ -57,7 +57,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the 410user/progs
 # directory.
 #
-410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait actual_wait sleep_test1
+410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait actual_wait sleep_test1 swexn_basic_test swexn_cookie_monster swexn_dispatch swexn_regs
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -65,7 +65,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield
+STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield test_swexn
 
 ###########################################################################
 # Data files provided by course staff to build into the RAM disk
@@ -99,7 +99,7 @@ THREAD_OBJS = malloc.o panic.o
 ###########################################################################
 # Object files for your syscall wrappers
 ###########################################################################
-SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o halt.o readline.o vanish.o wait.o set_cursor_pos.o set_term_color.o set_status.o sleep.o get_ticks.o yield.o
+SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o halt.o readline.o vanish.o wait.o set_cursor_pos.o set_term_color.o set_status.o sleep.o get_ticks.o yield.o swexn.o
 
 
 ###########################################################################
@@ -117,7 +117,7 @@ AUTOSTACK_OBJS = autostack.o
 #
 # Kernel object files you provide in from kern/
 #
-KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_helper.o asm_new_process_iret.o init_IDT.o handler_wrapper.o vm.o control_block.o context_switcher.o scheduler.o queue.o keyboard_driver.o timer_driver.o asm_invalidate_tlb.o asm_context_switch.o syscall_thr_management.o syscall_lifecycle.o pm.o list.o asm_atomic.o spinlock.o mutex.o syscall_consoleio.o syscall_memory.o simple_queue.o syscall_misc.o asm_vanish.o hashtable.o priority_queue.o
+KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_helper.o asm_new_process_iret.o init_IDT.o handler_wrapper.o vm.o control_block.o context_switcher.o scheduler.o queue.o keyboard_driver.o timer_driver.o asm_invalidate_tlb.o asm_context_switch.o syscall_thr_management.o syscall_lifecycle.o pm.o list.o asm_atomic.o spinlock.o mutex.o syscall_consoleio.o syscall_memory.o simple_queue.o syscall_misc.o hashtable.o priority_queue.o exception_handler.o asm_ret_swexn_handler.o asm_ret_newureg.o
 
 ###########################################################################
 # WARNING: Do not put **test** programs into the REQPROGS variables.  Your

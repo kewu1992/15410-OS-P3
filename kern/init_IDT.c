@@ -142,6 +142,17 @@ void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int g
     fill_option(idt_entry, DPL, gate_type);
 }
 
+
+static void init_exception_IDT() {
+
+    // install division error handler wrapper
+    install_IDT_entry(IDT_DE, exception_division_error_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install page fault handler wrapper
+    install_IDT_entry(IDT_PF, exception_page_fault_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+}
+
 /** @brief The driver-library initialization function
  *
  *  Install interrupt handlers (keyboard and timer) in IDT (interrupt descriptor
@@ -159,9 +170,6 @@ int init_IDT(void* (*tickback)(unsigned int)) {
 
     // instll timer interrupt handler ????????? gate type???????
     install_IDT_entry(TIMER_IDT_ENTRY, timer_wrapper, SEGSEL_KERNEL_CS, 0, 1);
-
-    // install page fault handler wrapper
-    install_IDT_entry(IDT_PF, pf_wrapper, SEGSEL_KERNEL_CS, 0, 0);
 
     // install gettid() syscall handler
     install_IDT_entry(GETTID_INT, gettid_wrapper, SEGSEL_KERNEL_CS, 3, 0);
@@ -182,7 +190,7 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     install_IDT_entry(REMOVE_PAGES_INT, remove_pages_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // install swexn() syscall handler
-    //install_IDT_entry(SWEXN_INT, swexn_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(SWEXN_INT, swexn_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // install halt() syscall handler
     install_IDT_entry(HALT_INT, halt_wrapper, SEGSEL_KERNEL_CS, 3, 0);
@@ -217,6 +225,9 @@ int init_IDT(void* (*tickback)(unsigned int)) {
 
     // install thread_fork() syscall handler
     install_IDT_entry(THREAD_FORK_INT, thread_fork_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install exception's IDT
+    init_exception_IDT();
 
     // initialize device drivers
     init_console_driver();

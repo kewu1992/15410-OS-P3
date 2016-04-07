@@ -36,6 +36,9 @@ typedef struct tcb_t {
     pcb_t *pcb;
     int result;
     thread_state_t state;
+    
+    /** @brief The parameters for registered swexn handler */
+    swexn_t *swexn_struct;
 } tcb_t;
 
 

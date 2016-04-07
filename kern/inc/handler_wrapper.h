@@ -37,13 +37,9 @@ void timer_wrapper();
 
 void gettid_wrapper();
 
-void asm_pf_handler();
-
 void fork_wrapper();
 
 void exec_wrapper();
-
-void pf_wrapper();
 
 void print_wrapper();
 
@@ -74,5 +70,10 @@ void set_status_wrapper();
 void yield_wrapper();
 
 void thread_fork_wrapper();
+
+// Exceptions
+void exception_division_error_wrapper();
+void exception_page_fault_wrapper();
+
 
 #endif

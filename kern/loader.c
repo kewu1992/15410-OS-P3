@@ -58,6 +58,13 @@ tcb_t* idle_thr;
 /* --- Local function prototypes --- */ 
 static void* push_to_stack(void *esp, uint32_t value);
 
+/** @brief Return default eflags
+  * 
+  * @return void
+  */
+uint32_t get_init_eflags() {
+    return init_eflags;
+}
 
 /**
  * Copies data from a file into a buffer.
