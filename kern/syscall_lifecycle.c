@@ -131,18 +131,18 @@ int exec_syscall_handler(char* execname, char **argvec) {
         MAGIC_BREAK;
         return -8;
     }
-    set_cr3(new_pd);
     this_thr->pcb->page_table_base = new_pd;
+    set_cr3(new_pd);
 
-    lprintf("About to load task");
+    lprintf("Thread %d about to load task, new pd:%x", this_thr->tid, (unsigned int)new_pd);
 
     // load task
     void *my_program, *usr_esp;
     if ((my_program = loadTask(my_execname, argc, (const char**)argv, &usr_esp)) == NULL) {
         // load task failed
 
-        set_cr3(old_pd);
         this_thr->pcb->page_table_base = old_pd;
+        set_cr3(old_pd);
 
         free_entire_space(new_pd);
 
@@ -444,6 +444,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         uint32_t old_pd = this_task->page_table_base;
 
         // Use init task's page table until death
+        this_task->page_table_base = init_task->page_table_base;
         set_cr3(init_task->page_table_base);
 
         // Free old address space
