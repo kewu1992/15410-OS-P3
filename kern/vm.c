@@ -419,58 +419,12 @@ void pf_handler(uint32_t error_code) {
 
 }
 
-
-/** @brief Init virtual memory
- *  
- *  Create the first page directory to map kernel address space, 
- *  enable paging, and initial physical memory manager.
- *
- *  @return 0 on success; negative integer on error
- */
-int init_vm() {
-
-    // Configure default page table entry and page diretory entry control bits
-    init_pg_ctrl_bits();
-
-    // Get page direcotry base for a new task
-    uint32_t pdb = create_pd();
-    set_cr3(pdb);
-
-    // Enable paging
-    enable_paging();
-
-    // Enable global page so that kernel pages in TLB wouldn't
-    // be cleared when %cr3 is reset
-    enable_pge_flag();
-
-    // Allocate a system-wide all-zero frame
-    void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
-    if(new_f == NULL) {
-        lprintf("smemalign failed");
-        return ERROR_MALLOC_LIB;
-    }
-    // Clear
-    memset(new_f, 0, PAGE_SIZE);
-    all_zero_frame = (uint32_t)new_f;
-
-    // Init buddy system to track frames in user address space
-    int ret = init_pm();
-
-    //test_frames();
-    //test_vm();
-
-    lprintf("Paging is enabled!");
-
-    return ret;
-}
-
-
 /** @brief Create a new page directory along with page tables for 16 MB 
  *  kernel memory space, i.e., 0x0 to 0xffffff
  *
  *  @return The new page directory address
  */
-uint32_t create_pd() {
+static uint32_t init_pd() {
 
     // To cover kernel 16 MB space, need at least 1 pd, 4 pt
     pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
@@ -514,6 +468,72 @@ uint32_t create_pd() {
     }
 
     return (uint32_t)pd;
+}
+
+/** @brief Init virtual memory
+ *  
+ *  Create the first page directory to map kernel address space, 
+ *  enable paging, and initial physical memory manager.
+ *
+ *  @return 0 on success; negative integer on error
+ */
+int init_vm() {
+
+    // Configure default page table entry and page diretory entry control bits
+    init_pg_ctrl_bits();
+
+    // Get page direcotry base for a new task
+    uint32_t pdb = init_pd();
+    set_cr3(pdb);
+
+    // Enable paging
+    enable_paging();
+
+    // Enable global page so that kernel pages in TLB wouldn't
+    // be cleared when %cr3 is reset
+    enable_pge_flag();
+
+    // Allocate a system-wide all-zero frame
+    void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
+    if(new_f == NULL) {
+        lprintf("smemalign failed");
+        return ERROR_MALLOC_LIB;
+    }
+    // Clear
+    memset(new_f, 0, PAGE_SIZE);
+    all_zero_frame = (uint32_t)new_f;
+
+    // Init buddy system to track frames in user address space
+    int ret = init_pm();
+
+    //test_frames();
+    //test_vm();
+
+    lprintf("Paging is enabled!");
+
+    return ret;
+}
+
+/** @brief Create a new address space with kernel space memory allocated
+ *
+ *  @return New page directory base
+ */
+uint32_t create_pd() {
+
+    // Only create one new page as page diretory
+    pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
+    if(pd == NULL) {
+        lprintf("smemalign failed");
+        return ERROR_MALLOC_LIB;
+    }
+    memset((void *)pd, 0, PAGE_SIZE);
+    
+    // Reuse kernel space page tables
+    uint32_t old_pd = get_cr3();
+    memcpy(pd, (void *)old_pd, NUM_PT_KERNEL * sizeof(uint32_t));
+
+    return (uint32_t)pd;
+
 }
 
 

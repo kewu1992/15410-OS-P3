@@ -155,7 +155,6 @@ void* loadTask(const char *filename, int argc, const char **argv, void** usr_esp
     // ZFOD is used, NO need to memset() the region after new_resion() returns.
     //memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
 
-
     // calculate total bytes needed to prepare user program
     int i, len = 0;
     // user stack arguments
@@ -257,7 +256,11 @@ void* push_to_stack(void *esp, uint32_t value) {
         uint32_t old_pd = get_cr3();
 
         // create new page table
-        set_cr3(create_pd());
+        uint32_t new_pd = create_pd();
+        if(new_pd == ERROR_MALLOC_LIB) {
+            panic("create_pd failed");
+        }
+        set_cr3(new_pd);
         
         // load task
         void *my_program, *usr_esp;

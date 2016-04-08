@@ -17,6 +17,7 @@
 #define EXEC_MAX_ARG_SIZE   128
 
 int fork_syscall_handler() {
+    lprintf("fork called");
     context_switch(1, 0);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
@@ -109,17 +110,25 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
     uint32_t old_pd = get_cr3();
 
-    // create new page table
-    set_cr3(create_pd());
-    // load task
+    // Create new page table in case when loadTask fails, we can't
+    // recover old address space
+    uint32_t new_pd = create_pd();
+    if(new_pd == ERROR_MALLOC_LIB) {
+        lprintf("create_pd failed");
+        return -1;
+    }
+    set_cr3(new_pd);
 
+    lprintf("About to load task");
+
+    // load task
     void *my_program, *usr_esp;
     if ((my_program = loadTask(my_execname, argc, (const char**)argv, &usr_esp)) == NULL) {
         // load task failed
 
-        free_entire_space(get_cr3());
-
         set_cr3(old_pd);
+
+        free_entire_space(new_pd);
 
         return -1;
     }
@@ -138,6 +147,36 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
     // should never reach here
     return 0;
+}
+
+
+
+/*************************** set_status *************************/
+
+/** @brief Set the exit status of current task
+ *
+ *  @return Void
+ */
+void set_status_syscall_handler(int status) {
+
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    if(this_thr == NULL) {
+        lprintf("tcb is NULL");
+        MAGIC_BREAK;
+    }
+
+    // Get current task
+    pcb_t *this_task = this_thr->pcb;
+    if(this_task == NULL) {
+        lprintf("pcb is NULL");
+        MAGIC_BREAK;
+    }
+
+    this_task->exit_status = status;
+
+    lprintf("set status for task %d: %d", this_task->pid, status);
+
 }
 
 
@@ -267,7 +306,14 @@ static void vanish_free_pcb(pcb_t *task) {
 
 }
 
-void vanish_syscall_handler() {
+/** @brief Vanish syscall handler
+  *
+  * @param is_kernel_kill A flag indicating if kernel is the caller
+  * 
+  * @return void 
+  *
+  */
+void vanish_syscall_handler(int is_kernel_kill) {
 
     lprintf("vanish syscall handler called");
 
@@ -297,12 +343,22 @@ void vanish_syscall_handler() {
     // exit status, proceed directly to remove resources used by this thread
     // int is_only_thread_in_task = 0;
     if(cur_thr_num == 0) {
+        // The thread to vanish is the last thread in the task, will remove
+        // resources used by this task
+
+        if(is_kernel_kill) {
+            // The thread is killed by the kernel
+            // set_status(-2) first
+            set_status_syscall_handler(-2);
+        }
+
+        // Assume task init, pid 0, shouldn't vanish
         // The thread to vanish is the last thread in the task, will report 
-        // exit status to its father and remove resources used by this task and 
+        // exit status to its father and remove resources used by this task
 
         // *****************Assume now this task isn't the task init
 
-        // ======== Report exit status to its father or init task ================
+        // ======== Report exit status to its father or init task ===========
 
         // Construct exit_status
         exit_status_t *exit_status = malloc(sizeof(exit_status_t));
@@ -556,35 +612,6 @@ int wait_syscall_handler(int *status_ptr) {
             return rv;
         }
     }
-
-}
-
-
-/*************************** set_status *************************/
-
-/** @brief Set the exit status of current task
- *
- *  @return Void
- */
-void set_status_syscall_handler(int status) {
-
-    // Get current thread
-    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-    if(this_thr == NULL) {
-        lprintf("tcb is NULL");
-        MAGIC_BREAK;
-    }
-
-    // Get current task
-    pcb_t *this_task = this_thr->pcb;
-    if(this_task == NULL) {
-        lprintf("pcb is NULL");
-        MAGIC_BREAK;
-    }
-
-    this_task->exit_status = status;
-
-    lprintf("set status for task %d: %d", this_task->pid, status);
 
 }
 
