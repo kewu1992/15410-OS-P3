@@ -62,6 +62,7 @@ static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
   */
 static void dump_register(int tid, ureg_t *ureg) {
 
+    /*
     lprintf("Register dump for thread tid %d:\n "
             "cause: 0x%x, cr2: 0x%x, ds: 0x%x, es: 0x%x, fs: 0x%x, gs: 0x%x\n"
             "edi: 0x%x, esi: 0x%x, ebp: 0x%x, zero: 0x%x, ebx: 0x%x, edx: 0x%x\n"
@@ -74,6 +75,21 @@ static void dump_register(int tid, ureg_t *ureg) {
             (unsigned)ureg->ecx, (unsigned)ureg->eax, 
             (unsigned)ureg->error_code, (unsigned)ureg->eip,
             (unsigned)ureg->cs, (unsigned)ureg->eflags, (unsigned)ureg->esp, 
+            (unsigned)ureg->ss);
+    */
+
+    lprintf("Register dump for thread tid %d:\n "
+            "cause: 0x%x, cr2: 0x%x, ds: 0x%x, esp: 0x%x, eflags: 0x%x, gs: 0x%x\n"
+            "edi: 0x%x, esi: 0x%x, ebp: 0x%x, zero: 0x%x, ebx: 0x%x, edx: 0x%x\n"
+            "ecx: 0x%x, eax: 0x%x, error code: 0x%x, eip: 0x%x, cs: 0x%x, es: 0x%x\n"
+            "es: 0x%x, ss: 0x%x", tid,
+            (unsigned)ureg->cause, (unsigned)ureg->cr2, (unsigned)ureg->ds, 
+            (unsigned)ureg->esp, (unsigned)ureg->eflags, (unsigned)ureg->gs, 
+            (unsigned)ureg->edi, (unsigned)ureg->esi, (unsigned)ureg->ebp, 
+            (unsigned)ureg->zero, (unsigned)ureg->ebx, (unsigned)ureg->edx,
+            (unsigned)ureg->ecx, (unsigned)ureg->eax, 
+            (unsigned)ureg->error_code, (unsigned)ureg->eip,
+            (unsigned)ureg->cs, (unsigned)ureg->cs, (unsigned)ureg->es, 
             (unsigned)ureg->ss);
     // Should also print to console
     // TBD ******************************
