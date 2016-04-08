@@ -316,21 +316,13 @@ vanish_wrapper:
     call    asm_push_ss             # save all data segment selectors
     call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
     
+    pushl   $0                      # Push dummy first argument, not used by 
+                                    # user called vanish.
     call    vanish_syscall_handler
+    addl    $4, %esp                # Pop dummy first argument
 
     # BELOW CODE SHOULDN'T BE EXECUTED
-    pushl   %eax                    # temporary save return value
-
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-
-    popl    %eax                    # restore return value
-    call    asm_pop_ss              # restore all data segment selectors
-    call    asm_pop_generic         # restore all generic registers except %esp and %eax
     iret
-
 
 get_ticks_wrapper:
     call    asm_push_generic        # save all generic registers except %esp and %eax

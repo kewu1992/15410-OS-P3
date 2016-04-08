@@ -137,6 +137,36 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
 
 
+/*************************** set_status *************************/
+
+/** @brief Set the exit status of current task
+ *
+ *  @return Void
+ */
+void set_status_syscall_handler(int status) {
+
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    if(this_thr == NULL) {
+        lprintf("tcb is NULL");
+        MAGIC_BREAK;
+    }
+
+    // Get current task
+    pcb_t *this_task = this_thr->pcb;
+    if(this_task == NULL) {
+        lprintf("pcb is NULL");
+        MAGIC_BREAK;
+    }
+
+    this_task->exit_status = status;
+
+    lprintf("set status for task %d: %d", this_task->pid, status);
+
+}
+
+
+
 /*************************** vanish *****************************/
 /** @brief The init task */
 static pcb_t *init_task;
@@ -262,7 +292,14 @@ static void vanish_free_pcb(pcb_t *task) {
 
 }
 
-void vanish_syscall_handler() {
+/** @brief Vanish syscall handler
+  *
+  * @param is_kernel_kill A flag indicating if kernel is the caller
+  * 
+  * @return void 
+  *
+  */
+void vanish_syscall_handler(int is_kernel_kill) {
 
     lprintf("vanish syscall handler called");
 
@@ -294,6 +331,12 @@ void vanish_syscall_handler() {
     if(cur_thr_num == 0) {
         // The thread to vanish is the last thread in the task, will remove
         // resources used by this task
+
+        if(is_kernel_kill) {
+            // The thread is killed by the kernel
+            // set_status(-2) first
+            set_status_syscall_handler(-2);
+        }
 
         // Assume task init, pid 0, shouldn't vanish
 
@@ -559,34 +602,4 @@ int wait_syscall_handler(int *status_ptr) {
     }
 
 }
-
-
-/*************************** set_status *************************/
-
-/** @brief Set the exit status of current task
- *
- *  @return Void
- */
-void set_status_syscall_handler(int status) {
-
-    // Get current thread
-    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-    if(this_thr == NULL) {
-        lprintf("tcb is NULL");
-        MAGIC_BREAK;
-    }
-
-    // Get current task
-    pcb_t *this_task = this_thr->pcb;
-    if(this_task == NULL) {
-        lprintf("pcb is NULL");
-        MAGIC_BREAK;
-    }
-
-    this_task->exit_status = status;
-
-    lprintf("set status for task %d: %d", this_task->pid, status);
-
-}
-
 
