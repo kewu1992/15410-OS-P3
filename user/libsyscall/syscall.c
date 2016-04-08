@@ -24,16 +24,6 @@
 #include <simics.h>
 
 
-int deschedule(int *flag)
-{
-	return -1;
-}
-
-int make_runnable(int pid)
-{
-	return -1;
-}
-
 char getchar(void)
 {
 	return -1;

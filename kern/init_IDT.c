@@ -226,6 +226,12 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     // install thread_fork() syscall handler
     install_IDT_entry(THREAD_FORK_INT, thread_fork_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
+    // install deschedule() syscall handler
+    install_IDT_entry(DESCHEDULE_INT, deschedule_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
+    // install make_runnable() syscall handler
+    install_IDT_entry(MAKE_RUNNABLE_INT, make_runnable_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
     // install exception's IDT
     init_exception_IDT();
 

@@ -20,6 +20,8 @@
 .global set_status_wrapper
 .global yield_wrapper
 .global thread_fork_wrapper
+.global deschedule_wrapper
+.global make_runnable_wrapper
 
 .global exception_page_fault_wrapper
 .global exception_division_error_wrapper
@@ -454,5 +456,32 @@ exception_page_fault_wrapper:
     addl    $4, %esp                # "pop" error code
     iret
 
+
+deschedule_wrapper:
+    call    asm_push_generic        # save all generic registers except %esp and %eax
+    call    asm_push_ss             # save all data segment selectors
+    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
+
+    pushl   %esi                    # push arg1  
+    call    deschedule_syscall_handler
+    addl    $4, %esp                # "pop" arguments
+    
+    call    asm_pop_ss              # restore all data segment selectors
+    call    asm_pop_generic         # restore all generic registers except %esp and %eax
+    iret
+
+
+make_runnable_wrapper:
+    call    asm_push_generic        # save all generic registers except %esp and %eax
+    call    asm_push_ss             # save all data segment selectors
+    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
+
+    pushl   %esi                    # push arg1  
+    call    make_runnable_syscall_handler
+    addl    $4, %esp                # "pop" arguments
+    
+    call    asm_pop_ss              # restore all data segment selectors
+    call    asm_pop_generic         # restore all generic registers except %esp and %eax
+    iret
     
 
