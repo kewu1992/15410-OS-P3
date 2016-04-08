@@ -261,6 +261,8 @@ void* push_to_stack(void *esp, uint32_t value) {
             panic("create_pd failed");
         }
         set_cr3(new_pd);
+        tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+        this_thr->pcb->page_table_base = new_pd;
         
         // load task
         void *my_program, *usr_esp;
@@ -272,7 +274,6 @@ void* push_to_stack(void *esp, uint32_t value) {
             panic("free free_entire_space for init failed");
 
         // modify tcb
-        tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
         this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
 
         // reset init_pcb (who-to-reap-orphan-process) as the second pcb 
