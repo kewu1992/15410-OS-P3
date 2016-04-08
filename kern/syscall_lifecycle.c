@@ -39,6 +39,7 @@ int exec_syscall_handler(char* execname, char **argvec) {
     if(execname == NULL || 
             !is_mem_valid((char *)execname, max_len, is_check_null, 
                 need_writable) || execname[0] == '\0') {
+        MAGIC_BREAK;
         return -1;
     }
 
@@ -50,7 +51,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
         max_len = sizeof(char *);
         if(!is_mem_valid((char *)(argvec + argc), max_len, is_check_null, 
                     need_writable)) {
-            return -1;
+            MAGIC_BREAK;
+            return -2;
         }
 
         if(argvec[argc] == NULL) break;
@@ -60,22 +62,28 @@ int exec_syscall_handler(char* execname, char **argvec) {
         max_len = EXEC_MAX_ARG_SIZE;
         if(!is_mem_valid((char *)argvec[argc], max_len, is_check_null, 
                     need_writable)) {
-            return -1;
+            MAGIC_BREAK;
+            return -3;
         }
 
         argc++;
     }
     // check arguments number
-    if (argc == EXEC_MAX_ARGC)
-        return -1;
+    if (argc == EXEC_MAX_ARGC){
+        MAGIC_BREAK;
+        return -4;
+    }
 
     // Make sure argvec is null terminated
-    if(argvec[argc] != NULL) 
-        return -1;
+    if(argvec[argc] != NULL) {
+        MAGIC_BREAK;
+        return -5;
+    }
 
     // argvec[0] should be the same string as execname
     if(argvec[0] == NULL || strncmp(execname, argvec[0], EXEC_MAX_ARG_SIZE)) {
-        return -1;
+        MAGIC_BREAK;
+        return -6;
     }
     // Finish argument check
 
@@ -103,7 +111,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
             else
                 break;
         }
-        return -1;
+        MAGIC_BREAK;
+        return -7;
     }
 
     // check arguments finished, start exec()
@@ -119,7 +128,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
         lprintf("create_pd failed");
         for(i = 0; i < argc; i++)
             free(argv[i]);
-        return -1;
+        MAGIC_BREAK;
+        return -8;
     }
     set_cr3(new_pd);
     this_thr->pcb->page_table_base = new_pd;
@@ -138,8 +148,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
         for(i = 0; i < argc; i++)
             free(argv[i]);
-
-        return -1;
+        MAGIC_BREAK;
+        return -9;
     }
 
     free_entire_space(old_pd);
@@ -360,7 +370,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
             set_status_syscall_handler(-2);
         }
 
-        // Assume task init, pid 0, shouldn't vanish
+        // Assume task idle(pid 0), shouldn't vanish
         // The thread to vanish is the last thread in the task, will report 
         // exit status to its father and remove resources used by this task
 
@@ -375,7 +385,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
             MAGIC_BREAK;
         }
         if(this_task->pid == 0) {
-            lprintf("Exit task init? this_task pid 0?!");
+            lprintf("Exit task idle? this_task pid 0?!");
             MAGIC_BREAK;
         }
         exit_status->pid = this_task->pid;
@@ -385,6 +395,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         mutex_lock(&ht_pid_pcb_lock);
         // Get parent task's pcb
         pcb_t *parent_task = get_parent_task(this_task->ppid);
+
         if(parent_task == NULL) {
             // Parent is dead 
             lprintf("parent %d is dead", this_task->ppid);
@@ -473,27 +484,31 @@ void vanish_syscall_handler(int is_kernel_kill) {
             lprintf("init_child_exit_status_list is NULL, but task is alive?!");
             MAGIC_BREAK;
         }
+
+        int has_unreaped_child = 0;
         exit_status_t *es;
         while(list_remove_first(&this_task->child_exit_status_list, (void **)&es) == 0) {
+            has_unreaped_child = 1;
             if(list_append(init_task_child_exit_status_list, (void *)es) < 0) {
                 lprintf("list_append failed");
                 MAGIC_BREAK;
             }
             init_task_wait->num_zombie++;
-            // Modify number of alive children tasks for task init doesn't make
-            // sense.
-            // init_task_wait->num_alive--;
         }
-        // Make runnable init task
-        node = simple_queue_dequeue(&init_task_wait->wait_queue);
-        if(node != NULL) {
-            wait_thr = (tcb_t *)node->thr;
-            mutex_unlock(&init_task_wait->lock);
-            context_switch(4, (uint32_t)wait_thr);
+
+        if (has_unreaped_child) {
+            // Make runnable init task
+            node = simple_queue_dequeue(&init_task_wait->wait_queue);
+            if(node != NULL) {
+                wait_thr = (tcb_t *)node->thr;
+                mutex_unlock(&init_task_wait->lock);
+                context_switch(4, (uint32_t)wait_thr);
+            } else {
+                mutex_unlock(&init_task_wait->lock);
+            }
         } else {
             mutex_unlock(&init_task_wait->lock);
         }
-
 
         // Delete resources in pcb and free pcb
         // Set init as the thread's temporary task
