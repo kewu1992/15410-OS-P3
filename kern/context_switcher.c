@@ -79,13 +79,11 @@ void context_switch(int op, uint32_t arg) {
     // lprintf("after: %p", this_thr);
     // lprintf("after: %d", this_thr->tid);
 
-    if (op == 1 && this_thr->result < 0 && this_thr->result != -1) {        
+    if (op == 1 && this_thr->result == 0) {        
         lprintf("fork process %d with thread %d (pd:%x)", this_thr->pcb->pid, 
-                            this_thr->tid, (unsigned int)(-this_thr->result));
+                this_thr->tid, (unsigned int)(this_thr->pcb->page_table_base));
 
-        this_thr->pcb->page_table_base = (uint32_t)(-this_thr->result);
-        set_cr3((uint32_t)(-this_thr->result));
-        this_thr->result = 0;
+        set_cr3((uint32_t)(this_thr->pcb->page_table_base));
     }
 
     // after context switch, restore cr3
@@ -221,8 +219,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             // fork success
             this_thr->result = new_thr->tid;
-            // note that (int)new_page_table_base can not be a negative number
-            new_thr->result = -((int)new_page_table_base);
+            new_thr->result = 0;
 
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
