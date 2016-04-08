@@ -105,6 +105,7 @@ void exception_handler(int exception_type) {
     // Fill in ureg struct
     get_ureg(&ureg, ebp, has_error_code);
 
+    int pf_need_debug = 0;
     switch(exception_type) {
         case IDT_DE: // Division error
             lprintf("Division error");
@@ -120,6 +121,13 @@ void exception_handler(int exception_type) {
                 return;
             }
             lprintf("The page fault was not caused by ZFOD");
+
+
+
+            pf_need_debug = 1;
+
+
+
             // Pass it to user exception handler if there's one registered
             break;
         default:
@@ -132,6 +140,14 @@ void exception_handler(int exception_type) {
         lprintf("tcb is NULL");
         panic("tcb is NULL");
     }
+
+    // DEBUG
+    if(pf_need_debug) {
+        dump_register(this_thr->tid, &ureg);
+        MAGIC_BREAK;
+    }
+    // DEBUG
+
     if(this_thr->swexn_struct == NULL) {
         // Thread doesn't have a swexn handler registered
         // Print a reason to kill the thread, should print to the console
