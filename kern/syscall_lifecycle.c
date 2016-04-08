@@ -17,6 +17,7 @@
 #define EXEC_MAX_ARG_SIZE   128
 
 int fork_syscall_handler() {
+    lprintf("fork called");
     context_switch(1, 0);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
@@ -109,17 +110,25 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
     uint32_t old_pd = get_cr3();
 
-    // create new page table
-    set_cr3(create_pd());
-    // load task
+    // Create new page table in case when loadTask fails, we can't
+    // recover old address space
+    uint32_t new_pd = create_pd();
+    if(new_pd == ERROR_MALLOC_LIB) {
+        lprintf("create_pd failed");
+        return -1;
+    }
+    set_cr3(new_pd);
 
+    lprintf("About to load task");
+
+    // load task
     void *my_program, *usr_esp;
     if ((my_program = loadTask(my_execname, argc, (const char**)argv, &usr_esp)) == NULL) {
         // load task failed
 
-        free_entire_space(get_cr3());
-
         set_cr3(old_pd);
+
+        free_entire_space(new_pd);
 
         return -1;
     }

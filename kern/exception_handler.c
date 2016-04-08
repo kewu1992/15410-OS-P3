@@ -63,10 +63,10 @@ static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
 static void dump_register(int tid, ureg_t *ureg) {
 
     lprintf("Register dump for thread tid %d:\n "
-            "cause: %x, cr2: %x, ds: %x, es: %x, fs: %x, gs: %x, "
-            "edi: %x, esi: %x, ebp: %x, zero: %x, ebx: %x, edx: %x, "
-            "ecx: %x, eax: %x, error_code: %x, eip: %x, cs: %x, eflags: %x, "
-            "esp: %x, ss: %x", tid,
+            "cause: 0x%x, cr2: 0x%x, ds: 0x%x, es: 0x%x, fs: 0x%x, gs: 0x%x\n"
+            "edi: 0x%x, esi: 0x%x, ebp: 0x%x, zero: 0x%x, ebx: 0x%x, edx: 0x%x\n"
+            "ecx: 0x%x, eax: 0x%x, error code: 0x%x, eip: 0x%x, cs: 0x%x, eflags: 0x%x\n"
+            "esp: 0x%x, ss: 0x%x", tid,
             (unsigned)ureg->cause, (unsigned)ureg->cr2, (unsigned)ureg->ds, 
             (unsigned)ureg->es, (unsigned)ureg->fs, (unsigned)ureg->gs, 
             (unsigned)ureg->edi, (unsigned)ureg->esi, (unsigned)ureg->ebp, 
