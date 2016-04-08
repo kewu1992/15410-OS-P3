@@ -108,6 +108,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
     // check arguments finished, start exec()
 
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+
     uint32_t old_pd = get_cr3();
 
     // Create new page table in case when loadTask fails, we can't
@@ -115,9 +117,12 @@ int exec_syscall_handler(char* execname, char **argvec) {
     uint32_t new_pd = create_pd();
     if(new_pd == ERROR_MALLOC_LIB) {
         lprintf("create_pd failed");
+        for(i = 0; i < argc; i++)
+            free(argv[i]);
         return -1;
     }
     set_cr3(new_pd);
+    this_thr->pcb->page_table_base = new_pd;
 
     lprintf("About to load task");
 
@@ -127,8 +132,12 @@ int exec_syscall_handler(char* execname, char **argvec) {
         // load task failed
 
         set_cr3(old_pd);
+        this_thr->pcb->page_table_base = old_pd;
 
         free_entire_space(new_pd);
+
+        for(i = 0; i < argc; i++)
+            free(argv[i]);
 
         return -1;
     }
@@ -139,7 +148,6 @@ int exec_syscall_handler(char* execname, char **argvec) {
         free(argv[i]);
 
     // modify tcb
-    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
 
     // load kernel stack, jump to new program
@@ -422,7 +430,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
 
         // Free resources (page table, hash table entry and pcb) for this task itself
-
         uint32_t old_pd = this_task->page_table_base;
 
         // Use init task's page table until death

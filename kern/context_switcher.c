@@ -85,7 +85,8 @@ void context_switch(int op, uint32_t arg) {
     // lprintf("context switch to tid: %d", this_thr->tid);
 
     if (op == 1 && this_thr->result < 0 && this_thr->result != -1) {        
-        lprintf("fork process %d with thread %d", this_thr->pcb->pid, this_thr->tid);
+        lprintf("fork process %d with thread %d (pd:%x)", this_thr->pcb->pid, 
+                            this_thr->tid, (unsigned int)(-this_thr->result));
         set_cr3((uint32_t)(-this_thr->result));
 
         this_thr->pcb->page_table_base = (uint32_t)(-this_thr->result);
