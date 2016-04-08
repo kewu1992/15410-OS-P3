@@ -62,12 +62,11 @@ static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
   */
 static void dump_register(int tid, ureg_t *ureg) {
 
-    /*
-    lprintf("Register dump for thread tid %d:\n "
-            "cause: 0x%x, cr2: 0x%x, ds: 0x%x, es: 0x%x, fs: 0x%x, gs: 0x%x\n"
-            "edi: 0x%x, esi: 0x%x, ebp: 0x%x, zero: 0x%x, ebx: 0x%x, edx: 0x%x\n"
-            "ecx: 0x%x, eax: 0x%x, error code: 0x%x, eip: 0x%x, cs: 0x%x, eflags: 0x%x\n"
-            "esp: 0x%x, ss: 0x%x", tid,
+    lprintf("Register dump for thread tid %d:\n"
+            "cause: 0x%x, cr2: 0x%x, ds: 0x%x, es: 0x%x, fs: 0x%x\n"
+            "gs: 0x%x, edi: 0x%x, esi: 0x%x, ebp: 0x%x, zero: 0x%x\n"
+            "ebx: 0x%x, edx: 0x%x, ecx: 0x%x, eax: 0x%x, error code: 0x%x\n"
+            "eip: 0x%x, cs: 0x%x, eflags: 0x%x, esp: 0x%x, ss: 0x%x", tid,
             (unsigned)ureg->cause, (unsigned)ureg->cr2, (unsigned)ureg->ds, 
             (unsigned)ureg->es, (unsigned)ureg->fs, (unsigned)ureg->gs, 
             (unsigned)ureg->edi, (unsigned)ureg->esi, (unsigned)ureg->ebp, 
@@ -76,8 +75,9 @@ static void dump_register(int tid, ureg_t *ureg) {
             (unsigned)ureg->error_code, (unsigned)ureg->eip,
             (unsigned)ureg->cs, (unsigned)ureg->eflags, (unsigned)ureg->esp, 
             (unsigned)ureg->ss);
-    */
 
+    // DEBUG
+    /*
     lprintf("Register dump for thread tid %d:\n "
             "cause: 0x%x, cr2: 0x%x, ds: 0x%x, esp: 0x%x, eflags: 0x%x, gs: 0x%x\n"
             "edi: 0x%x, esi: 0x%x, ebp: 0x%x, zero: 0x%x, ebx: 0x%x, edx: 0x%x\n"
@@ -89,8 +89,9 @@ static void dump_register(int tid, ureg_t *ureg) {
             (unsigned)ureg->zero, (unsigned)ureg->ebx, (unsigned)ureg->edx,
             (unsigned)ureg->ecx, (unsigned)ureg->eax, 
             (unsigned)ureg->error_code, (unsigned)ureg->eip,
-            (unsigned)ureg->cs, (unsigned)ureg->cs, (unsigned)ureg->es, 
+            (unsigned)ureg->cs, (unsigned)ureg->es, (unsigned)ureg->es, 
             (unsigned)ureg->ss);
+    */
     // Should also print to console
     // TBD ******************************
 }
@@ -121,7 +122,7 @@ void exception_handler(int exception_type) {
     // Fill in ureg struct
     get_ureg(&ureg, ebp, has_error_code);
 
-    int pf_need_debug = 0;
+    // int pf_need_debug = 0;
     switch(exception_type) {
         case IDT_DE: // Division error
             lprintf("Division error");
@@ -140,7 +141,7 @@ void exception_handler(int exception_type) {
 
 
 
-            pf_need_debug = 1;
+      //      pf_need_debug = 1;
 
 
 
@@ -158,10 +159,12 @@ void exception_handler(int exception_type) {
     }
 
     // DEBUG
+    /*
     if(pf_need_debug) {
         dump_register(this_thr->tid, &ureg);
         MAGIC_BREAK;
     }
+    */
     // DEBUG
 
     if(this_thr->swexn_struct == NULL) {
