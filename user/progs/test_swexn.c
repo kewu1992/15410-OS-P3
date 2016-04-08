@@ -115,7 +115,17 @@ void test_swexn() {
     // test_division_zero();
 
     test_zfod();
+}
 
+void test_noswexn() {
+    int pid = fork();
+    if(pid == 0) {
+        test_division_zero();
+    }
+    
+    if(pid > 0) {
+        while(1);
+    }
 
 }
 
@@ -126,7 +136,9 @@ int main() {
 
     // test_yield_success();
 
-    test_swexn();
+    // test_swexn();
+
+    test_noswexn();
 
     lprintf("test ends");
 

@@ -9,6 +9,7 @@
 #include <asm_helper.h>
 #include <control_block.h>
 #include <loader.h>
+#include <syscall_lifecycle.h>
 
 /** @brief Put register values saved on stakc to ureg struct */
 static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
@@ -61,8 +62,21 @@ static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
   */
 static void dump_register(int tid, ureg_t *ureg) {
 
-    lprintf("Register dump for thread tid %d", tid);
-    // TBD****************
+    lprintf("Register dump for thread tid %d:\n "
+            "cause: %x, cr2: %x, ds: %x, es: %x, fs: %x, gs: %x, "
+            "edi: %x, esi: %x, ebp: %x, zero: %x, ebx: %x, edx: %x, "
+            "ecx: %x, eax: %x, error_code: %x, eip: %x, cs: %x, eflags: %x, "
+            "esp: %x, ss: %x", tid,
+            (unsigned)ureg->cause, (unsigned)ureg->cr2, (unsigned)ureg->ds, 
+            (unsigned)ureg->es, (unsigned)ureg->fs, (unsigned)ureg->gs, 
+            (unsigned)ureg->edi, (unsigned)ureg->esi, (unsigned)ureg->ebp, 
+            (unsigned)ureg->zero, (unsigned)ureg->ebx, (unsigned)ureg->edx,
+            (unsigned)ureg->ecx, (unsigned)ureg->eax, 
+            (unsigned)ureg->error_code, (unsigned)ureg->eip,
+            (unsigned)ureg->cs, (unsigned)ureg->eflags, (unsigned)ureg->esp, 
+            (unsigned)ureg->ss);
+    // Should also print to console
+    // TBD ******************************
 }
 
 /** @brief Generic exception handler
@@ -122,15 +136,17 @@ void exception_handler(int exception_type) {
         // Thread doesn't have a swexn handler registered
         // Print a reason to kill the thread, should print to the console
         lprintf("Thread tid %d caused a exception of type %d " 
-                "and it doesn't have an exception handler installed "
-                "kernel will kill it", this_thr->tid, exception_type);
+                "and it doesn't have an exception handler installed, "
+                "kernel will kill it!", this_thr->tid, exception_type);
         // Dump registers
         dump_register(this_thr->tid, &ureg);
 
         // Kill thread
-
+        int is_kernel_kill = 1;
+        vanish_syscall_handler(is_kernel_kill);
+        lprintf("Should not reach here");
+        MAGIC_BREAK;
     }
-
 
     // Current thread has an exception handler installed
     // Give it a chance to fix the exception
@@ -164,7 +180,6 @@ void exception_handler(int exception_type) {
         (uint32_t)arg;
     // Push return address
     *((uint32_t *)(actual_ureg_pos - 3 * sizeof(uint32_t))) = 0xdeadbeef;
-
 
     lprintf("init_elflags: %x", (unsigned)get_init_eflags());
     

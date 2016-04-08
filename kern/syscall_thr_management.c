@@ -20,11 +20,21 @@ static pri_queue sleep_queue;
 
 static spinlock_t sleep_lock;
 
+static simple_queue_t deschedule_queue;
+
+static mutex_t deschedule_mutex;
+
 static int sleep_queue_compare(void* this, void* that);
 
 int syscall_sleep_init() {
     int error = pri_queue_init(&sleep_queue, sleep_queue_compare);
     error |= spinlock_init(&sleep_lock);
+    return error ? -1 : 0;
+}
+
+int syscall_deschedule_init() {
+    int error = simple_queue_init(&deschedule_queue);
+    error |= mutex_init(&deschedule_mutex);
     return error ? -1 : 0;
 }
 
@@ -230,4 +240,26 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
 
 
 
+
+int deschedule_syscall_handler(int *reject) {
+    // CHECK PARAMETER!!!!!!!!!!!!
+
+    mutex_lock(&deschedule_mutex);
+    if (*reject) {
+        mutex_unlock(&deschedule_mutex);
+        return 0;
+    }
+    simple_node_t node;
+    node.thr = tcb_get_entry((void*)asm_get_esp());
+
+    // enter the tail of deschedule_queue to wait, note that stack
+    // memory is used for node of queue. Because the stack of 
+    // deschedule_syscall_handler() will not be destroied until this 
+    // function return, so it is safe
+    simple_queue_enqueue(&deschedule_queue, &node);
+    mutex_unlock(&deschedule_mutex);
+
+    context_switch(3, 0);
+    return 0;
+}
 

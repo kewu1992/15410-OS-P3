@@ -16,6 +16,7 @@
 #include <simics.h>
 #include <stdio.h>
 #include <syscall_lifecycle.h>
+#include <asm_atomic.h>
 
 extern void asm_context_switch(int op, uint32_t arg, tcb_t *this_thr);
 
@@ -33,7 +34,7 @@ extern tcb_t* idle_thr;
  *  
  *  There are multiple options for context_switch(): 
  *  op  arg             meaning
- *  0   0               normal context switch by timer interupt
+ *  0   -1              normal context switch by timer interupt
  *
  *  1   0               fork and context switch to new process
  *
@@ -151,14 +152,25 @@ void context_switch(int op, uint32_t arg) {
 tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
     tcb_t* new_thr;
 
+    int is_syscall = (op == 1 || op == 2 || op == 6)
+                        ? 1 : 0;
+
     switch(op) {
-        case 0: // Normal context switch 
+        case 0: // normal context switch 
+        case 6: // yield -1 or yield to a specific thread
             // let sheduler choose the next thread to run
-            new_thr = scheduler_get_next(-1);
+            new_thr = scheduler_get_next((int)arg);
             if (new_thr == NULL) {
-                // no other thread to context switch, just return this thread
+                if ((int)arg == -1)
+                    // no other thread to yield to, just return this thread
+                    this_thr->result = (is_syscall) ? 0 : this_thr->result;
+                else
+                    // The requested thread doesn't exist
+                    this_thr->result = -1;
                 return this_thr;
             } 
+
+            this_thr->result = (is_syscall) ? 0 : this_thr->result;
 
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
@@ -168,7 +180,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if (this_thr != idle_thr)
                 scheduler_make_runnable(this_thr);
             return new_thr;
-
         case 1:    // fork and context switch to new thread
             new_thr = internal_thread_fork(this_thr);
 
@@ -229,6 +240,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 // thread fork success
                 this_thr->result = new_thr->tid;
                 new_thr->result = 0;
+                atomic_add(&this_thr->pcb->cur_thr_num, 1);
             } else {
                 // thread fork error
                 this_thr->result = -1;
@@ -313,48 +325,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             }
 
             return new_thr;
-        case 6:
-            if((int)arg == -1) { 
-                // yield -1
-
-                // let sheduler choose the next thread to run
-                new_thr = scheduler_get_next(-1);
-                if (new_thr == NULL) {
-                    // no other thread to yield to, just return this thread
-                    this_thr->result = 0;
-                    return this_thr;
-                } 
-
-                this_thr->result = 0;
-
-                // will unlock in asm_context_switch() --> after context switch 
-                // to the next thread successfully
-                spinlock_lock(&block_lock);
-                // decide to enqueue this thread, should not be interrupted 
-                // until context switch to the next thread successfully
-                scheduler_make_runnable(this_thr);
-                return new_thr;
-            } else {
-                // Yield to a specific thread
-                
-                // Check if the requested thread exists
-                new_thr = scheduler_get_next((int)arg);
-                if (new_thr == NULL) {
-                    // The requested thread doesn't exist
-                    this_thr->result = -1;
-                    return this_thr;
-                } 
-
-                this_thr->result = 0;
-
-                // will unlock in asm_context_switch() --> after context switch
-                // to the next thread successfully
-                spinlock_lock(&block_lock);
-                // decide to enqueue this thread, should not be interrupted 
-                // until context switch to the next thread successfully
-                scheduler_make_runnable(this_thr);
-                return new_thr;
-            }
         default:
             return this_thr;
     }
