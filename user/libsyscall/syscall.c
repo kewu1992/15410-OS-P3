@@ -29,12 +29,6 @@ char getchar(void)
 	return -1;
 }
 
-
-int get_cursor_pos(int *row, int *col)
-{
-  return -1;
-}
-
 void task_vanish(int status)
 {
 	status ^= status;

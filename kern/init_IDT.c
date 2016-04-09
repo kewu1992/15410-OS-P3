@@ -249,6 +249,9 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     // install readfile() syscall handler
     install_IDT_entry(READFILE_INT, readfile_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
+    // install get_cursor_pos() syscall handler
+    install_IDT_entry(GET_CURSOR_POS_INT, get_cursor_pos_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
     // install exception's IDT
     init_exception_IDT();
 

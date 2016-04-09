@@ -95,7 +95,7 @@ void* resume_reading_thr() {
     tcb_t* rv = read_waiting_thr;
 
     read_waiting_thr = NULL;
-    
+
     return (void*)rv;
 }
 
@@ -124,16 +124,43 @@ int set_cursor_pos_syscall_handler(int row, int col) {
 }
 
 int readfile(char *filename, char *buf, int count, int offset) {
-    
-      // Make sure buf is valid
-     int is_check_null = 0;
-     int max_len = count;
-     int need_writable = 1;
-     if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
-         return -1;
-     }
+
+    // Make sure buf is valid
+    int is_check_null = 0;
+    int max_len = count;
+    int need_writable = 1;
+    if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
+        return -1;
+    }
 
 }
 
+/** @brief Get cursor postion syscall handler
+ *
+ * @param row The place to store row
+ * @param col The place to store col
+ *
+ * @return 0 on success; -1 on error
+ *
+ */
+int get_cursor_pos_syscall_handler(int *row, int *col) {
 
+    // Check parameter
+    int is_check_null = 0;
+    int max_len = sizeof(int);
+    int need_writable = 1;
+    if(!is_mem_valid(row, max_len, is_check_null, need_writable) ||
+            !is_mem_valid(rol, max_len, is_check_numm, need_writable)) {
+        return -1;
+    }
+
+    // Since row and col are fetched in two steps, should be an atomic
+    // operation to make row and col related to one point
+    mutex_lock(&print_lock);
+    get_cursor(row, col);
+    mutex_unlock(&print_lock);
+
+    return 0;
+
+}
 
