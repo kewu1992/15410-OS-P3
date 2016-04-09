@@ -11,14 +11,16 @@ int main(int argc, char *argv[]) {
         int i = 0;
         while(1){
             i++;
-            if (i % 1000000 == 0)
+            if (i % 10000000 == 0)
                 lprintf("child");
         }
     } else {
         while(1) {
+            lprintf("ready to readline");
             int rv = readline(1024, buf);  
             buf[rv] = '\0';
             lprintf("%s", buf);
+            //sleep(1000);
         }
     }
     

@@ -11,6 +11,7 @@
 
 #include <asm.h>
 #include <video_defines.h>
+#include <spinlock.h>
 
 /** @brief Convert (two dimensional) logical poistion to (one dimensional) 
  *         physical postion */
@@ -40,6 +41,8 @@ static uint16_t logical_cursor;
 /** @brief To indicate if the hardware cursor is currently hidden */
 static char is_hidden;
 
+static spinlock_t spinlock;
+
 /** @brief Initialize console device driver
  *  
  *  This function will be called by handler_install() to initialize console 
@@ -60,6 +63,8 @@ void init_console_driver() {
     logical_cursor = ((uint16_t)value_hi << 8) | (uint16_t)value_lo;
 
     is_hidden = 0;
+
+    spinlock_init(&spinlock);
 }
 
 /** @brief Set hardware cursor through I/O port
@@ -114,6 +119,9 @@ void scrollup() {
  *  on the line.  If backspace ('\b') is encountered, the previous
  *  character is erased.  See the main console.c description found
  *  on the handout web page for more backspace behavior.
+ *
+ *  This function is not thread-safe, it is caller's reponsibility
+ *  to make sure that no one putbyte() is interleaved with another
  *
  *  @param ch the character to print
  *  @return The input character
@@ -182,8 +190,11 @@ void putbytes(const char *s, int len) {
     if (!s)
         return;
     int i;
-    for (i = 0; i < len; i++)
+    for (i = 0; i < len; i++) {
+        spinlock_lock(&spinlock);
         putbyte(s[i]);
+        spinlock_unlock(&spinlock);
+    }
 }
 
 /** @brief Prints character ch with the specified color

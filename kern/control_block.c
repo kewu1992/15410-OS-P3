@@ -11,12 +11,6 @@
 #include <syscall_lifecycle.h>
 #include <stdio.h>
 
-/** @brief The lowest 13 bits of kernel memory are within the same k-stack */
-#define K_STACK_BITS    13
-
-/** @brief Kernel stack size for each thread is 8192 */
-#define K_STACK_SIZE    (1<<13) 
-
 /** @brief Get index of tcb table based on kernel stack address */
 #define GET_K_STACK_INDEX(x)    (((unsigned int)(x)) >> K_STACK_BITS)
 

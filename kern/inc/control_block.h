@@ -5,6 +5,12 @@
 #include <list.h>
 #include <syscall_inter.h>
 
+/** @brief The lowest 13 bits of kernel memory are within the same k-stack */
+#define K_STACK_BITS    13
+
+/** @brief Kernel stack size for each thread is 8192 */
+#define K_STACK_SIZE    (1<<K_STACK_BITS) 
+
 typedef enum {
     NORMAL,
     BLOCKED,

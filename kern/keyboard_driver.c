@@ -68,10 +68,29 @@ void keyboard_interrupt_handler(){
         front = (front + 1) % KEY_BUF_SIZE;
     }
 
-    void* thr = resume_reading_thr();
+    void* thr = 0;
+    if (has_read_waiting_thr()) {
+        // some threads are waiting for input, try to process scancode and
+        // fill waiting thread's buffer
+        int ch = -1;
+        
+        while (ch == -1 && front != rear) {
+            uint8_t scancode = keybuf[rear];
+            rear = (rear + 1) % KEY_BUF_SIZE;
+            
+            // process code
+            kh_type augchar = process_scancode(scancode);
+            if (KH_HASDATA(augchar) && KH_ISMAKE(augchar))
+                ch = (int)KH_GETCHAR(augchar);
+        } 
+
+        if (ch != -1)
+            thr = resume_reading_thr((char)ch);
+    }
 
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
 
+    // if thr != NULL, it means one thread should be waked up
     if (thr) {
         enable_interrupts();
         context_switch(5, (uint32_t)thr);

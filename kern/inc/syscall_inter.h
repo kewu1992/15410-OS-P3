@@ -15,13 +15,15 @@ int syscall_sleep_init();
 
 int syscall_vanish_init();
 
-void* resume_reading_thr();
+void* resume_reading_thr(char ch);
 
 void* timer_callback(unsigned int ticks);
 
 int syscall_deschedule_init();
 
 int syscall_readfile_init();
+
+int has_read_waiting_thr();
 
 /* @brief Data structure for wait() syscall */
 typedef struct {

@@ -87,27 +87,51 @@ char text4[] =                                                    "\
 int main() {
     int len = strlen(text1);
 
+    int i = 0;
     if (fork() == 0){
         if (fork() == 0) {
             lprintf("I am 1");
-            while(1)
-                print(len ,text1);
+            while(1) {
+                i++;
+                if (i % 10000000 == 0)
+                    print(len ,text1);
+            }
+            
         } else {
             lprintf("I am 2");
-            while(1)
-                print(len ,text2);
+            while(1) {
+                i++;
+                if (i % 10000000 == 0)
+                   print(len ,text2);
+            }
         }
        
     }
     else{
         if (fork() == 0) {
             lprintf("I am 3");
+            /*
             while(1)
                 print(len ,text3);
+            */
+            while(1) { 
+                char buf[1024];
+                int rv = readline(1024, buf);  
+                buf[rv] = '\0';
+                lprintf("from 3: %s", buf);
+            }
         } else {
             lprintf("I am 4");
+            /*
             while(1)
                 print(len ,text4);
+            */
+            while(1) { 
+                char buf[1024];
+                int rv = readline(1024, buf);  
+                buf[rv] = '\0';
+                lprintf("from 4: %s", buf);
+            }
         }
     }
     return 0;
