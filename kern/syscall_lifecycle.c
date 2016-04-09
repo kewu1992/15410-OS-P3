@@ -44,7 +44,26 @@ int fork_syscall_handler() {
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
+
+/** @brief System call handler for thread_fork
+ *
+ *  This function will be invoked by thread_fork_wrapper().
+ *
+ *  Creates a new thread in the current task (i.e., the new thread will share 
+ *  all task resources). The invoking thread’s return value in %eax is the 
+ *  thread ID of the newly-created thread; the new thread’s return value is 
+ *  zero. All other registers in the new thread will be initialized to the same
+ *  values as the corresponding registers in the old thread.
+ *  A thread newly created by thread fork has no software exception handler
+ *  registered.
+ *
+ *  @return The invoking thread’s return value in %eax is the thread ID of 
+ *          the newly-created thread; the new thread’s return value is zero. 
+ *          Errors are reported via a negative return value, in which case no 
+ *          new thread has been created.
+ */
 int thread_fork_syscall_handler() {
+    lprintf("thread fork called");
     context_switch(2, 0);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }

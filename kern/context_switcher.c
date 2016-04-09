@@ -190,7 +190,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             new_thr = internal_thread_fork(this_thr);
 
             if (new_thr == NULL) {
-                // fork error
+                // thread_fork error
                 lprintf("internal_thread_fork() failed");
                 MAGIC_BREAK;
 
@@ -253,7 +253,11 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 atomic_add(&this_thr->pcb->cur_thr_num, 1);
             } else {
                 // thread fork error
-                this_thr->result = -1;
+                lprintf("internal_thread_fork() failed");
+                MAGIC_BREAK;
+
+                printf("internal_thread_fork() failed when thread_fork()");
+                this_thr->result = ENOMEM;
                 return this_thr;
             }
 
