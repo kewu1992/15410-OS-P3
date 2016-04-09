@@ -23,8 +23,35 @@
 .global deschedule_wrapper
 .global make_runnable_wrapper
 
-.global exception_page_fault_wrapper
-.global exception_division_error_wrapper
+.global de_wrapper
+.global db_wrapper
+.global nmi_wrapper
+.global bp_wrapper
+.global of_wrapper
+.global br_wrapper
+.global ud_wrapper
+.global nm_wrapper
+.global df_wrapper
+.global cso_wrapper
+.global ts_wrapper
+.global np_wrapper
+.global ss_wrapper
+.global gp_wrapper
+.global pf_wrapper
+.global mf_wrapper
+.global ac_wrapper
+.global mc_wrapper
+.global xf_wrapper
+
+#define EXCEPTION_WRAPPER(exception_type) pusha;\
+    call    asm_push_ss;         # save all data segment selectors\
+    call    asm_set_ss;          # set segment selectors to SEGSEL_KERNEL_DS\
+    pushl   $exception_type;     # push exception type\
+    call    exception_handler;   # call generic exception handler\
+    addl    $4, %esp;            # "pop" argument\
+    call    asm_pop_ss;          # restore all data segment selectors\
+    popa;\
+    iret;
 
 keyboard_wrapper:
     pusha
@@ -418,37 +445,6 @@ thread_fork_wrapper:
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
     iret
 
-exception_division_error_wrapper:
-    pusha
-    call    asm_push_ss             # save all data segment selectors
-    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
-
-    pushl $IDT_DE                       # push exception type
-    call exception_handler           # Call generic exception handler
-    addl    $4, %esp                # "pop" argument
-    
-    call    asm_pop_ss              # restore all data segment selectors
-    popa
-    iret
-
-exception_page_fault_wrapper:
-    pusha
-    call    asm_push_ss             # save all data segment selectors
-    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
-
-    //movl    52(%esp), %eax          # place error code in %eax
-    //pushl   %eax                    # push error code as first argument
-    
-    pushl   $IDT_PF                       # push exception type
-    call    exception_handler              
-    addl    $4, %esp                # "pop" argument
-    
-    call    asm_pop_ss              # restore all data segment selectors
-    popa
-    addl    $4, %esp                # "pop" error code
-    iret
-
-
 deschedule_wrapper:
     call    asm_push_generic        # save all generic registers except %esp and %eax
     call    asm_push_ss             # save all data segment selectors
@@ -476,4 +472,126 @@ make_runnable_wrapper:
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
     iret
     
+
+/********** Exceptions wrapper ****************/
+
+de_wrapper:
+EXCEPTION_WRAPPER(IDT_DE)
+
+db_wrapper:
+EXCEPTION_WRAPPER(IDT_DB)
+
+nmi_wrapper:
+EXCEPTION_WRAPPER(IDT_NMI)
+
+bp_wrapper:
+EXCEPTION_WRAPPER(IDT_BP)
+
+of_wrapper:
+EXCEPTION_WRAPPER(IDT_OF)
+
+br_wrapper:
+EXCEPTION_WRAPPER(IDT_BR)
+
+ud_wrapper:
+EXCEPTION_WRAPPER(IDT_UD)
+
+nm_wrapper:
+EXCEPTION_WRAPPER(IDT_NM)
+
+df_wrapper:
+    pusha
+    call    asm_push_ss         # save all data segment selectors
+    call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
+    pushl   $IDT_DF     # push exception type
+    call    exception_handler   # call generic exception handler
+    addl    $4, %esp            # "pop" argument
+    call    asm_pop_ss          # restore all data segment selectors
+    popa
+    addl    $4, %esp            # "pop" error code
+    iret
+
+cso_wrapper:
+EXCEPTION_WRAPPER(IDT_CSO)
+
+ts_wrapper:
+    pusha
+    call    asm_push_ss         # save all data segment selectors
+    call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
+    pushl   $IDT_TS     # push exception type
+    call    exception_handler   # call generic exception handler
+    addl    $4, %esp            # "pop" argument
+    call    asm_pop_ss          # restore all data segment selectors
+    popa
+    addl    $4, %esp            # "pop" error code
+    iret
+
+np_wrapper:
+    pusha
+    call    asm_push_ss         # save all data segment selectors
+    call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
+    pushl   $IDT_NP     # push exception type
+    call    exception_handler   # call generic exception handler
+    addl    $4, %esp            # "pop" argument
+    call    asm_pop_ss          # restore all data segment selectors
+    popa
+    addl    $4, %esp            # "pop" error code
+    iret
+
+ss_wrapper:
+    pusha
+    call    asm_push_ss         # save all data segment selectors
+    call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
+    pushl   $IDT_SS     # push exception type
+    call    exception_handler   # call generic exception handler
+    addl    $4, %esp            # "pop" argument
+    call    asm_pop_ss          # restore all data segment selectors
+    popa
+    addl    $4, %esp            # "pop" error code
+    iret
+
+gp_wrapper:
+    pusha
+    call    asm_push_ss         # save all data segment selectors
+    call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
+    pushl   $IDT_GP     # push exception type
+    call    exception_handler   # call generic exception handler
+    addl    $4, %esp            # "pop" argument
+    call    asm_pop_ss          # restore all data segment selectors
+    popa
+    addl    $4, %esp            # "pop" error code
+    iret
+
+pf_wrapper:
+    pusha
+    call    asm_push_ss         # save all data segment selectors
+    call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
+    pushl   $IDT_PF             # push exception type
+    call    exception_handler   # call generic exception handler
+    addl    $4, %esp            # "pop" argument
+    call    asm_pop_ss          # restore all data segment selectors
+    popa
+    addl    $4, %esp            # "pop" error code
+    iret
+
+mf_wrapper:
+EXCEPTION_WRAPPER(IDT_MF)
+
+ac_wrapper:
+    pusha
+    call    asm_push_ss         # save all data segment selectors
+    call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
+    pushl   $IDT_AC     # push exception type
+    call    exception_handler   # call generic exception handler
+    addl    $4, %esp            # "pop" argument
+    call    asm_pop_ss          # restore all data segment selectors
+    popa
+    addl    $4, %esp            # "pop" error code
+    iret
+
+mc_wrapper:
+EXCEPTION_WRAPPER(IDT_MC)
+
+xf_wrapper:
+EXCEPTION_WRAPPER(IDT_XF)
 

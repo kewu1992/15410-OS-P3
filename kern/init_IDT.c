@@ -145,11 +145,25 @@ void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int g
 
 static void init_exception_IDT() {
 
-    // install division error handler wrapper
-    install_IDT_entry(IDT_DE, exception_division_error_wrapper, SEGSEL_KERNEL_CS, 3, 0);
-
-    // install page fault handler wrapper
-    install_IDT_entry(IDT_PF, exception_page_fault_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_DE, de_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_DB, db_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_NMI, nmi_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_BP, bp_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_OF, of_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_BR, br_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_UD, de_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_NM, nm_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_DF, df_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_CSO, cso_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_TS, ts_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_NP, np_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_SS, ss_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_GP, gp_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_PF, pf_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_MF, mf_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_AC, ac_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_MC, mc_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(IDT_XF, xf_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
 }
 

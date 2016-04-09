@@ -65,8 +65,11 @@ void swexn_handler(void *arg, ureg_t *ureg) {
     lprintf("arg: %x", (unsigned)arg);
     dump_ureg(ureg);
 
+    lprintf("swexn_handler returns directly");
+    return;
 
-    MAGIC_BREAK;
+
+    // MAGIC_BREAK;
 
 }
 
@@ -102,8 +105,17 @@ void test_zfod() {
 
 void test_swexn() {
 
-    char exn_stack_high[4096];
-    uint32_t esp3 = (uint32_t)exn_stack_high;
+    uint32_t base = 0x5000000;
+    int len = 4096;
+    if(new_pages((void *)base, len) < 0) {
+        lprintf("new_pages failed");
+        MAGIC_BREAK;
+    }
+
+    // Test very small stack, 4 bytes: 0x5000004 to 0x5000000
+    // char exn_stack_high[4];
+    // uint32_t esp3 = (uint32_t)(base + 4);
+    uint32_t esp3 = (uint32_t)(0x5001000 - 4);
     // Register exception handler
     if(swexn((void *)esp3, swexn_handler, (void *)3, NULL) < 0) {
         lprintf("Register exception handler failed");
@@ -112,9 +124,9 @@ void test_swexn() {
         lprintf("Register exception handler succeeded");
     }
 
-    // test_division_zero();
+    test_division_zero();
 
-    test_zfod();
+    // test_zfod();
 }
 
 void test_noswexn() {
@@ -136,9 +148,10 @@ int main() {
 
     // test_yield_success();
 
-    // test_swexn();
+    test_swexn();
 
-    test_noswexn();
+
+    // test_noswexn();
 
     lprintf("test ends");
 
