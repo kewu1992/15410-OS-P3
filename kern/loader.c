@@ -33,6 +33,7 @@
 
 #include <syscall_lifecycle.h>
 #include <context_switcher.h>
+#include <syscall_errors.h>
 
 #define MAX_ADDR 0xFFFFFFFF
 
@@ -66,6 +67,15 @@ uint32_t get_init_eflags() {
     return init_eflags;
 }
 
+int is_file_exist(const char *filename) {
+    int i;
+    for (i = 0; i < exec2obj_userapp_count; i++)
+        if (strcmp(filename, exec2obj_userapp_TOC[i].execname) == 0) {
+            return 1;
+        }
+    return 0;
+}
+
 /**
  * Copies data from a file into a buffer.
  *
@@ -94,9 +104,10 @@ void loadFirstTask(const char *filename) {
     init_eflags = get_eflags();
 
     void *my_program, *usr_esp;
+    int rv;
 
     const char *argv[1] = {filename};
-    if ((my_program = loadTask(filename, 1, argv, &usr_esp)) == NULL)
+    if ((rv = loadTask(filename, 1, argv, &usr_esp, &my_program)) < 0)
         panic("Load first task failed");
 
     // create new process
@@ -114,14 +125,17 @@ void loadFirstTask(const char *filename) {
     // should never reach here
 }
 
-void* loadTask(const char *filename, int argc, const char **argv, void** usr_esp) {
+int loadTask(const char *filename, int argc, const char **argv, void** usr_esp, void** my_program) {
+
+    if (!is_file_exist(filename))
+        return ENOENT;
 
     if (elf_check_header(filename) == ELF_NOTELF)
-        return NULL;
+        return ENOEXEC;
 
     simple_elf_t simple_elf;
     if (elf_load_helper(&simple_elf, filename) == ELF_NOTELF)
-        return NULL;
+        return ENOEXEC;
 
     // allocate pages for the new task
     // Set rw permission as well, 0 as ro, 1 as rw, so that User
@@ -205,8 +219,9 @@ void* loadTask(const char *filename, int argc, const char **argv, void** usr_esp
     user_esp = push_to_stack(user_esp, argc);
 
     *usr_esp = user_esp - 4;
+    *my_program = (void*)simple_elf.e_entry;
 
-    return (void*)simple_elf.e_entry;
+    return 0;
 }
 
 void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, int is_idle) {
@@ -266,7 +281,8 @@ void* push_to_stack(void *esp, uint32_t value) {
         
         // load task
         void *my_program, *usr_esp;
-        if ((my_program = loadTask(my_execname, 1, (const char**)argv, &usr_esp)) == NULL) {
+        int rv;
+        if ((rv = loadTask(my_execname, 1, (const char**)argv, &usr_esp, &my_program)) < 0) {
             panic("load init failed");
         }
 

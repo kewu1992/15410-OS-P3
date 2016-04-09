@@ -831,14 +831,26 @@ int remove_pages(void *base) {
  *  @param need_writable If 1, check if the region is writable
  *
  *  @return 1 if true; 0 if false 
+ *
+ *  NEED a new interface for return value: 
+ *              1      for valid
+ *              EFAULT for invalid memory address
+ *              E2BIG  for valid memory but not NULL terminated
+ *             -3 for ???
+ *
+ * ****************
+ * is_check_null is not compatibility with Region overflow check!
+ * ****************
  */
 int is_mem_valid(char *va, int max_bytes, int is_check_null, 
         int need_writable) {
 
+    /*
     // Region will overflow address space
     if(UINT32_MAX - (uint32_t)va < max_bytes) {
         return -1;
     }
+    */
 
     // Reference kernel memory
     if((uint32_t)va < USER_MEM_START) {

@@ -12,9 +12,15 @@
 #include <scheduler.h>
 #include <syscall_lifecycle.h>
 #include <asm_atomic.h>
+#include <syscall_errors.h>
+#include <stdio.h>
 
-#define EXEC_MAX_ARGC   32
+/** @brief At most half of the kernel stack to be used as buffer of exec() */
+#define MAX_EXEC_BUF (K_STACK_SIZE>>1)
+
 #define EXEC_MAX_ARG_SIZE   128
+
+#define EXEC_MAX_ARGC (MAX_EXEC_BUF/EXEC_MAX_ARG_SIZE-1)
 
 /** @brief System call handler for fork()
  *
@@ -69,6 +75,17 @@ int thread_fork_syscall_handler() {
 }
 
 int exec_syscall_handler(char* execname, char **argvec) {
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+
+    // first check the number of threads for this task
+    if (this_thr->pcb->cur_thr_num > 1) {
+        //the invoking task contains more than one thread, reject exec()
+        lprintf("exec() with more than one thread");
+        MAGIC_BREAK;
+
+        printf("exec() failed because more than one thread\n");
+        return EMORETHR;
+    }
 
     // Start argument check
 
@@ -77,11 +94,18 @@ int exec_syscall_handler(char* execname, char **argvec) {
     int is_check_null = 1;
     int max_len = EXEC_MAX_ARG_SIZE;
     int need_writable = 0;
-    if(execname == NULL || 
-            !is_mem_valid((char *)execname, max_len, is_check_null, 
-                need_writable) || execname[0] == '\0') {
+    if(execname == NULL || execname[0] == '\0') {
         MAGIC_BREAK;
-        return -1;
+        return EINVAL;
+    } else {
+        int rv = is_mem_valid((char *)execname, max_len, is_check_null, 
+                              need_writable);
+        if (rv < 0) {
+            if (rv == E2BIG)
+                rv = ENAMETOOLONG;
+            MAGIC_BREAK;
+            return rv;
+        }
     }
 
     // Check argvec validness
@@ -90,53 +114,52 @@ int exec_syscall_handler(char* execname, char **argvec) {
         // Make sure &argvec[argc] is valid
         is_check_null = 0;
         max_len = sizeof(char *);
-        if(!is_mem_valid((char *)(argvec + argc), max_len, is_check_null, 
-                    need_writable)) {
+        if(is_mem_valid((char *)(argvec + argc), max_len, is_check_null, 
+                    need_writable) != 1) {
             MAGIC_BREAK;
-            return -2;
+            return EFAULT;
         }
 
-        if(argvec[argc] == NULL) break;
+        if(argvec[argc] == NULL) 
+            break;
 
-        // Make sure string argvec[argc] is null terminated
+        // Make sure string argvec[argc] is valid and null terminated
         is_check_null = 1;
         max_len = EXEC_MAX_ARG_SIZE;
-        if(!is_mem_valid((char *)argvec[argc], max_len, is_check_null, 
-                    need_writable)) {
+        int rv = is_mem_valid((char *)argvec[argc], max_len, is_check_null, 
+                    need_writable);
+        if(rv < 0) {
             MAGIC_BREAK;
-            return -3;
+            return rv;
         }
 
         argc++;
     }
-    // check arguments number
-    if (argc == EXEC_MAX_ARGC){
-        MAGIC_BREAK;
-        return -4;
-    }
 
-    // Make sure argvec is null terminated
-    if(argvec[argc] != NULL) {
+    // check number of arguments
+    if (argc == EXEC_MAX_ARGC || argvec[argc] != NULL) {
         MAGIC_BREAK;
-        return -5;
+        return E2BIG;
     }
 
     // argvec[0] should be the same string as execname
     if(argvec[0] == NULL || strncmp(execname, argvec[0], EXEC_MAX_ARG_SIZE)) {
         MAGIC_BREAK;
-        return -6;
+        return EINVAL;
     }
     // Finish argument check
 
 
-    // need to copy execname to kernel memory
-    char my_execname[strlen(execname) + 1];
+    // Start copying execname and argv to kernel memory
+    //char my_execname[strlen(execname) + 1];
+    char my_execname[EXEC_MAX_ARG_SIZE];
     memcpy(my_execname, execname, strlen(execname) + 1);
 
-    // need to copy argv and argv[] to kernel memory
+    // copy argv to kernel memory
     char *argv[argc];
-    memset(argv, 0, argc);
 
+    // copy argv[] to kernel memory
+    /*
     for(i = 0; i < argc; i++) {
         argv[i] = malloc(strlen(argvec[i])+1);
         if (argv[i] == NULL)
@@ -155,10 +178,18 @@ int exec_syscall_handler(char* execname, char **argvec) {
         MAGIC_BREAK;
         return -7;
     }
+    */
 
-    // check arguments finished, start exec()
+    char tmp_argv[argc][EXEC_MAX_ARG_SIZE];
+    for(i = 0; i < argc; i++) {
+        argv[i] = tmp_argv[i];
+        memcpy(argv[i], argvec[i], strlen(argvec[i])+1);
+    }
+    // Finish copying
 
-    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    
+
+    // Start exec()
 
     uint32_t old_pd = get_cr3();
 
@@ -166,11 +197,13 @@ int exec_syscall_handler(char* execname, char **argvec) {
     // recover old address space
     uint32_t new_pd = create_pd();
     if(new_pd == ERROR_MALLOC_LIB) {
-        lprintf("create_pd failed");
+        lprintf("create_pd() failed in exec()");
+        /*
         for(i = 0; i < argc; i++)
             free(argv[i]);
+        */
         MAGIC_BREAK;
-        return -8;
+        return ENOMEM;
     }
     this_thr->pcb->page_table_base = new_pd;
     set_cr3(new_pd);
@@ -179,24 +212,29 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
     // load task
     void *my_program, *usr_esp;
-    if ((my_program = loadTask(my_execname, argc, (const char**)argv, &usr_esp)) == NULL) {
+    int rv;
+    if ((rv = loadTask(my_execname, argc, (const char**)argv, &usr_esp, &my_program)) < 0) {
         // load task failed
-
         this_thr->pcb->page_table_base = old_pd;
         set_cr3(old_pd);
 
         free_entire_space(new_pd);
 
+        /*
         for(i = 0; i < argc; i++)
             free(argv[i]);
+        */
+        lprintf("loadTask() failed in exec() with %d error code\n", rv);
         MAGIC_BREAK;
-        return -9;
+        return rv;
     }
 
     free_entire_space(old_pd);
 
+    /*
     for(i = 0; i < argc; i++)
         free(argv[i]);
+    */
 
     // modify tcb
     this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
