@@ -25,10 +25,10 @@ struct prog {
     int pid;
     int count;
 } progs[] = {
-    //{"sleep_test1", -1, 13},
-   // {"wait_getpid", -1, 100},
-   // {"wild_test1", -1, 100},
-   // {"exec_basic", -1, 100},
+    {"sleep_test1", -1, 13},
+    {"wait_getpid", -1, 100},
+    {"wild_test1", -1, 100},
+    {"exec_basic", -1, 100},
     {"print_basic", -1, 100}
 };
 
@@ -54,10 +54,9 @@ int main()
                     sleep(1);
                 } else if (pid == 0) {
                     char *args[2];
-
                     report_misc("After fork(): I am a child!");
-
                     args[0] = p->name;
+                    report_misc(p->name);
                     args[1] = 0;
                     exec(p->name, args);
                     report_misc("exec() failed (missing object?)");

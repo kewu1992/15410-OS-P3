@@ -260,9 +260,9 @@ void* push_to_stack(void *esp, uint32_t value) {
         if(new_pd == ERROR_MALLOC_LIB) {
             panic("create_pd failed");
         }
-        set_cr3(new_pd);
         tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
         this_thr->pcb->page_table_base = new_pd;
+        set_cr3(new_pd);
         
         // load task
         void *my_program, *usr_esp;

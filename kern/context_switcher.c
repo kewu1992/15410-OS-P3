@@ -65,10 +65,7 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
-    // lprintf("context switch for tid: %d by op %d", this_thr->tid, op);
-
-    // before context switch, save cr3
-    this_thr->pcb->page_table_base = get_cr3();
+    //lprintf("context switch for tid: %d by op %d with cr3:%x (pd:%x)", this_thr->tid, op, (unsigned int)get_cr3(), (unsigned int)this_thr->pcb->page_table_base);
 
     // lprintf("before esp: %p", (void*)asm_get_esp());
     // lprintf("before: %p", this_thr);
@@ -82,20 +79,18 @@ void context_switch(int op, uint32_t arg) {
     // lprintf("after: %p", this_thr);
     // lprintf("after: %d", this_thr->tid);
 
-    // lprintf("context switch to tid: %d", this_thr->tid);
-
-    if (op == 1 && this_thr->result < 0 && this_thr->result != -1) {        
+    if (op == 1 && this_thr->result == 0) {        
         lprintf("fork process %d with thread %d (pd:%x)", this_thr->pcb->pid, 
-                            this_thr->tid, (unsigned int)(-this_thr->result));
-        set_cr3((uint32_t)(-this_thr->result));
+                this_thr->tid, (unsigned int)(this_thr->pcb->page_table_base));
 
-        this_thr->pcb->page_table_base = (uint32_t)(-this_thr->result);
-        this_thr->result = 0;
+        set_cr3((uint32_t)(this_thr->pcb->page_table_base));
     }
 
     // after context switch, restore cr3
     if (this_thr->pcb->page_table_base != get_cr3())
         set_cr3(this_thr->pcb->page_table_base);
+
+    //lprintf("context switch to tid: %d with cr3:%x (pd:%x)", this_thr->tid, (unsigned int)get_cr3(), (unsigned int)this_thr->pcb->page_table_base);
 
 
     // reset esp0
@@ -203,6 +198,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 return this_thr;
             }
 
+            
             // create new process
             if (tcb_create_process_only(new_thr, this_thr, 
                                                 new_page_table_base) == NULL) {
@@ -223,8 +219,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             // fork success
             this_thr->result = new_thr->tid;
-            // note that (int)new_page_table_base can not be a negative number
-            new_thr->result = -((int)new_page_table_base);
+            new_thr->result = 0;
 
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
