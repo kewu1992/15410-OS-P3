@@ -242,7 +242,15 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
 
 
 int deschedule_syscall_handler(int *reject) {
-    // CHECK PARAMETER!!!!!!!!!!!!
+
+    // Check parameter
+    int is_check_null = 0;
+    int max_len = sizeof(int);
+    int need_writable = 0;
+    if(!is_mem_valid(reject, max_len, is_check_null,
+                need_writable)) {
+        return -1;
+    }
 
     mutex_lock(&deschedule_mutex);
     if (*reject) {
