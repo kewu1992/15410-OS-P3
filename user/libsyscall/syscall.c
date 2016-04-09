@@ -35,11 +35,6 @@ int get_cursor_pos(int *row, int *col)
   return -1;
 }
 
-int readfile(char *filename, char *buf, int count, int offset)
-{
-	return -1;
-}
-
 void task_vanish(int status)
 {
 	status ^= status;

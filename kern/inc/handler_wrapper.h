@@ -75,6 +75,8 @@ void deschedule_wrapper();
 
 void make_runnable_wrapper();
 
+void readfile_wrapper();
+
 // Exceptions
 void de_wrapper();
 void db_wrapper();

@@ -246,6 +246,9 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     // install make_runnable() syscall handler
     install_IDT_entry(MAKE_RUNNABLE_INT, make_runnable_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
+    // install readfile() syscall handler
+    install_IDT_entry(READFILE_INT, readfile_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+
     // install exception's IDT
     init_exception_IDT();
 

@@ -21,6 +21,8 @@ void* timer_callback(unsigned int ticks);
 
 int syscall_deschedule_init();
 
+int syscall_readfile_init();
+
 /* @brief Data structure for wait() syscall */
 typedef struct {
     int num_alive, num_zombie;

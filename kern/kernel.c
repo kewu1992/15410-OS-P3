@@ -104,5 +104,8 @@ void kernel_init() {
     if (syscall_deschedule_init() < 0)
         panic("Initialize syscall deschedule() failed!");
 
+    if (syscall_readfile_init() < 0)
+        panic("Initialize syscall readfile() failed!");
+
     clear_console();
 }

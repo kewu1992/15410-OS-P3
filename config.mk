@@ -65,7 +65,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield test_swexn my_wild_test1 my_cho my_yield_desc_mkrun
+STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield test_swexn my_wild_test1 my_cho my_yield_desc_mkrun test_readfile
 
 ###########################################################################
 # Data files provided by course staff to build into the RAM disk
@@ -99,7 +99,7 @@ THREAD_OBJS = malloc.o panic.o
 ###########################################################################
 # Object files for your syscall wrappers
 ###########################################################################
-SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o halt.o readline.o vanish.o wait.o set_cursor_pos.o set_term_color.o set_status.o sleep.o get_ticks.o yield.o swexn.o deschedule.o make_runnable.o
+SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o halt.o readline.o vanish.o wait.o set_cursor_pos.o set_term_color.o set_status.o sleep.o get_ticks.o yield.o swexn.o deschedule.o make_runnable.o readfile.o
 
 
 ###########################################################################
