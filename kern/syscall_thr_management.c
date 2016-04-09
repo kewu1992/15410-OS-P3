@@ -131,11 +131,11 @@ static int is_newureg_valid(ureg_t *ureg) {
     // Check eflags
     // Check reserved bits
     if(EFLAGS_GET_RSV(ureg->eflags) != EFLAGS_EX_VAL_RSV || 
-        EFLAGS_GET_IOPL(ureg->eflags) != EFLAGS_EX_VAL_IOPL ||
-        EFLAGS_GET_TF(ureg->eflags) != EFLAGS_EX_VAL_TF ||
-        EFLAGS_GET_IF(ureg->eflags) != EFLAGS_EX_VAL_IF ||
-        EFLAGS_GET_NT(ureg->eflags) != EFLAGS_EX_VAL_NT ||
-        EFLAGS_GET_OTHER(ureg->eflags) != EFLAGS_EX_VAL_OTHER) {
+            EFLAGS_GET_IOPL(ureg->eflags) != EFLAGS_EX_VAL_IOPL ||
+            EFLAGS_GET_TF(ureg->eflags) != EFLAGS_EX_VAL_TF ||
+            EFLAGS_GET_IF(ureg->eflags) != EFLAGS_EX_VAL_IF ||
+            EFLAGS_GET_NT(ureg->eflags) != EFLAGS_EX_VAL_NT ||
+            EFLAGS_GET_OTHER(ureg->eflags) != EFLAGS_EX_VAL_OTHER) {
         return 0;
     }
 
@@ -199,7 +199,7 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
         if(!is_mem_valid(esp3, max_bytes, is_check_null, need_writable)) {
             return -1;
         }
-        
+
         // Check eip validness
         max_bytes = 1; 
         is_check_null = 0;

@@ -31,11 +31,16 @@
 void panic(const char *fmt, ...)
 {
 	va_list vl;
+	char buf[80];
+
+	va_start(vl, fmt);
+	vsnprintf(buf, sizeof (buf), fmt, vl);
+	va_end(vl);
+	lprintf(buf);
 
 	va_start(vl, fmt);
 	vprintf(fmt, vl);
 	va_end(vl);
-
 	printf("\n");
 
 	volatile static int side_effect = 0;

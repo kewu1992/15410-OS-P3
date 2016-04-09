@@ -25,8 +25,9 @@
 #define EFLAGS_GET_NT(n) (((n) >> 14) & 1)
 #define EFLAGS_EX_VAL_NT 0
 
+// Bit 16 RF Resume Flag can be set or not set
 // Other values
-#define EFLAGS_GET_OTHER(n) (((n) >> 16) & 0x3f)
+#define EFLAGS_GET_OTHER(n) (((n) >> 17) & 0x1f)
 #define EFLAGS_EX_VAL_OTHER 0
 
 void asm_ret_swexn_handler(swexn_handler_t eip, uint32_t cs, uint32_t eflags, 

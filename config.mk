@@ -65,7 +65,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield test_swexn my_wild_test1 my_cho my_yield_desc_mkrun
+STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield my_wild_test1 my_cho my_yield_desc_mkrun
 
 ###########################################################################
 # Data files provided by course staff to build into the RAM disk
@@ -86,7 +86,8 @@ STUDENTFILES = foo
 ###########################################################################
 # Object files for your thread library
 ###########################################################################
-THREAD_OBJS = malloc.o panic.o
+THREAD_OBJS = malloc.o panic.o asm_xchg.o mutex.o queue.o thr_create_kernel.o thr_lib.o thr_lib_helper.o arraytcb.o cond_var.o asm_get_esp.o hashtable.o sem.o rwlock.o asm_thr_exit.o asm_get_ebp.o
+
 
 # Thread Group Library Support.
 #
@@ -94,7 +95,7 @@ THREAD_OBJS = malloc.o panic.o
 # P3" we give you can't build libthrgrp.a.  Once you install your thread
 # library and fix THREAD_OBJS above, uncomment this line to enable building
 # libthrgrp.a:
-#410USER_LIBS_EARLY += libthrgrp.a
+410USER_LIBS_EARLY += libthrgrp.a
 
 ###########################################################################
 # Object files for your syscall wrappers
