@@ -19,7 +19,7 @@ void* resume_reading_thr();
 
 void* timer_callback(unsigned int ticks);
 
-int fork_syscall_handler();
+int syscall_deschedule_init();
 
 /* @brief Data structure for wait() syscall */
 typedef struct {

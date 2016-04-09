@@ -266,12 +266,12 @@ int deschedule_syscall_handler(int *reject) {
 
 int make_runnable_syscall_handler(int tid) {
     mutex_lock(&deschedule_mutex);
-    int rv = -1;
     simple_node_t* node = simple_queue_remove_tid(&deschedule_queue, tid);
+    mutex_unlock(&deschedule_mutex);
+
     if (node != NULL) {
         context_switch(4, (uint32_t)node->thr);
-        rv = 0;
-    }
-    mutex_unlock(&deschedule_mutex);
-    return rv;
+        return 0;
+    } else
+        return -1;
 }

@@ -107,7 +107,7 @@ static void dump_register(int tid, ureg_t *ureg) {
  */
 void exception_handler(int exception_type) {
 
-    lprintf("exception handler called");
+    //lprintf("exception handler called");
 
     // Get ureg value when exception happened
     ureg_t ureg;
@@ -125,16 +125,16 @@ void exception_handler(int exception_type) {
     // int pf_need_debug = 0;
     switch(exception_type) {
         case IDT_DE: // Division error
-            lprintf("Division error");
+            //lprintf("Division error");
             break;
         case IDT_PF: // Page fault
-            lprintf("Page fault");
+            //lprintf("Page fault");
             // Get faulting address
             ureg.cr2 = get_cr2();
             // Check if it's caused by ZFOD and if so fix it
             if(is_page_ZFOD(ureg.cr2, ureg.error_code, 1)) {
                 // Return normally
-                lprintf("Kernel fixed ZFOD");
+                //lprintf("Kernel fixed ZFOD");
                 return;
             }
             lprintf("The page fault was not caused by ZFOD");

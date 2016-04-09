@@ -101,5 +101,8 @@ void kernel_init() {
     if(syscall_vanish_init() < 0)
         panic("Initialize syscall vanish() failed!");
 
+    if (syscall_deschedule_init() < 0)
+        panic("Initialize syscall deschedule() failed!");
+
     clear_console();
 }
