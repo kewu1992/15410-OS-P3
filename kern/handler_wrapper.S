@@ -23,7 +23,7 @@
 .global deschedule_wrapper
 .global make_runnable_wrapper
 .global readfile_wrapper
-.global get_cursor_pos_syscall_handler
+.global get_cursor_pos_wrapper
 
 .global de_wrapper
 .global db_wrapper

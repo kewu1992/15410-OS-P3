@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <exec2obj.h>
 #include <string.h>
+#include <vm.h>
 
 extern void sim_halt(void);
 
@@ -39,10 +40,17 @@ int syscall_readfile_init() {
 }
 
 int readfile_syscall_handler(char* filename, char *buf, int count, int offset) {
-     // CHECK valid memory of buf ~ buf+count!   
 
     if (count < 0 || offset < 0)
         return -1;
+
+    // Make sure buf is valid
+    int is_check_null = 0;
+    int max_len = count;
+    int need_writable = 1;
+    if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
+        return -1;
+    } 
 
     if (strcmp(filename, ".") == 0) {
         if (offset > dot_file_length)

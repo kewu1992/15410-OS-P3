@@ -123,18 +123,6 @@ int set_cursor_pos_syscall_handler(int row, int col) {
 
 }
 
-int readfile(char *filename, char *buf, int count, int offset) {
-
-    // Make sure buf is valid
-    int is_check_null = 0;
-    int max_len = count;
-    int need_writable = 1;
-    if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
-        return -1;
-    }
-
-}
-
 /** @brief Get cursor postion syscall handler
  *
  * @param row The place to store row
@@ -149,8 +137,8 @@ int get_cursor_pos_syscall_handler(int *row, int *col) {
     int is_check_null = 0;
     int max_len = sizeof(int);
     int need_writable = 1;
-    if(!is_mem_valid(row, max_len, is_check_null, need_writable) ||
-            !is_mem_valid(rol, max_len, is_check_numm, need_writable)) {
+    if(!is_mem_valid((char *)row, max_len, is_check_null, need_writable) ||
+        !is_mem_valid((char *)col, max_len, is_check_null, need_writable)) {
         return -1;
     }
 
