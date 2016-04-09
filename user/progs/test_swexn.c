@@ -59,6 +59,7 @@ void dump_ureg(ureg_t *ureg) {
             (unsigned)ureg->ss);
 }
 
+/*
 void swexn_handler(void *arg, ureg_t *ureg) {
 
     lprintf("This is the user space swexn handler");
@@ -72,6 +73,7 @@ void swexn_handler(void *arg, ureg_t *ureg) {
     // MAGIC_BREAK;
 
 }
+*/
 
 void test_division_zero() {
 
