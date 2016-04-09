@@ -246,8 +246,8 @@ int deschedule_syscall_handler(int *reject) {
     // Check parameter
     int is_check_null = 0;
     int max_len = sizeof(int);
-    int need_writable = 0;
-    if(!is_mem_valid(reject, max_len, is_check_null,
+    int need_writable = 1;
+    if(!is_mem_valid((char*)reject, max_len, is_check_null,
                 need_writable)) {
         return -1;
     }
