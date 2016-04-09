@@ -2,6 +2,7 @@
 #include <malloc.h>
 #include <stddef.h>
 #include <simics.h>
+#include <stdio.h>
 
 /** @brief Init list
  * 
@@ -13,13 +14,13 @@
 int list_init(list_t *list) {
 
     if(mutex_init(&(list->mutex))) {
-        lprintf("mutex_init failed");
+        printf("mutex_init() failed int list_init()\n");
         return -1;
     }
 
     list->head = malloc(sizeof(list_node_t)); 
     if(list->head == NULL) {
-        lprintf("malloc failed");
+        printf("malloc() failed in list_init()\n");
         return ERROR_MALLOC_LIB;
     }
     list->head->data = (void *)0;

@@ -46,7 +46,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
 
     pcb_t *process = malloc(sizeof(pcb_t));
     if (process == NULL) {
-        printf("malloc() failed");
+        printf("malloc() failed in tcb_create_process_only()\n");
         return NULL;
     }
     process->pid = thread->tid;
@@ -66,7 +66,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
     process->exit_status = 0;
     
     if(list_init(&process->child_exit_status_list) < 0) {
-        printf("list_init() failed");
+        printf("list_init() failed in tcb_create_process_only()\n");
         free(process);
         return NULL;
     }
@@ -74,13 +74,13 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
     // Initialize task wait struct
     task_wait_t *task_wait = &process->task_wait_struct;
     if(simple_queue_init(&task_wait->wait_queue) < 0) {
-        printf("simple_queue_init() failed");
+        printf("simple_queue_init() failed in tcb_create_process_only()\n");
         list_destroy(&process->child_exit_status_list, 1);
         free(process);
         return NULL;
     }
     if(mutex_init(&task_wait->lock) < 0) {
-        printf("mutex_init() failed");
+        printf("mutex_init() failed in tcb_create_process_only()\n");
         simple_queue_destroy(&task_wait->wait_queue);
         list_destroy(&process->child_exit_status_list, 1);
         free(process);
@@ -108,7 +108,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
  *  @param process The process that the created thread belongs to
  *
  *  @return Thread control block data structure of the newly created thread, 
- *          return NULL on error
+ *          return NULL on error (because of out of memory)
  */
 tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
     tcb_t *thread = malloc(sizeof(tcb_t));
@@ -118,11 +118,12 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
     thread->tid = atomic_add(&id_count, 1);
     thread->pcb = process;
     thread->state = state;
-    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE) + K_STACK_SIZE;
+    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE);
     if (thread->k_stack_esp == NULL) {
         free(thread);
         return NULL;
-    }
+    } else 
+        thread->k_stack_esp += K_STACK_SIZE;
 
     // Initially no swexn handler registered
     thread->swexn_struct = NULL;

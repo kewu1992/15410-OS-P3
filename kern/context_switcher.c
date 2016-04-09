@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <syscall_lifecycle.h>
 #include <asm_atomic.h>
+#include <syscall_errors.h>
 
 extern void asm_context_switch(int op, uint32_t arg, tcb_t *this_thr);
 
@@ -177,11 +178,24 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 scheduler_make_runnable(this_thr);
             return new_thr;
         case 1:    // fork and context switch to new thread
+            if (this_thr->pcb->cur_thr_num > 1) {
+                //the invoking task contains more than one thread,reject fork()
+                lprintf("fork() with more than one thread");
+                MAGIC_BREAK;
+
+                printf("fork() failed because more than one thread\n");
+                this_thr->result = EMORETHR;
+                return this_thr;
+            }
             new_thr = internal_thread_fork(this_thr);
 
             if (new_thr == NULL) {
                 // fork error
-                this_thr->result = -1;
+                lprintf("internal_thread_fork() failed");
+                MAGIC_BREAK;
+
+                printf("internal_thread_fork() failed when fork()");
+                this_thr->result = ENOMEM;
                 return this_thr;
             }
             
@@ -194,7 +208,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
                 printf("clone_pd() failed when fork()");
                 tcb_free_thread(new_thr);
-                this_thr->result = -1;
+                this_thr->result = ENOMEM;
                 return this_thr;
             }
 
@@ -205,10 +219,10 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 lprintf("tcb_create_process_only() failed");
                 MAGIC_BREAK;
 
-                printf("tcb_create_process_only() failed when fork()");
+                printf("tcb_create_process_only() failed when fork()\n");
                 free_entire_space(new_page_table_base);
                 tcb_free_thread(new_thr);
-                this_thr->result = -1;
+                this_thr->result = ENOMEM;
                 return this_thr;
             }
 
@@ -334,7 +348,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
  *
  *  @param this_thr The thread that will be forked
  *
- *  @return A new thread that is the result of thread_fork() of this_thr
+ *  @return On success a new thread that is the result of thread_fork() 
+ *          of this_thr. On error return NULL (because of out of memory)         
  */
 tcb_t* internal_thread_fork(tcb_t* this_thr) {
     tcb_t* new_thr = tcb_create_thread_only(this_thr->pcb, NORMAL);

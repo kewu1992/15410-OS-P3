@@ -16,6 +16,28 @@
 #define EXEC_MAX_ARGC   32
 #define EXEC_MAX_ARG_SIZE   128
 
+/** @brief System call handler for fork()
+ *
+ *  This function will be invoked by fork_wrapper().
+ *
+ *  Creates a new task. The new task receives an exact, coherent copy of all 
+ *  memory regions of the invoking task. The new task contains a single thread 
+ *  which is a copy of the thread invoking fork() except for the return value of
+ *  the system call. The exit status of a newly-created task is 0. If a thread
+ *  in the task invoking fork() has a software exception handler registered, the 
+ *  corresponding thread in the newly-created task will have exactly the same
+ *  handler registered.
+ *
+ *  Kernel will reject calls to fork() which take place while the invoking task
+ *  contains more than one thread.
+ *
+ *  COW is not implemented for fork().
+ *
+ *  @return If fork() succeeds, the invoking thread will receive the ID of the
+ *          new task’s thread and the newly created thread will receive the 
+ *          value zero. Errors are reported via a negative return value, 
+ *          in which case no new task has been created.
+ */
 int fork_syscall_handler() {
     lprintf("fork called");
     context_switch(1, 0);
