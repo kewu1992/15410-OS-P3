@@ -76,8 +76,24 @@ void deschedule_wrapper();
 void make_runnable_wrapper();
 
 // Exceptions
-void exception_division_error_wrapper();
-void exception_page_fault_wrapper();
-
+void de_wrapper();
+void db_wrapper();
+void nmi_wrapper();
+void bp_wrapper();
+void of_wrapper();
+void br_wrapper();
+void de_wrapper();
+void nm_wrapper();
+void df_wrapper();
+void cso_wrapper();
+void ts_wrapper();
+void np_wrapper();
+void ss_wrapper();
+void gp_wrapper();
+void pf_wrapper();
+void mf_wrapper();
+void ac_wrapper();
+void mc_wrapper();
+void xf_wrapper ();
 
 #endif
