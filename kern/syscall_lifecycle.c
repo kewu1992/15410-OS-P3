@@ -279,9 +279,9 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
 
 
-/*************************** set_status *************************/
-
-/** @brief Set the exit status of current task
+/** @brief System call handler for set_status()
+ *
+ *  Set the exit status of current task
  *
  *  @status The status that will be set to current task
  *
@@ -300,6 +300,7 @@ void set_status_syscall_handler(int status) {
 
 
 /*************************** vanish *****************************/
+
 /** @brief The init task */
 static pcb_t *init_task;
 
@@ -330,6 +331,7 @@ static int ht_pid_pcb_hashfunc(void *key) {
 }
 
 static simple_queue_t zombie_list;
+
 static mutex_t zombie_list_lock;
 
 /** @brief Get next zombie in the thread zombie list
@@ -420,27 +422,31 @@ static void vanish_free_pcb(pcb_t *task) {
     free(task);
 }
 
-/** @brief Vanish syscall handler
+/** @brief System call handler for vanish()
+  *
+  * Terminates execution of the calling thread “immediately.” If the invoking 
+  * thread is the last thread in its task, the kernel deallocates all resources
+  * in use by the task and makes the exit status of the task available to the 
+  * parent task (the task which created this task using fork()) via wait(). If 
+  * the parent task is no longer running, the exit status of the task is made 
+  * available to the kernel-launched “init” task instead. The statuses of any 
+  * child tasks that have not been collected via wait() are also be made 
+  * available to the kernel-launched “init” task.
   *
   * @param is_kernel_kill A flag indicating if kernel is the caller
   * 
-  * @return void 
+  * @return Should never return
   *
   */
 void vanish_syscall_handler(int is_kernel_kill) {
-
-    lprintf("vanish syscall handler called");
-
-    // For the moment, assume there's only one thread for each task
-
-    // Who is my parent?
-    // Get tcb of current thread
 
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     if(this_thr == NULL) {
         lprintf("tcb is NULL");
         panic("tcb is NULL");
     }
+
+    lprintf("vanish syscall handler called for %d", this_thr->tid);
 
     // Get pcb of current task
     pcb_t *this_task = this_thr->pcb;
