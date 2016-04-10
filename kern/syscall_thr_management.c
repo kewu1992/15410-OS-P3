@@ -95,8 +95,6 @@ void* timer_callback(unsigned int ticks) {
 }
 
 
-/*************************** yield *************************/
-
 /** @brief System call handler for yield()
  *
  *  This function will be invoked by yield_wrapper().
@@ -109,6 +107,9 @@ void* timer_callback(unsigned int ticks) {
  *  is awaiting an external event in a system call such as readline() or wait(),
  *  or has been suspended via a system call, then an integer error code less 
  *  than zero is returned. Zero is returned on success.
+ *
+ *  @param tid The thread that the invoking thread will yield to. If tid is -1,
+ *             the scheduler may determine which thread to run next.
  *
  *  @return 0 on success; An integer error less than 0 on failure
  */
@@ -255,7 +256,25 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
 
 
 
-
+/** @brief System call handler for deschedule()
+ *
+ *  This function will be invoked by deschedule_wrapper().
+ *
+ *  Atomically checks the integer pointed to by reject and acts on it. If the 
+ *  integer is non-zero, the call returns immediately with return value zero. 
+ *  If the integer pointed to by reject is zero, then the calling thread will 
+ *  not be run by the scheduler until a make runnable() call is made specifying
+ *  the deschedule()’d thread, at which point deschedule() will return zero.
+ *
+ *  This system call is atomic with respect to make runnable(): the process of 
+ *  examining reject and suspending the thread will not be interleaved with any
+ *  execution of make runnable() specifying the thread calling deschedule().
+ *
+ *  @param reject An integer pointer to indicate whether to block or not.
+ *
+ *  @return 0 on success; An integer error code less than zero is returned if 
+ *          reject is not a valid pointer
+ */
 int deschedule_syscall_handler(int *reject) {
 
     // Check parameter
@@ -264,7 +283,7 @@ int deschedule_syscall_handler(int *reject) {
     int need_writable = 1;
     if(!is_mem_valid((char*)reject, max_len, is_check_null,
                 need_writable)) {
-        return -1;
+        return EFAULT;
     }
 
     mutex_lock(&deschedule_mutex);
@@ -286,7 +305,18 @@ int deschedule_syscall_handler(int *reject) {
     return 0;
 }
 
-
+/** @brief System call handler for make_runnable()
+ *
+ *  This function will be invoked by make_runnable_wrapper().
+ *
+ *  Makes the deschedule()d thread with ID tid runnable by the scheduler. 
+ *  
+ *  @param tid The tid of the thread that will be made runnable
+ *
+ *  @return On success, zero is returned. An integer error code less than zero 
+ *          will be returned unless tid is the ID of a thread which exists 
+ *          but is currently non-runnable due to a call to deschedule().
+ */
 int make_runnable_syscall_handler(int tid) {
     mutex_lock(&deschedule_mutex);
     simple_node_t* node = simple_queue_remove_tid(&deschedule_queue, tid);
@@ -296,5 +326,5 @@ int make_runnable_syscall_handler(int tid) {
         context_switch(4, (uint32_t)node->thr);
         return 0;
     } else
-        return -1;
+        return ETHREAD;
 }
