@@ -75,9 +75,6 @@ typedef struct tcb_t {
     
     /** @brief The parameters for registered swexn handler */
     swexn_t *swexn_struct;
-    /** @brief zombie list node for this thread that will be inserted to
-     *         the global-wide zombie_list when this thread vanish() */
-    simple_node_t *zombie_list_node;
 } tcb_t;
 
 

@@ -25,9 +25,9 @@ void* timer_callback(unsigned int ticks);
 
 int has_read_waiting_thr();
 
-tcb_t* get_next_zombie();
+simple_node_t* get_next_zombie();
 
-int put_next_zombie(tcb_t *thread_zombie);
+int put_next_zombie(simple_node_t* node);
 
 void ht_put_task(int pid, pcb_t *process);
 

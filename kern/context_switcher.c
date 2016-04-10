@@ -18,6 +18,7 @@
 #include <syscall_inter.h>
 #include <asm_atomic.h>
 #include <syscall_errors.h>
+#include <simple_queue.h>
 
 extern void asm_context_switch(int op, uint32_t arg, tcb_t *this_thr);
 
@@ -107,20 +108,21 @@ void context_switch(int op, uint32_t arg) {
         return; 
     }
 
-    tcb_t *thread_zombie;
-    if((thread_zombie = get_next_zombie()) != NULL) {
+    simple_node_t *node;
+    if((node = get_next_zombie()) != NULL) {
         // After putting self to zombie list, and on the way to
         // get next thread to run, timer interrupt is likely to 
         // happen, so zombie thread is likely to have a chance
         // to execute the following code, must let other thread
         // to free its resource.
-        if(this_thr->tid == thread_zombie->tid || 
-                scheduler_is_exist(thread_zombie->tid)) {
+        tcb_t* zombie_thr = (tcb_t*)(node->thr);
+        if(this_thr->tid == zombie_thr->tid || 
+                scheduler_is_exist(zombie_thr->tid)) {
             // Put it back
-            put_next_zombie(thread_zombie);
+            put_next_zombie(node);
         } else {
             // Zombie thread is ready to be freed
-            tcb_free_thread(thread_zombie);
+            tcb_free_thread(zombie_thr);
         }
     }
 }
