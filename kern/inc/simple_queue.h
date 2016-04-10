@@ -6,8 +6,6 @@
 #ifndef _SIMPLE_QUEUE_H_
 #define _SIMPLE_QUEUE_H_
 
-//#include <control_block.h>
-
 /** @brief The node strcuture of double-ended queue */
 typedef struct simple_node{
     /** @brief Data field */

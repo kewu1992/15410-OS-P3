@@ -8,7 +8,7 @@
 
 #include <simics.h>
 
-#include <syscall_lifecycle.h>
+#include <syscall_inter.h>
 #include <stdio.h>
 
 /** @brief Get index of tcb table based on kernel stack address */
@@ -55,18 +55,34 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
         process->ppid = pthr->pcb->pid;
     else
         process->ppid = -1;
-    // ****************************Consider lock this operation
-    // There's no thread fork now, all fork.
-    // Parent task has one more child
-    // thread->pthr->pcb->cur_child_num++;
+
+    process->exit_status = malloc(sizeof(exit_status_t));
+    if (process->exit_status == NULL) {
+        printf("malloc() failed in tcb_create_process_only()\n");
+        free(process);
+        return NULL;
+    }
+    process->exit_status->pid = process->pid;
+    // Initially exit status is 0
+    process->exit_status->status = 0;
+
+
+    process->exit_status_node = malloc(sizeof(simple_node_t));
+    if (process->exit_status_node == NULL) {
+        printf("malloc() failed in tcb_create_process_only()\n");
+        free(process->exit_status);
+        free(process);
+        return NULL;
+    }
+    process->exit_status_node->thr = (void*)process->exit_status;
 
     // Initially have one thread
     process->cur_thr_num = 1;
-    // Initially exit status is 0
-    process->exit_status = 0;
     
-    if(list_init(&process->child_exit_status_list) < 0) {
+    if(simple_queue_init(&process->child_exit_status_list) < 0) {
         printf("list_init() failed in tcb_create_process_only()\n");
+        free(process->exit_status);
+        free(process->exit_status_node);
         free(process);
         return NULL;
     }
@@ -75,14 +91,18 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
     task_wait_t *task_wait = &process->task_wait_struct;
     if(simple_queue_init(&task_wait->wait_queue) < 0) {
         printf("simple_queue_init() failed in tcb_create_process_only()\n");
-        list_destroy(&process->child_exit_status_list, 1);
+        simple_queue_destroy(&process->child_exit_status_list);
+        free(process->exit_status);
+        free(process->exit_status_node);
         free(process);
         return NULL;
     }
     if(mutex_init(&task_wait->lock) < 0) {
         printf("mutex_init() failed in tcb_create_process_only()\n");
         simple_queue_destroy(&task_wait->wait_queue);
-        list_destroy(&process->child_exit_status_list, 1);
+        simple_queue_destroy(&process->child_exit_status_list);
+        free(process->exit_status);
+        free(process->exit_status_node);
         free(process);
         return NULL;
     }

@@ -15,7 +15,7 @@
 #include <loader.h>
 #include <simics.h>
 #include <stdio.h>
-#include <syscall_lifecycle.h>
+#include <syscall_inter.h>
 #include <asm_atomic.h>
 #include <syscall_errors.h>
 

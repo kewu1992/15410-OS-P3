@@ -31,7 +31,7 @@
 
 #include <asm_helper.h>
 
-#include <syscall_lifecycle.h>
+#include <syscall_inter.h>
 #include <context_switcher.h>
 #include <syscall_errors.h>
 

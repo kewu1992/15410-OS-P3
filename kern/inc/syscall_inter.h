@@ -1,9 +1,9 @@
 #ifndef _SYSCALL_INTER_H_
 #define _SYSCALL_INTER_H_
 
-#include <simple_queue.h>
 #include <mutex.h>
-#include <ureg.h>
+#include <control_block.h>
+
 
 int malloc_init();
 
@@ -25,21 +25,18 @@ int syscall_readfile_init();
 
 int has_read_waiting_thr();
 
-/* @brief Data structure for wait() syscall */
-typedef struct {
-    int num_alive, num_zombie;
-    simple_queue_t wait_queue;
-    mutex_t lock;
-} task_wait_t;
+int get_next_zombie(tcb_t **thread_zombie);
 
-/** @brief The swexn handler type */
-typedef void (*swexn_handler_t)(void *arg, ureg_t *ureg);
+int put_next_zombie(tcb_t *thread_zombie);
 
-/** @brief The parameters for registered swexn handler */
-typedef struct swexn_t {
-    void *esp3;
-    swexn_handler_t eip;
-    void *arg;
-} swexn_t;
+int vanish_wipe_thread(tcb_t *thread_zombie);
+
+void ht_put_task(int pid, pcb_t *process);
+
+mutex_t *get_zombie_list_lock();
+
+void set_init_pcb(pcb_t *init_task);
+
+void vanish_syscall_handler(int is_kernel_kill);
 
 #endif

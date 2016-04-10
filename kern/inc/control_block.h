@@ -2,8 +2,9 @@
 #define _CONTROL_BLOCK_H_
 
 #include <stdint.h>
-#include <list.h>
-#include <syscall_inter.h>
+#include <simple_queue.h>
+#include <ureg.h>
+#include <mutex.h>
 
 /** @brief The lowest 13 bits of kernel memory are within the same k-stack */
 #define K_STACK_BITS    13
@@ -18,23 +19,52 @@ typedef enum {
     WAKEUP
 } thread_state_t;
 
+/** @brief The struct to store exit status for a task */
+typedef struct {
+    /** @brief The vanished task's pid */
+    int pid;
+    /** @brief The vanished task's exit status */
+    int status;
+} exit_status_t;
+
+/* @brief Data structure for wait() syscall */
+typedef struct {
+    int num_alive, num_zombie;
+    simple_queue_t wait_queue;
+    mutex_t lock;
+} task_wait_t;
+
 typedef struct pcb_t {
     int pid;
     uint32_t page_table_base;
     /** @brief Parent task's pid */
     int ppid;
     /** @brief Children task exit status list */
-    list_t child_exit_status_list;
+    simple_queue_t child_exit_status_list;
     /** @brief Exit status of the task */
-    int exit_status;
+    exit_status_t *exit_status;
+    /** @brief Exit status node that will be inserted to parent task's
+     *         child_exit_status_list */
+    simple_node_t *exit_status_node;
+
     /** @brief Current number of alive threads in the task, determine if 
-      * report task exit status and free task resources
-      */
+      *        report task exit status and free task resources */
     int cur_thr_num;
 
     task_wait_t task_wait_struct;
 
 } pcb_t;
+
+
+/** @brief The swexn handler type */
+typedef void (*swexn_handler_t)(void *arg, ureg_t *ureg);
+
+/** @brief The parameters for registered swexn handler */
+typedef struct swexn_t {
+    void *esp3;
+    swexn_handler_t eip;
+    void *arg;
+} swexn_t;
 
 typedef struct tcb_t {
     void *k_stack_esp;
@@ -45,6 +75,9 @@ typedef struct tcb_t {
     
     /** @brief The parameters for registered swexn handler */
     swexn_t *swexn_struct;
+    /** @brief zombie list node for this thread that will be inserted to
+     *         the global-wide zombie_list when this thread vanish() */
+    simple_node_t *zombie_list_node;
 } tcb_t;
 
 

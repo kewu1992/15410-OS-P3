@@ -10,10 +10,11 @@
 #include <hashtable.h>
 
 #include <scheduler.h>
-#include <syscall_lifecycle.h>
+#include <syscall_inter.h>
 #include <asm_atomic.h>
 #include <syscall_errors.h>
 #include <stdio.h>
+#include <list.h>
 
 /** @brief At most half of the kernel stack to be used as buffer of exec() */
 #define MAX_EXEC_BUF (K_STACK_SIZE>>1)
@@ -282,28 +283,18 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
 /** @brief Set the exit status of current task
  *
+ *  @status The status that will be set to current task
+ *
  *  @return Void
  */
 void set_status_syscall_handler(int status) {
 
     // Get current thread
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-    if(this_thr == NULL) {
-        lprintf("tcb is NULL");
-        MAGIC_BREAK;
-    }
+    
+    this_thr->pcb->exit_status->status = status;
 
-    // Get current task
-    pcb_t *this_task = this_thr->pcb;
-    if(this_task == NULL) {
-        lprintf("pcb is NULL");
-        MAGIC_BREAK;
-    }
-
-    this_task->exit_status = status;
-
-    lprintf("set status for task %d: %d", this_task->pid, status);
-
+    lprintf("set status for task %d: %d", this_thr->pcb->pid, status);
 }
 
 
@@ -364,9 +355,7 @@ mutex_t *get_zombie_list_lock() {
  *
  */
 int put_next_zombie(tcb_t *thread_zombie) {
-
     return list_append(&zombie_list, (void *)thread_zombie);
-
 }
 
 /** @brief Allocate a system wide stack devoted to vanish
@@ -413,24 +402,10 @@ void *get_parent_task(int pid) {
 
 /** @brief Free pcb and all resources that are associated with it */
 static void vanish_free_pcb(pcb_t *task) {
-
-    // The list should be empty now
-    void *data;
-    if (list_remove_first(&task->child_exit_status_list, (void **)&data) == 0) {
-        // something's wrong
-        lprintf("child_exit_status_list isn't empty when task is freeing itself");
-        MAGIC_BREAK;
-    }
-    int need_free_data = 1;
-    list_destroy(&task->child_exit_status_list, need_free_data);
-
-    task_wait_t *task_wait_struct = &task->task_wait_struct;
-    mutex_destroy(&task_wait_struct->lock);
-    // No need to destroy task->wait_queue because it's a simple (use stack as
-    // node place holder).
-
+    mutex_destroy(&task->task_wait_struct.lock);
+    simple_queue_destroy(&task->task_wait_struct.wait_queue);
+    simple_queue_destroy(&task->child_exit_status_list);
     free(task);
-
 }
 
 /** @brief Vanish syscall handler
@@ -487,19 +462,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
         // ======== Report exit status to its father or init task ===========
 
-        // Construct exit_status
-        exit_status_t *exit_status = malloc(sizeof(exit_status_t));
-        if(exit_status == NULL) {
-            lprintf("malloc failed");
-            MAGIC_BREAK;
-        }
-        if(this_task->pid == 0) {
-            lprintf("Exit task idle? this_task pid 0?!");
-            MAGIC_BREAK;
-        }
-        exit_status->pid = this_task->pid;
-        exit_status->status = this_task->exit_status;
-
         // Get hashtable's lock
         mutex_lock(&ht_pid_pcb_lock);
         // Get parent task's pcb
@@ -513,22 +475,15 @@ void vanish_syscall_handler(int is_kernel_kill) {
             parent_task = init_task;
         }
 
-        // Get pcb's lock
+        // Get pcb's task_wait lock
         task_wait_t *task_wait = &parent_task->task_wait_struct;
         mutex_lock(&task_wait->lock);
         // Release hashtable's lock
         mutex_unlock(&ht_pid_pcb_lock);
 
         // Put exit_status into parent's child exit status list  
-        list_t *child_exit_status_list = &parent_task->child_exit_status_list;
-        if(child_exit_status_list == NULL) {
-            lprintf("child_exit_status_list is NULL, but parent is alive?!");
-            MAGIC_BREAK;
-        }
-        if(list_append(child_exit_status_list, (void *)exit_status) < 0) {
-            lprintf("list_append failed");
-            MAGIC_BREAK;
-        }
+        simple_queue_enqueue(&parent_task->child_exit_status_list, 
+                                                   this_task->exit_status_node);
 
         // Make runnable a thread that's block on wait if there's any
         //task_wait_t *task_wait = &parent_task->task_wait_struct;
@@ -547,9 +502,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         }
 
 
-
-
-        // Free resources (page table, hash table entry and pcb) for this task itself
+        // Free resources (page table, hash table entry and pcb) for this task
         uint32_t old_pd = this_task->page_table_base;
 
         // Use init task's page table until death
@@ -588,21 +541,10 @@ void vanish_syscall_handler(int is_kernel_kill) {
         mutex_lock(&init_task_wait->lock);
 
         // Put children tasks' exit_status into init task's child exit status list
-        list_t *init_task_child_exit_status_list = 
-            &init_task->child_exit_status_list;
-        if(init_task_child_exit_status_list == NULL) {
-            lprintf("init_child_exit_status_list is NULL, but task is alive?!");
-            MAGIC_BREAK;
-        }
-
         int has_unreaped_child = 0;
-        exit_status_t *es;
-        while(list_remove_first(&this_task->child_exit_status_list, (void **)&es) == 0) {
+        while((node = simple_queue_dequeue(&this_task->child_exit_status_list)) != NULL) {
             has_unreaped_child = 1;
-            if(list_append(init_task_child_exit_status_list, (void *)es) < 0) {
-                lprintf("list_append failed");
-                MAGIC_BREAK;
-            }
+            simple_queue_enqueue(&init_task->child_exit_status_list, node);
             init_task_wait->num_zombie++;
         }
 
@@ -727,20 +669,17 @@ int wait_syscall_handler(int *status_ptr) {
         } else {
             // have zombie task, can reap directly
             wait->num_zombie--;
+            simple_node_t *node = simple_queue_dequeue(&this_task->child_exit_status_list);
             mutex_unlock(&wait->lock);
 
-            exit_status_t *es;
-            if (list_remove_first(&this_task->child_exit_status_list, (void **)&es) < 0) {
-                // something wrong
-                lprintf("wait_syscall_handler() --> list_remove_first() failed!");
-                MAGIC_BREAK;
-            }
+            exit_status_t *es = (exit_status_t*)node->thr;
 
             if(status_ptr != NULL)
                 *status_ptr = es->status;
             int rv = es->pid;
             lprintf("task %d reaped task %d, with exit status %d", this_task->pid, rv, es->status);
             free(es);
+            free(node);
             return rv;
         }
     }

@@ -9,7 +9,7 @@
 #include <asm_helper.h>
 #include <control_block.h>
 #include <loader.h>
-#include <syscall_lifecycle.h>
+#include <syscall_inter.h>
 
 /** @brief Put register values saved on stakc to ureg struct */
 static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
