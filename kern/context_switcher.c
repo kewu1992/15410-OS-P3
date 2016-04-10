@@ -214,6 +214,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 new_thr->swexn_struct = malloc(sizeof(swexn_t));
                 if(new_thr->swexn_struct == NULL) {
                     lprintf("malloc failed");
+                    free_entire_space(new_page_table_base);
                     tcb_free_thread(new_thr);
                     this_thr->result = ENOMEM;
                     return this_thr;
@@ -229,6 +230,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 MAGIC_BREAK;
 
                 printf("tcb_create_process_only() failed when fork()\n");
+                free(new_thr->swexn_struct);
                 free_entire_space(new_page_table_base);
                 tcb_free_thread(new_thr);
                 this_thr->result = ENOMEM;
