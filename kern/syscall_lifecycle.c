@@ -270,6 +270,12 @@ int exec_syscall_handler(char* execname, char **argvec) {
     // modify tcb
     this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
 
+    // Clear swexn handler
+    if(this_thr->swexn_struct != NULL) {
+        free(this_thr->swexn_struct);
+        this_thr->swexn_struct = NULL;
+    }
+
     // load kernel stack, jump to new program
     load_kernel_stack(this_thr->k_stack_esp, usr_esp, my_program, 0);
 

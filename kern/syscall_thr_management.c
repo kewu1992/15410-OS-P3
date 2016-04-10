@@ -9,6 +9,8 @@
 #include <vm.h>
 #include <exception_handler.h>
 
+#include <syscall_errors.h>
+
 
 typedef struct {
     unsigned int ticks;
