@@ -369,14 +369,11 @@ static mutex_t zombie_list_lock;
  *  @return On success, return the next zombie thread, on error return NULL
  *
  */
-tcb_t* get_next_zombie() {
+simple_node_t* get_next_zombie() {
     mutex_lock(&zombie_list_lock);
     simple_node_t* node = simple_queue_dequeue(&zombie_list);
     mutex_unlock(&zombie_list_lock);
-    if (node != NULL)
-        return node->thr;
-    else
-        return NULL;
+    return node;
 }
 
 mutex_t *get_zombie_list_lock() {
@@ -390,9 +387,9 @@ mutex_t *get_zombie_list_lock() {
  * @return 0 on success; -1 on error
  *
  */
-int put_next_zombie(tcb_t *thread_zombie) {
+int put_next_zombie(simple_node_t* node) {
     mutex_lock(&zombie_list_lock);
-    int rv = simple_queue_enqueue(&zombie_list,thread_zombie->zombie_list_node);
+    int rv = simple_queue_enqueue(&zombie_list, node);
     mutex_unlock(&zombie_list_lock);
     return rv;
 }
@@ -580,9 +577,13 @@ void vanish_syscall_handler(int is_kernel_kill) {
         tcb_free_process(this_task);
     }
 
-    // Add self to system wide zombie list, let next thread in scheduler's 
-    // queue run.
-    put_next_zombie(this_thr);
+    // Add self to system wide zombie list. Note that stack space of 
+    // vanish_syscall_handler() is used for simple_node. Because this stack 
+    // will not be destroied until this thread is freed by other threads. 
+    simple_node_t node;
+    node.thr = this_thr;
+
+    put_next_zombie(&node);
 
     context_switch(3, 0);
 
