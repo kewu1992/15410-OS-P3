@@ -7,3 +7,4 @@
 #define EINVAL          -22         /* Invalid argument */
 #define ENAMETOOLONG    -36         /* File name too long */
 #define EMORETHR        -256        /* More than one thread */
+#define ETHREAD         -257        /* No such thread */

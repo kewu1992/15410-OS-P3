@@ -43,7 +43,7 @@ extern tcb_t* idle_thr;
  *
  *  3   0               block the calling thread and yield(-1)
  *
- *  4   tcb_t*          make_runable a given thread identified by its tcb
+ *  4   tcb_t*          make_runable a blocked thread identified by its tcb
  *
  *  5   tcb_t*          resume a blocked thread (make_runnable and context 
  *                      switch to that thread immediately)  
@@ -158,7 +158,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                     this_thr->result = (is_syscall) ? 0 : this_thr->result;
                 else
                     // The requested thread doesn't exist
-                    this_thr->result = -1;
+                    this_thr->result = ETHREAD;
                 return this_thr;
             } 
 
