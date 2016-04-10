@@ -74,6 +74,36 @@ int thread_fork_syscall_handler() {
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
+
+/** @brief System call handler for exec()
+ *
+ *  Replaces the program currently running in the invoking task with the program
+ *  stored in the file named execname. Before the new program begins, %EIP will
+ *  be set to the “entry point” (the first instruction of the main() wrapper, 
+ *  as advertised by the ELF linker). The stack pointer, %ESP, will be 
+ *  initialized appropriately so that the main() wrapper receives four 
+ *  parameters: argc, argv, stack_high, stack_low.
+ *
+ *  This system call will check whether argvec[0] is the same string as execname
+ *  
+ *  There are limits on the number of arguments that a user program may pass to 
+ *  exec() (EXEC_MAX_ARGC), and the length of each argument (EXEC_MAX_ARG_SIZE).
+ *
+ *  This kernel will reject calls to exec() which take place while the invoking
+ *  task contains more than one thread.
+ *
+ *  @param execname The program that will be replaced with
+ *  @param argvec Points to a null-terminated vector of null-terminated string 
+ *                arguments. The number of strings in the vector and the vector
+ *                itself will be transported into the memory of the new program
+ *                where they will serve as the first and second arguments of the
+ *                the new program’s main(), respectively.
+ *
+ *  @return On success, this system call does not return to the invoking 
+ *          program, since it is no longer running. If something goes wrong, 
+ *          an integer error code less than zero will be returned.
+ *
+ */
 int exec_syscall_handler(char* execname, char **argvec) {
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
 
@@ -187,7 +217,7 @@ int exec_syscall_handler(char* execname, char **argvec) {
     }
     // Finish copying
 
-    
+
 
     // Start exec()
 
