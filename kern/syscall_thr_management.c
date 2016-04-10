@@ -38,6 +38,10 @@ int syscall_deschedule_init() {
     return error ? -1 : 0;
 }
 
+/** @brief System call handler for gettid()
+ *
+ *  @return The thread ID of the invoking thread.
+ */
 int gettid_syscall_handler() {
     return tcb_get_entry((void*)asm_get_esp())->tid;
 }
@@ -93,7 +97,18 @@ void* timer_callback(unsigned int ticks) {
 
 /*************************** yield *************************/
 
-/** @brief Yield
+/** @brief System call handler for yield()
+ *
+ *  This function will be invoked by yield_wrapper().
+ *
+ *  Defers execution of the invoking thread to a time determined by the 
+ *  scheduler, in favor of the thread with ID tid. If tid is -1, the scheduler
+ *  may determine which thread to run next. Ideally, the only threads whose 
+ *  scheduling should be affected by yield() are the calling thread and the 
+ *  thread that is yield()ed to. If the thread with ID tid does not exist, 
+ *  is awaiting an external event in a system call such as readline() or wait(),
+ *  or has been suspended via a system call, then an integer error code less 
+ *  than zero is returned. Zero is returned on success.
  *
  *  @return 0 on success; An integer error less than 0 on failure
  */
