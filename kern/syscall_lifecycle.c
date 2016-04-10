@@ -330,6 +330,30 @@ static int ht_pid_pcb_hashfunc(void *key) {
     return tid % PID_PCB_HASH_SIZE;
 }
 
+/** @brief Get wait status of a task
+ *
+ *  @return The wait status on success; NULL on error
+ */
+void *get_parent_task(int pid) {
+    int is_find = 0;
+    void *value = hashtable_get(&ht_pid_pcb, (void*)pid, &is_find);
+    if(is_find) {
+        return value;
+    } 
+    return NULL;
+}
+
+/** @brief Store pid to pcb maping for a task
+ *  The list stores a map from pid to pcb for an alive task
+ *
+ *  @return Void
+ */
+void ht_put_task(int pid, pcb_t *pcb) {
+    mutex_lock(&ht_pid_pcb_lock);
+    hashtable_put(&ht_pid_pcb, (void *)pid, (void *)pcb); 
+    mutex_unlock(&ht_pid_pcb_lock);
+}
+
 static simple_queue_t zombie_list;
 
 static mutex_t zombie_list_lock;
@@ -400,29 +424,7 @@ int syscall_vanish_init() {
     return 0;
 }
 
-
-/** @brief Get wait status of a task
- *
- *  @return The wait status on success; NULL on error
- */
-void *get_parent_task(int pid) {
-    int is_find = 0;
-    void *value = hashtable_get(&ht_pid_pcb, (void*)pid, &is_find);
-    if(is_find) {
-        return value;
-    } 
-    return NULL;
-}
-
-/** @brief Free pcb and all resources that are associated with it */
-static void vanish_free_pcb(pcb_t *task) {
-    mutex_destroy(&task->task_wait_struct.lock);
-    simple_queue_destroy(&task->task_wait_struct.wait_queue);
-    simple_queue_destroy(&task->child_exit_status_list);
-    free(task);
-}
-
-/** @brief System call handler for vanish()
+ /** @brief System call handler for vanish()
   *
   * Terminates execution of the calling thread “immediately.” If the invoking 
   * thread is the last thread in its task, the kernel deallocates all resources
@@ -573,7 +575,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         // Set init as the thread's temporary task
         this_thr->pcb = init_task;
         // Free resources in pcb
-        vanish_free_pcb(this_task);
+        tcb_free_process(this_task);
     }
 
     // Add self to system wide zombie list, let next thread in scheduler's 
@@ -587,45 +589,40 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
 }
 
-/** @brief Release resources used by a thread and get the next thread to run
- *
- * @param thread The thread to release resources
- *
- * @return Void
- *
- */
-void vanish_wipe_thread(tcb_t *thread) {
-    // Free thread resource: tcb, kernel stack
-    tcb_free_thread(thread);
-}
-
-/*************************** Wait *************************/
-
-
-/** @brief Store pid to pcb maping for a task
- *  The list stores a map from pid to pcb for an alive task
- *
- *  @return Void
- */
-void ht_put_task(int pid, pcb_t *pcb) {
-    mutex_lock(&ht_pid_pcb_lock);
-    hashtable_put(&ht_pid_pcb, (void *)pid, (void *)pcb); 
-    mutex_unlock(&ht_pid_pcb_lock);
-}
-
-
-
-#define ERR_PARAM -2
-#define ERR_NO_CHILD -1
+ /** @brief System call handler for wait()
+  *
+  * Collects the exit status of a task and stores it in the integer 
+  * referenced by status ptr. The wait() system call may be invoked 
+  * simultaneously by any number of threads in a task; exited child tasks are
+  * matched to wait()’ing threads in FIFO order. Threads which cannot collect an
+  * already-exited child task when there exist child tasks which have not yet
+  * exited will generally block until a child task exits and collect the status
+  * of an exited child task. However, threads which will definitely not be able
+  * to collect the status of an exited child task in the future must not block
+  * forever; in that case, wait() will return an integer error code less than 
+  * zero. The invoking thread may specify a status ptr parameter of zero (NULL)
+  * to indicate that it wishes to collect the ID of an exited task but wishes to
+  * ignore the exit status of that task. Otherwise, if the status ptr parameter
+  * does not refer to writable memory, wait() will return an integer error code
+  * less than zero instead of collecting a child task.
+  *
+  * @param status_ptr The integer pointer to store exit status
+  * 
+  * @return If no error occurs, the return value of wait() is the thread ID of 
+  *         the original thread of the exiting task. On error, return an integer
+  *         error code less than zero.
+  *
+  */
 int wait_syscall_handler(int *status_ptr) {
 
     // Check if status_ptr is valid memory
     int is_check_null = 0;
     int max_len = sizeof(int);
     int need_writable = 1;
-    if(status_ptr != NULL && !is_mem_valid((char *)status_ptr, max_len, 
-                is_check_null, need_writable)) {
-        return ERR_PARAM;
+    if(status_ptr != NULL && 
+       is_mem_valid((char *)status_ptr, max_len, is_check_null, 
+                                                         need_writable) != 1) {
+        return EFAULT;
     }
 
     // Get current thread
@@ -652,10 +649,10 @@ int wait_syscall_handler(int *status_ptr) {
         mutex_lock(&wait->lock);
         // check if can reap
         if (wait->num_zombie == 0 && 
-                (wait->num_alive == simple_queue_size(&wait->wait_queue))){
+                (wait->num_alive == simple_queue_size(&wait->wait_queue))) {
             // impossible to reap, return error
             mutex_unlock(&wait->lock);
-            return ERR_NO_CHILD;
+            return ECHILD;
         } else if (wait->num_zombie == 0) {
             // have alive task (potential zombie), need to block. Enter the
             // tail of queue to wait, note that stack memory is used for 

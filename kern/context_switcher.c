@@ -120,7 +120,7 @@ void context_switch(int op, uint32_t arg) {
             put_next_zombie(thread_zombie);
         } else {
             // Zombie thread is ready to be freed
-            vanish_wipe_thread(thread_zombie);
+            tcb_free_thread(thread_zombie);
         }
     }
 }

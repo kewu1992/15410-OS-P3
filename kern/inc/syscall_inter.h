@@ -15,21 +15,19 @@ int syscall_sleep_init();
 
 int syscall_vanish_init();
 
-void* resume_reading_thr(char ch);
-
-void* timer_callback(unsigned int ticks);
-
 int syscall_deschedule_init();
 
 int syscall_readfile_init();
+
+void* resume_reading_thr(char ch);
+
+void* timer_callback(unsigned int ticks);
 
 int has_read_waiting_thr();
 
 tcb_t* get_next_zombie();
 
 int put_next_zombie(tcb_t *thread_zombie);
-
-void vanish_wipe_thread(tcb_t *thread);
 
 void ht_put_task(int pid, pcb_t *process);
 
