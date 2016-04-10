@@ -209,6 +209,18 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 return this_thr;
             }
 
+            // clone swexn handler
+            if(this_thr->swexn_struct != NULL) {
+                new_thr->swexn_struct = malloc(sizeof(swexn_t));
+                if(new_thr->swexn_struct == NULL) {
+                    lprintf("malloc failed");
+                    tcb_free_thread(new_thr);
+                    this_thr->result = ENOMEM;
+                    return this_thr;
+                }
+                memcpy(new_thr->swexn_struct, this_thr->swexn_struct, 
+                        sizeof(swexn_t));
+            }
             
             // create new process
             if (tcb_create_process_only(new_thr, this_thr, 

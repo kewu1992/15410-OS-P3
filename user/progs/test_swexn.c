@@ -59,12 +59,12 @@ void dump_ureg(ureg_t *ureg) {
             (unsigned)ureg->ss);
 }
 
-/*
-void swexn_handler(void *arg, ureg_t *ureg) {
+void my_swexn_handler(void *arg, ureg_t *ureg) {
 
     lprintf("This is the user space swexn handler");
     lprintf("arg: %x", (unsigned)arg);
-    dump_ureg(ureg);
+    MAGIC_BREAK;
+   // dump_ureg(ureg);
 
     lprintf("swexn_handler returns directly");
     return;
@@ -73,7 +73,6 @@ void swexn_handler(void *arg, ureg_t *ureg) {
     // MAGIC_BREAK;
 
 }
-*/
 
 void test_division_zero() {
 
@@ -105,6 +104,7 @@ void test_zfod() {
     MAGIC_BREAK;
 }
 
+/*
 void test_swexn() {
 
     uint32_t base = 0x5000000;
@@ -130,6 +130,7 @@ void test_swexn() {
 
     // test_zfod();
 }
+*/
 
 void test_noswexn() {
     int pid = fork();
@@ -143,6 +144,56 @@ void test_noswexn() {
 
 }
 
+char stack[4096];
+
+void register_swexn_handler() {
+
+    uint32_t esp3 = (uint32_t)((uint32_t)stack + 4096 - 4);
+    // Register exception handler
+    if(swexn((void *)esp3, my_swexn_handler, (void *)3, NULL) < 0) {
+        lprintf("Register exception handler failed");
+        MAGIC_BREAK;
+    } else {
+        lprintf("Register exception handler succeeded");
+    }
+}
+
+void test_fork_swexn() {
+    
+    // Have a swexn handler installed before fork
+    // The new thread should still have the same copy of the swexn handler
+
+    register_swexn_handler();
+
+
+    int pid = fork();
+
+    if(pid == 0) {
+        test_division_zero();
+    }
+
+    while(1) ;
+
+}
+
+void test_exec_swexn() {
+
+    // Have a swexn handler installed before exec
+    // The new thread shouldn't have swexn handler installed
+
+    register_swexn_handler();
+
+    char *prog = "test_swexn_helper";
+    char *args[5] = {"test_swexn_helper", NULL};
+
+    if(exec(prog, args) < 0) {
+        lprintf("exec failed");
+    }
+
+    while(1);
+
+}
+
 
 int main() {
 
@@ -150,8 +201,15 @@ int main() {
 
     // test_yield_success();
 
-    test_swexn();
+    // test_swexn();
 
+    int pid = fork();
+
+    if(pid == 0) {
+        test_exec_swexn();
+    }
+
+    while(1);
 
     // test_noswexn();
 
