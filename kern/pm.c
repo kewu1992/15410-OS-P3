@@ -41,6 +41,8 @@
 
 #include <asm_atomic.h>
 
+#include <mutex.h>
+
 
 /** @brief An array of lists that tracks free frames of different size */
 // static free_list_t free_list[MAX_ORDER];
@@ -51,6 +53,8 @@ static int num_free_frames;
 
 /** @brief Spinlock to guard against modification of num_free_frames */
 // static spinlock_t lock;
+
+static mutex_t lock;
 
 
 
@@ -67,8 +71,10 @@ static int num_free_frames;
  * @return Base of contiguous frames on success; negative integer on error
  */
 uint32_t get_frames_raw() {
-
+    mutex_lock(&lock);
     uint32_t index = get_next();
+    mutex_unlock(&lock);
+
     if((int)index == NAN) {
         return ENOMEM;
     }
@@ -130,8 +136,9 @@ void free_frames_raw(uint32_t base) {
 
     int index = (base - USER_MEM_START) / PAGE_SIZE;
 
+    mutex_lock(&lock);
     put_back(index);
-
+    mutex_unlock(&lock);
 
 
 /*
@@ -191,6 +198,11 @@ int init_pm() {
 
     if(init_seg_tree(num_free_frames) < 0) {
         lprintf("init_seg_tree failed");
+        return -1;
+    }
+
+    if (mutex_init(&lock) < 0) {
+        lprintf("mutex_init failed");
         return -1;
     }
 
