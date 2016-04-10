@@ -224,12 +224,8 @@ static int remove_region(uint32_t va) {
         if(!IS_SET(*pte, PG_ZFOD)) {
             // Free the frame if it's not the system wide all-zero frame
             uint32_t frame = *pte & PAGE_ALIGN_MASK;
-            int ret = free_frames_raw(frame, 0);
-            if(ret < 0) {
-                lprintf("free_frames failed, page: %x", 
-                        (unsigned)page);
-                return ret;
-            }
+            free_frames_raw(frame);
+            unreserve_frames(1);
         }
 
         is_finished = IS_SET(*pte, PG_NEW_PAGES_END);
@@ -304,7 +300,7 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
             SET_BIT(*pte, PG_RW);
             // Allocate a new frame
             // Reserved allocate before, should have enough memory
-            uint32_t new_f = get_frames_raw(0);
+            uint32_t new_f = get_frames_raw();
             if(new_f == ERROR_NOT_ENOUGH_MEM) {
                 lprintf("get_frames_raw failed in is_page_ZFOD");
                 MAGIC_BREAK;
@@ -509,7 +505,7 @@ uint32_t clone_pd() {
                     uint32_t old_frame_addr = pt->pte[j] & PAGE_ALIGN_MASK;
 
                     // Allocate a new frame
-                    uint32_t new_f = get_frames_raw(0);
+                    uint32_t new_f = get_frames_raw();
 
                     // Find out the corresponding va of current page
                     uint32_t va = (i << 22) | (j << 12);
@@ -544,19 +540,16 @@ uint32_t clone_pd() {
  *
  *  @return 0 on success; negative integer on error
  */
-int free_entire_space(uint32_t pd_base) {
+void free_entire_space(uint32_t pd_base) {
     // Free user space
-    int ret = free_space(pd_base, 0);
-    if(ret < 0) return ret;
+    free_space(pd_base, 0);
 
     // Free kernel space
-    ret = free_space(pd_base, 1);
-    if(ret < 0) return ret;
+    free_space(pd_base, 1);
 
     // Free page directory
     sfree((void *)pd_base, PAGE_SIZE);
 
-    return 0;
 }
 
 
@@ -568,7 +561,7 @@ int free_entire_space(uint32_t pd_base) {
  *
  *  @return 0 on success; negative integer on error
  */
-int free_space(uint32_t pd_base, int is_kernel_space) {
+void free_space(uint32_t pd_base, int is_kernel_space) {
 
     pd_t *pd = (pd_t *)pd_base;
 
@@ -592,12 +585,8 @@ int free_space(uint32_t pd_base, int is_kernel_space) {
 
                         if(!IS_SET(pt->pte[j], PG_ZFOD)) {
                             uint32_t frame = pt->pte[j] & PAGE_ALIGN_MASK;
-                            int ret = free_frames_raw(frame, 0);
-                            if(ret < 0) {
-                                lprintf("free_frames failed, frame: %x", 
-                                        (unsigned)frame);
-                                return ret;
-                            }
+                            free_frames_raw(frame);
+                            unreserve_frames(1);
                         }
 
                     }
@@ -610,8 +599,6 @@ int free_space(uint32_t pd_base, int is_kernel_space) {
             }
         }
     }
-
-    return 0;
 
 }
 
@@ -736,7 +723,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
                     CLR_BIT(pte_ctrl_bits, PG_RW);
 
                 // Allocate a new frame
-                new_f = get_frames_raw(0);
+                new_f = get_frames_raw();
             }
 
             // Set page table entry
@@ -927,6 +914,7 @@ int is_mem_valid(char *va, int max_bytes, int is_check_null,
 
 /************ The followings are for debugging, will remove later **********/
 
+/*
 // For debuging, will remove later
 void test_vm() {
 
@@ -948,5 +936,7 @@ void test_vm() {
     traverse_free_area();
 
 }
+
+*/
 
 

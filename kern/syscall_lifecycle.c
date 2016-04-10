@@ -520,11 +520,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         set_cr3(init_task->page_table_base);
 
         // Free old address space
-        int ret = free_entire_space(old_pd);
-        if(ret < 0) {
-            lprintf("free_entire_space failed");    
-            MAGIC_BREAK;
-        }
+        free_entire_space(old_pd);
 
         // Get hashtable's lock
         mutex_lock(&ht_pid_pcb_lock);

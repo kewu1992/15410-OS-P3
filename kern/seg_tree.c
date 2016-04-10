@@ -2,10 +2,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define MAX_NUM 7477
+// #define MAX_NUM 7477
+
+#include <seg_tree.h>
+
 #define IS_LEAF(x)  (x>=size)
 #define IS_VALID(x) (x<2*size)
-#define NAN -1
+
+static int max_num;
 
 extern int asm_bsf(uint32_t value);
 
@@ -33,13 +37,13 @@ uint32_t init_recursive(uint32_t index) {
         init_recursive(index * 2 + 1);
         return seg_tree[index];
     } else {
-        if ((index-size+1) << 5 <= MAX_NUM){
+        if ((index-size+1) << 5 <= max_num){
             seg_tree[index] = NAN;
         } else {
             seg_tree[index] = 0;
             uint32_t mask = 1;
             int i = 0;
-            while (((index-size) << 5)+i < MAX_NUM) {
+            while (((index-size) << 5)+i < max_num) {
                 seg_tree[index] |= mask;
                 i++;
                 mask <<= 1;
@@ -49,14 +53,19 @@ uint32_t init_recursive(uint32_t index) {
     }
 }
 
-int init() {
-    size = get_next_pow2(MAX_NUM) >> 5;
+int init_seg_tree(int num) {
+
+    max_num = num;
+
+    size = get_next_pow2(max_num) >> 5;
 
     seg_tree = calloc(2*size, sizeof(uint32_t));
     if (seg_tree == NULL)
         return -1;
     
     init_recursive(1);
+
+    return 0;
 
 }
 
@@ -102,16 +111,16 @@ void put_back(uint32_t bits) {
 }
 
 
-
+/*
 
 
 static int *naive;
 void init_naive(){
-    naive = calloc(MAX_NUM, sizeof(int));
+    naive = calloc(max_num, sizeof(int));
 }
 uint32_t get_next_naive(){
     int i;
-    for (i = 0; i < MAX_NUM; i++)
+    for (i = 0; i < max_num; i++)
         if (naive[i] == 0) {
             naive[i] = 1;
             return i;
@@ -128,7 +137,7 @@ int main() {
     init();
     init_naive();
     
-    int array[MAX_NUM+1];
+    int array[max_num+1];
     int count = 0;
     while (1) {
         if (count == 0) {
@@ -168,3 +177,6 @@ int main() {
 
     return 0;
 }
+*/
+
+

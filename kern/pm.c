@@ -35,16 +35,22 @@
 
 #include <pm.h>
 
+#include <seg_tree.h>
+
+#include <syscall_errors.h>
+
+#include <asm_atomic.h>
+
 
 /** @brief An array of lists that tracks free frames of different size */
-static free_list_t free_list[MAX_ORDER];
+// static free_list_t free_list[MAX_ORDER];
 
 
 /** @brief Number of free frames currently available in physical memory */
 static int num_free_frames;
 
 /** @brief Spinlock to guard against modification of num_free_frames */
-static spinlock_t lock;
+// static spinlock_t lock;
 
 
 
@@ -60,8 +66,17 @@ static spinlock_t lock;
  * 
  * @return Base of contiguous frames on success; negative integer on error
  */
-uint32_t get_frames_raw(int order) {
+uint32_t get_frames_raw() {
 
+    uint32_t index = get_next();
+    if((int)index == NAN) {
+        return ENOMEM;
+    }
+
+    return USER_MEM_START + index * PAGE_SIZE;
+     
+
+/*
     // lprintf("order: %d", order);
     // Check free block lists
     int cur_order = order; 
@@ -97,6 +112,7 @@ uint32_t get_frames_raw(int order) {
 
     // Failed to find a contiguous block of the size we want
     return ERROR_NOT_ENOUGH_MEM; 
+*/
 }
 
 /**
@@ -107,10 +123,18 @@ uint32_t get_frames_raw(int order) {
  * Valid choices are 0, 1, 2, 3, ..., MAX_ORDER - 1
  * 
  * 
- * @return 0 on success; negative integer on error
+ * @return Void
  */
-int free_frames_raw(uint32_t base, int order) {
+//void free_frames_raw(uint32_t base, int order) {
+void free_frames_raw(uint32_t base) {
 
+    int index = (base - USER_MEM_START) / PAGE_SIZE;
+
+    put_back(index);
+
+
+
+/*
     int origin_order = order;
     // lprintf("free_frames: base: %x, order: %d", (unsigned)base, order);
     // Iteratively merge block with its buddy to the highest order possible
@@ -148,6 +172,7 @@ int free_frames_raw(uint32_t base, int order) {
     spinlock_unlock(&lock);
 
     return 0;
+*/
 }
 
 
@@ -160,6 +185,18 @@ int free_frames_raw(uint32_t base, int order) {
  */
 int init_pm() {
 
+    // Max number of free frames in user space initially
+    num_free_frames = machine_phys_frames() - 
+        USER_MEM_START/PAGE_SIZE;
+
+    if(init_seg_tree(num_free_frames) < 0) {
+        lprintf("init_seg_tree failed");
+        return -1;
+    }
+
+    return 0;
+
+    /*
     if(spinlock_init(&lock)) {
         lprintf("spinlock_init failed");
         return -1;
@@ -195,6 +232,7 @@ int init_pm() {
     }
 
     return 0;
+    */
 }
 
 /**
@@ -209,6 +247,15 @@ int init_pm() {
 
 int reserve_frames(int count) {
 
+    int num_free_frames_left = atomic_add(&num_free_frames, -count);
+    if(num_free_frames_left < 0) {
+        atomic_add(&num_free_frames, count);
+        return -1;
+    }
+
+    return 0;
+
+/*
     // Compare count with current number of free frames availale
     spinlock_lock(&lock);
     if(count > num_free_frames) {
@@ -220,7 +267,12 @@ int reserve_frames(int count) {
     spinlock_unlock(&lock);
 
     return 0;
+*/
 
+}
+
+void unreserve_frames(int count) {
+    atomic_add(&num_free_frames, count); 
 }
 
 
@@ -240,6 +292,7 @@ int reserve_frames(int count) {
  *  
  * @return 0 on success; negative integer on error
  */
+/*
 int get_frames(int count, list_t *list) {
 
     // Compare count with current number of free frames availale
@@ -288,6 +341,7 @@ int get_frames(int count, list_t *list) {
 
     return 0;
 }
+*/
 
 
 /**
@@ -298,6 +352,7 @@ int get_frames(int count, list_t *list) {
  *  
  * @return 0 on success; negative integer on error
  */
+/*
 int free_frames(uint32_t base, int count) {
 
     uint32_t cur_frame = base;
@@ -332,16 +387,17 @@ int free_frames(uint32_t base, int count) {
 
     return 0;
 }
+*/
 
 
 
 /************ The followings are for debugging, will remove later **********/
 
 // For debuging, will remove later
+/*
 void traverse_free_area() {
 
     lprintf("traverse_free_area starts");
-    /**** DEBUG *****/
     int i;
     for(i = 0; i < MAX_ORDER; i++) {
         // Test initial list content
@@ -353,8 +409,10 @@ void traverse_free_area() {
     }
     MAGIC_BREAK;
 }
+*/
 
 // For debuging, will remove later
+/*
 void test_frames() {
 
     // Test request frame size 19
@@ -375,4 +433,5 @@ void test_frames() {
     MAGIC_BREAK;
 
 }
+*/
 
