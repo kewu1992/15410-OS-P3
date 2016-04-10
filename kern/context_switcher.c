@@ -108,7 +108,7 @@ void context_switch(int op, uint32_t arg) {
     }
 
     tcb_t *thread_zombie;
-    if(get_next_zombie(&thread_zombie) == 0) {
+    if((thread_zombie = get_next_zombie()) != NULL) {
         // After putting self to zombie list, and on the way to
         // get next thread to run, timer interrupt is likely to 
         // happen, so zombie thread is likely to have a chance
@@ -118,14 +118,9 @@ void context_switch(int op, uint32_t arg) {
                 scheduler_is_exist(thread_zombie->tid)) {
             // Put it back
             put_next_zombie(thread_zombie);
-        } 
-        
-        else {
-            // Zombie is ready to be reaped
-            if(vanish_wipe_thread(thread_zombie) < 0) {
-                lprintf("reap thread failed");
-                MAGIC_BREAK;
-            }
+        } else {
+            // Zombie thread is ready to be freed
+            vanish_wipe_thread(thread_zombie);
         }
     }
 }

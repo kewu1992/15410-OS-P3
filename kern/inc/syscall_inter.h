@@ -25,11 +25,11 @@ int syscall_readfile_init();
 
 int has_read_waiting_thr();
 
-int get_next_zombie(tcb_t **thread_zombie);
+tcb_t* get_next_zombie();
 
 int put_next_zombie(tcb_t *thread_zombie);
 
-int vanish_wipe_thread(tcb_t *thread_zombie);
+void vanish_wipe_thread(tcb_t *thread);
 
 void ht_put_task(int pid, pcb_t *process);
 

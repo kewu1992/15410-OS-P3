@@ -138,8 +138,17 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
     thread->tid = atomic_add(&id_count, 1);
     thread->pcb = process;
     thread->state = state;
+
+    thread->zombie_list_node = malloc(sizeof(simple_node_t));
+    if (thread->zombie_list_node == NULL) {
+        free(thread);
+        return NULL;
+    }
+    thread->zombie_list_node->thr = thread;
+
     thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE);
     if (thread->k_stack_esp == NULL) {
+        free(thread->zombie_list_node);
         free(thread);
         return NULL;
     } else 
@@ -198,6 +207,7 @@ void tcb_free_thread(tcb_t *thr) {
         thr->swexn_struct = NULL;
     }
 
+    free(thr->zombie_list_node);
     // Free tcb
     free(thr);
 }

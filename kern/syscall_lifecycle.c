@@ -329,22 +329,26 @@ static int ht_pid_pcb_hashfunc(void *key) {
     return tid % PID_PCB_HASH_SIZE;
 }
 
-static list_t zombie_list;
+static simple_queue_t zombie_list;
+static mutex_t zombie_list_lock;
 
 /** @brief Get next zombie in the thread zombie list
  *
- * @param thread_zombie The place to store zombie thread
- *
- * @return 0 on success; -1 on error
+ *  @return On success, return the next zombie thread, on error return NULL
  *
  */
-int get_next_zombie(tcb_t **thread_zombie) {
-    return list_remove_first(&zombie_list, (void **)thread_zombie);
-
+tcb_t* get_next_zombie() {
+    mutex_lock(&zombie_list_lock);
+    simple_node_t* node = simple_queue_dequeue(&zombie_list);
+    mutex_unlock(&zombie_list_lock);
+    if (node != NULL)
+        return node->thr;
+    else
+        return NULL;
 }
 
 mutex_t *get_zombie_list_lock() {
-    return &zombie_list.mutex;
+    return &zombie_list_lock;
 }
 
 /** @brief Put next zombie in the thread zombie list
@@ -355,7 +359,10 @@ mutex_t *get_zombie_list_lock() {
  *
  */
 int put_next_zombie(tcb_t *thread_zombie) {
-    return list_append(&zombie_list, (void *)thread_zombie);
+    mutex_lock(&zombie_list_lock);
+    int rv = simple_queue_enqueue(&zombie_list,thread_zombie->zombie_list_node);
+    mutex_unlock(&zombie_list_lock);
+    return rv;
 }
 
 /** @brief Allocate a system wide stack devoted to vanish
@@ -378,8 +385,13 @@ int syscall_vanish_init() {
         return -1;
     }
 
-    if(list_init(&zombie_list) < 0) {
-        lprintf("list_init failed");
+    if(simple_queue_init(&zombie_list) < 0) {
+        lprintf("simple_queue_init failed");
+        return -1;
+    }
+
+    if (mutex_init(&zombie_list_lock) < 0) {
+        lprintf("mutex init failed");
         return -1;
     }
 
@@ -436,17 +448,14 @@ void vanish_syscall_handler(int is_kernel_kill) {
         panic("This task's pcb is NULL");
     }
 
-
-    //*******************Need to lock this operation
     // One less thread in current task
     int cur_thr_num = atomic_add(&this_task->cur_thr_num, -1);
 
-    // If this task has more than one thread left, do not report
-    // exit status, proceed directly to remove resources used by this thread
-    // int is_only_thread_in_task = 0;
+    // If this task has more than one thread left, do not report exit status 
+    // and free task's resources. Just free resources used by this thread
     if(cur_thr_num == 0) {
-        // The thread to vanish is the last thread in the task, will remove
-        // resources used by this task
+        // The thread to vanish is the last thread in the task, will report 
+        // exit status to its father and free resources used by this task
 
         if(is_kernel_kill) {
             // The thread is killed by the kernel
@@ -454,13 +463,9 @@ void vanish_syscall_handler(int is_kernel_kill) {
             set_status_syscall_handler(-2);
         }
 
-        // Assume task idle(pid 0), shouldn't vanish
-        // The thread to vanish is the last thread in the task, will report 
-        // exit status to its father and remove resources used by this task
+        // Assume task init shouldn't vanish and this task isn't the task init
 
-        // *****************Assume now this task isn't the task init
-
-        // ======== Report exit status to its father or init task ===========
+        // ====== Start report exit status to its parent or init task =========
 
         // Get hashtable's lock
         mutex_lock(&ht_pid_pcb_lock);
@@ -471,11 +476,10 @@ void vanish_syscall_handler(int is_kernel_kill) {
             // Parent is dead 
             lprintf("parent %d is dead", this_task->ppid);
             // Report to init task
-            // Assume init task is not dead**************
             parent_task = init_task;
         }
 
-        // Get pcb's task_wait lock
+        // Get parent task's task_wait lock
         task_wait_t *task_wait = &parent_task->task_wait_struct;
         mutex_lock(&task_wait->lock);
         // Release hashtable's lock
@@ -485,12 +489,10 @@ void vanish_syscall_handler(int is_kernel_kill) {
         simple_queue_enqueue(&parent_task->child_exit_status_list, 
                                                    this_task->exit_status_node);
 
-        // Make runnable a thread that's block on wait if there's any
-        //task_wait_t *task_wait = &parent_task->task_wait_struct;
-        //mutex_lock(&task_wait->lock);
         task_wait->num_zombie++;
         task_wait->num_alive--;
 
+        // Make runnable a parent task's thread that is blocked on wait() if any
         simple_node_t* node = simple_queue_dequeue(&task_wait->wait_queue);
         tcb_t *wait_thr;
         if(node != NULL) {
@@ -500,7 +502,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         } else {
             mutex_unlock(&task_wait->lock);
         }
-
+        // ======= End report exit status to its parent or init task ===========
 
         // Free resources (page table, hash table entry and pcb) for this task
         uint32_t old_pd = this_task->page_table_base;
@@ -536,7 +538,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
         // Now nobody can alter resources in current task's pcb except itself
 
         // Report unreaped children's status to task init
-        // Assume init task's alive ***************
         task_wait_t *init_task_wait = &init_task->task_wait_struct;
         mutex_lock(&init_task_wait->lock);
 
@@ -571,10 +572,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
     // Add self to system wide zombie list, let next thread in scheduler's 
     // queue run.
-    if(put_next_zombie(this_thr) < 0) {
-        lprintf("put_next_zombie failed");
-        MAGIC_BREAK;
-    }
+    put_next_zombie(this_thr);
 
     context_switch(3, 0);
 
@@ -587,16 +585,12 @@ void vanish_syscall_handler(int is_kernel_kill) {
  *
  * @param thread The thread to release resources
  *
- * @return 0 on success; A negative integer on error
+ * @return Void
  *
  */
-int vanish_wipe_thread(tcb_t *thread) {
-
+void vanish_wipe_thread(tcb_t *thread) {
     // Free thread resource: tcb, kernel stack
     tcb_free_thread(thread);
-
-    return 0;
-
 }
 
 /*************************** Wait *************************/
