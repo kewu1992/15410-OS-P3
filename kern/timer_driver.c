@@ -16,8 +16,6 @@
 #include <simics.h>
 #include <control_block.h>
 
-#define NULL 0
-
 /** @brief Function pointer points to callback function of timer */
 static void* (*callback)(unsigned int);
 

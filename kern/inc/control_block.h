@@ -5,6 +5,7 @@
 #include <simple_queue.h>
 #include <ureg.h>
 #include <mutex.h>
+#include <vm.h>
 
 /** @brief The lowest 13 bits of kernel memory are within the same k-stack */
 #define K_STACK_BITS    13
@@ -52,6 +53,8 @@ typedef struct pcb_t {
     int cur_thr_num;
 
     task_wait_t task_wait_struct;
+
+    mutex_t pt_locks[NUM_PT_LOCKS_PER_PD];
 
 } pcb_t;
 

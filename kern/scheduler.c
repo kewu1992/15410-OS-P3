@@ -4,7 +4,6 @@
 #include <cr.h>
 #include <simics.h>
 
-#define NULL 0
 
 
 

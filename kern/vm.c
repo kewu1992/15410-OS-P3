@@ -10,6 +10,8 @@
 #include <vm.h>
 #include <pm.h>
 #include <list.h>
+#include <control_block.h>
+#include <asm_helper.h>
 
 
 /** @brief Invalidate a page table entry in TLB to force consulting 
@@ -187,14 +189,40 @@ static int remove_region(uint32_t va) {
     int is_first_page = 1;
     int is_finished = 0;
 
+    int pt_lock_index = -1;;
+
+    // Get page table lock of current task
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    if(this_thr == NULL) {
+        panic("tcb is NULL");
+    }
+    pcb_t *this_task = this_thr->pcb;
+    if(this_task == NULL) {
+        panic("This task's pcb is NULL");
+    }
+    mutex_t *pt_locks = this_task->pt_locks;
+
     while(!is_finished) {
         uint32_t pd_index = GET_PD_INDEX(page);
+
+        int cur_pt_lock_index = pd_index/NUM_PT_PER_LOCK;
+        if(cur_pt_lock_index != pt_lock_index) {
+            if(pt_lock_index != -1) {
+                // Not the first time
+                mutex_unlock(&pt_locks[pt_lock_index]);
+            }
+            pt_lock_index = cur_pt_lock_index;
+            // Get next lock
+            mutex_lock(&pt_locks[pt_lock_index]);
+        }
+
         pde_t *pde = &(pd->pde[pd_index]);
 
         // Check page directory entry presence
         if(!IS_SET(*pde, PG_P)) {
             // Not present
             lprintf("pde not present, page: %x", (unsigned)page);
+            mutex_unlock(&pt_locks[pt_lock_index]);
             return ERROR_BASE_NOT_PREV;
         }
 
@@ -206,6 +234,7 @@ static int remove_region(uint32_t va) {
         if(!IS_SET(*pte, PG_P)) {
             // Not present
             lprintf("pte not present, page: %x", (unsigned)page);
+            mutex_unlock(&pt_locks[pt_lock_index]);
             return ERROR_BASE_NOT_PREV;
         }
 
@@ -215,6 +244,7 @@ static int remove_region(uint32_t va) {
             if(!IS_SET(*pte, PG_NEW_PAGES_START)) {
                 lprintf("Page 0x%x isn't the base of a previous new_pages call",
                         (unsigned)page);
+                mutex_unlock(&pt_locks[pt_lock_index]);
                 return ERROR_BASE_NOT_PREV;
             } else {
                 is_first_page = 0;
@@ -239,6 +269,7 @@ static int remove_region(uint32_t va) {
         page += PAGE_SIZE;
     }
 
+    mutex_unlock(&pt_locks[pt_lock_index]);
     return 0;
 }
 
@@ -275,6 +306,22 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
 
     pd_t *pd = (pd_t *)get_cr3();
     uint32_t pd_index = GET_PD_INDEX(page);
+
+    // Get page table lock of current task
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    if(this_thr == NULL) {
+        panic("tcb is NULL");
+    }
+    pcb_t *this_task = this_thr->pcb;
+    if(this_task == NULL) {
+        panic("This task's pcb is NULL");
+    }
+    mutex_t *pt_locks = this_task->pt_locks;
+
+    // Acquire lock first
+    int pt_lock_index = pd_index/NUM_PT_PER_LOCK;
+    mutex_lock(&pt_locks[pt_lock_index]);
+
     pde_t *pde = &(pd->pde[pd_index]);
 
     // Check page directory entry presence
@@ -291,6 +338,7 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
 
             // The page is not marked ZFOD
             if(!IS_SET(*pte, PG_ZFOD)) {
+                mutex_unlock(&pt_locks[pt_lock_index]);
                 return 0;
             }
 
@@ -303,6 +351,7 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
             uint32_t new_f = get_frames_raw();
             if(new_f == ERROR_NOT_ENOUGH_MEM) {
                 lprintf("get_frames_raw failed in is_page_ZFOD");
+                mutex_unlock(&pt_locks[pt_lock_index]);
                 MAGIC_BREAK;
             }
 
@@ -315,10 +364,12 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
             // Clear new frame
             memset((void *)page, 0, PAGE_SIZE);
 
+            mutex_unlock(&pt_locks[pt_lock_index]);
             return 1;
         }
     }
 
+    mutex_unlock(&pt_locks[pt_lock_index]);
     return 0;
 
 }
@@ -411,9 +462,6 @@ int init_vm() {
 
     // Init buddy system to track frames in user address space
     int ret = init_pm();
-
-    //test_frames();
-    //test_vm();
 
     lprintf("Paging is enabled!");
 
@@ -627,22 +675,56 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
     // Enable mapping from the page where the first byte of region
     // is in, to the one where the last byte of the region is in
 
-    // Need to traverse new_region first to know how many new frames
+    // Need to traverse new region first to know how many new frames
     // are needed, because some part of the region may already have
     // been allocated.
-    int num_pages_allocated = count_pages_allocated(va, size_bytes);
+
 
     uint32_t page_lowest = va & PAGE_ALIGN_MASK;
     uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
         PAGE_ALIGN_MASK;
 
+    // Acquire locks for page tables covered by region first
+    // Get page table index range in page diretory
+    uint32_t page_lowest_pd_index = GET_PD_INDEX(page_lowest);
+    uint32_t page_highest_pd_index = GET_PD_INDEX(page_highest);
+
+    // The lock index for the lowest page table that region is in
+    // For example, if NUM_PT_PER_LOCK is 8, then page table 0 - 7
+    // has lock index 0, page table 8 - 15 has lock index 1
+    int lowest_pt_lock_index = page_lowest_pd_index/NUM_PT_PER_LOCK;
+    int highest_pt_lock_index = page_highest_pd_index/NUM_PT_PER_LOCK;
+    int num_pt_lock = highest_pt_lock_index - lowest_pt_lock_index + 1;
+
+    // Get page table lock of current task
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    if(this_thr == NULL) {
+        panic("tcb is NULL");
+    }
+    pcb_t *this_task = this_thr->pcb;
+    if(this_task == NULL) {
+        panic("This task's pcb is NULL");
+    }
+    mutex_t *pt_locks = this_task->pt_locks;
+
+    int i;
+    for(i = lowest_pt_lock_index; i < num_pt_lock; i++) {
+        mutex_lock(&pt_locks[i]);
+    }
+
+    int num_pages_allocated = count_pages_allocated(va, size_bytes);
+
     // Number of pages in the region
     int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
-    int i;
 
     if(num_pages_allocated > 0) {
         if(is_new_pages_syscall) {
             // Some pages have already been allocated in this address space
+
+            for(i = highest_pt_lock_index; i >= lowest_pt_lock_index; i--) {
+                mutex_unlock(&pt_locks[i]);
+            }
+
             return ERROR_OVERLAP;
         }
     }
@@ -650,6 +732,10 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
     // Reserve how many frames will be used in the worst case in the future 
     // including the case where ZFOD pages are actually requested in the future
     if(reserve_frames(count - num_pages_allocated) == -1) {
+        for(i = highest_pt_lock_index; i >= lowest_pt_lock_index; i--) {
+            mutex_unlock(&pt_locks[i]);
+        }
+
         return -1;
     }
 
@@ -667,6 +753,9 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
             if(new_pt == NULL) {
                 lprintf("smemalign failed");
+                for(i = highest_pt_lock_index; i >= lowest_pt_lock_index; i--) {
+                    mutex_unlock(&pt_locks[i]);
+                }
                 return ERROR_MALLOC_LIB;
             }
             // Clear
@@ -740,6 +829,10 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
         }
 
         page += PAGE_SIZE;
+    }
+
+    for(i = highest_pt_lock_index; i >= lowest_pt_lock_index; i--) {
+        mutex_unlock(&pt_locks[i]);
     }
 
     return 0;
@@ -856,6 +949,34 @@ int check_mem_validness(char *va, int max_bytes, int is_check_null,
     pd_t *pd = (pd_t *)get_cr3();
 
     uint32_t current_byte = (uint32_t)va;
+
+    // Get page table lock of current task
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    if(this_thr == NULL) {
+        panic("tcb is NULL");
+    }
+    pcb_t *this_task = this_thr->pcb;
+    if(this_task == NULL) {
+        panic("This task's pcb is NULL");
+    }
+    mutex_t *pt_locks = this_task->pt_locks;
+
+    // Acquire locks for page tables covered by region first
+    // Get page table index range in page diretory
+    uint32_t page_lowest_pd_index = GET_PD_INDEX(page_lowest);
+    uint32_t page_highest_pd_index = GET_PD_INDEX(page_highest);
+
+    // The lock index for the lowest page table that region is in
+    // For example, if NUM_PT_PER_LOCK is 8, then page table 0 - 7
+    // has lock index 0, page table 8 - 15 has lock index 1
+    int lowest_pt_lock_index = page_lowest_pd_index/NUM_PT_PER_LOCK;
+    int highest_pt_lock_index = page_highest_pd_index/NUM_PT_PER_LOCK;
+    int num_pt_lock = highest_pt_lock_index - lowest_pt_lock_index + 1;
+    for(i = lowest_pt_lock_index; i < num_pt_lock; i++) {
+        mutex_lock(&pt_locks[i]);
+    }
+
+    int ret = 0;
     for(i = 0; i < count; i++) {
         uint32_t pd_index = GET_PD_INDEX(page);
         pde_t *pde = &(pd->pde[pd_index]);
@@ -874,11 +995,12 @@ int check_mem_validness(char *va, int max_bytes, int is_check_null,
                 if(is_check_null) {
                     while((current_byte & PAGE_ALIGN_MASK) == page) {
                         if(*((char *)current_byte) == '\0') {
-                            return 0;
+                            break;
                         }
 
                         if(current_byte == last_byte) {
-                            return ERROR_NOT_NULL_TERM;
+                            ret = ERROR_NOT_NULL_TERM;
+                            break;
                         }
 
                         current_byte++;
@@ -891,24 +1013,29 @@ int check_mem_validness(char *va, int max_bytes, int is_check_null,
                         uint32_t error_code = 0;
                         if(!is_page_ZFOD(page, error_code, 
                                     need_check_error_code)) {
-                            return ERROR_READ_ONLY;
+                            ret = ERROR_READ_ONLY;
+                            break;
                         }
                     }
                 }
             } else {
                 // Page table entry not present
-                return ERROR_PAGE_NOT_ALLOC;
+                ret = ERROR_PAGE_NOT_ALLOC;
+                break;
             }
         } else {
             // Page directory entry not present
-            return ERROR_PAGE_NOT_ALLOC;
+            ret = ERROR_PAGE_NOT_ALLOC;
+            break;
         }
 
         page += PAGE_SIZE;
     }
 
-    // Return valid
-    return 0;
+    for(i = highest_pt_lock_index; i >= lowest_pt_lock_index; i--) {
+        mutex_unlock(&pt_locks[i]);
+    }
+    return ret;
 }
 
 

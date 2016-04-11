@@ -111,8 +111,28 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
     // Initially 0 zombie child task
     task_wait->num_zombie = 0;
 
+    // Init page table lock
+    int i;
+    for(i = 0; i < NUM_PT_LOCKS_PER_PD; i++) {
+        if(mutex_init(&process->pt_locks[i]) < 0) {
+            lprintf("mutex init failed");
+            simple_queue_destroy(&task_wait->wait_queue);
+            simple_queue_destroy(&process->child_exit_status_list);
+            free(process->exit_status);
+            free(process->exit_status_node);
+            mutex_destroy(&task_wait->lock);
+            int j;
+            for(j = 0; j < i - 1; j++) {
+                mutex_destroy(&process->pt_locks[j]);
+            }
+            free(process);
+            return NULL;
+        }
+    }
+
     // Put pid to pcb mapping in hashtable
     ht_put_task(process->pid, process);
+
 
     // must be last step
     thread->pcb = process;
@@ -215,6 +235,13 @@ void tcb_free_process(pcb_t *process) {
     mutex_destroy(&process->task_wait_struct.lock);
     simple_queue_destroy(&process->task_wait_struct.wait_queue);
     simple_queue_destroy(&process->child_exit_status_list);
+
+    // destroy page table lock
+    int i;
+    for(i = 0; i < NUM_PT_LOCKS_PER_PD; i++) {
+        mutex_destroy(&process->pt_locks[i]);
+    }
+
     free(process);
 }
 
