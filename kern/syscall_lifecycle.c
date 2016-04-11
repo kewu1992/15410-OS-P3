@@ -459,6 +459,10 @@ void vanish_syscall_handler(int is_kernel_kill) {
         panic("This task's pcb is NULL");
     }
 
+    // Set init as the thread's temporary task
+    this_thr->pcb = init_task;
+    // Use init task's page table until death
+    set_cr3(init_task->page_table_base);
     // One less thread in current task
     int cur_thr_num = atomic_add(&this_task->cur_thr_num, -1);
 
@@ -471,7 +475,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         if(is_kernel_kill) {
             // The thread is killed by the kernel
             // set_status(-2) first
-            set_status_syscall_handler(-2);
+            this_task->exit_status->status = -2;
         }
 
         // Assume task init shouldn't vanish and this task isn't the task init
@@ -517,10 +521,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
         // Free resources (page table, hash table entry and pcb) for this task
         uint32_t old_pd = this_task->page_table_base;
-
-        // Use init task's page table until death
-        this_task->page_table_base = init_task->page_table_base;
-        set_cr3(init_task->page_table_base);
 
         // Free old address space
         free_entire_space(old_pd);
@@ -571,9 +571,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
         }
 
         // Delete resources in pcb and free pcb
-        // Set init as the thread's temporary task
-        this_thr->pcb = init_task;
-        // Free resources in pcb
         tcb_free_process(this_task);
     }
 
