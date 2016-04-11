@@ -120,12 +120,14 @@ void loadFirstTask(const char *filename) {
     // set idle thread as NULL (will reset if the first thread is idle)
     idle_thr = NULL;
 
-    load_kernel_stack(thread->k_stack_esp, usr_esp, my_program, strcmp(filename, "idle") == 0);
+    load_kernel_stack(thread->k_stack_esp, usr_esp, my_program, 
+                                                strcmp(filename, "idle") == 0);
 
     // should never reach here
 }
 
-int loadTask(const char *filename, int argc, const char **argv, void** usr_esp, void** my_program) {
+int loadTask(const char *filename, int argc, const char **argv, 
+                                            void** usr_esp, void** my_program) {
 
     if (!is_file_exist(filename))
         return ENOENT;
@@ -188,7 +190,7 @@ int loadTask(const char *filename, int argc, const char **argv, void** usr_esp, 
     // calculate pages needed initially
     int page_num = len / PAGE_SIZE + 1;
     // allocate page
-    new_region(MAX_ADDR - page_num * PAGE_SIZE, page_num * PAGE_SIZE, 1, 0, 0);
+    new_region(MAX_ADDR - page_num * PAGE_SIZE + 1, page_num * PAGE_SIZE, 1, 0, 0);
 
     // put argv[]
     int arg_len;
@@ -213,8 +215,8 @@ int loadTask(const char *filename, int argc, const char **argv, void** usr_esp, 
 
     // set user stack for _main()
     void* user_esp = (void*)addr;
-    // push stack_low
-    user_esp = push_to_stack(user_esp, MAX_ADDR - page_num * PAGE_SIZE);
+    // push stack_low ??? DO WE NEED TO +1?
+    user_esp = push_to_stack(user_esp, MAX_ADDR - page_num * PAGE_SIZE + 1);
     // push stack_high
     user_esp = push_to_stack(user_esp, MAX_ADDR);
     // push argv
@@ -228,7 +230,8 @@ int loadTask(const char *filename, int argc, const char **argv, void** usr_esp, 
     return 0;
 }
 
-void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, int is_idle) {
+void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, 
+                                                                int is_idle) {
     //set esp0
     set_esp0((uint32_t)(k_stack_esp));
 
@@ -286,7 +289,8 @@ void* push_to_stack(void *esp, uint32_t value) {
         // load task
         void *my_program, *usr_esp;
         int rv;
-        if ((rv = loadTask(my_execname, 1, (const char**)argv, &usr_esp, &my_program)) < 0) {
+        if ((rv = loadTask(my_execname, 1, (const char**)argv, &usr_esp, 
+                                                            &my_program)) < 0) {
             panic("load init failed");
         }
 
