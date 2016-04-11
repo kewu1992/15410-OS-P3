@@ -37,8 +37,6 @@
 
 #include <seg_tree.h>
 
-#include <syscall_errors.h>
-
 #include <asm_atomic.h>
 
 #include <mutex.h>
@@ -76,7 +74,7 @@ uint32_t get_frames_raw() {
     mutex_unlock(&lock);
 
     if((int)index == NAN) {
-        return ENOMEM;
+        return ERROR_NOT_ENOUGH_MEM;
     }
 
     return USER_MEM_START + index * PAGE_SIZE;
