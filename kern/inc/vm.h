@@ -97,6 +97,16 @@ typedef struct {
 #define ERROR_PAGE_NOT_ALLOC (-9)
 #define ERROR_BASE_NOT_PREV (-1)
 
+/** @brief Num of page tables per lock, if it's 8, then every consecutive 
+  * page tables share a lock 
+  */
+#define NUM_PT_PER_LOCK 8
+/** @brief Num of locks per page directory, if NUM_PT_PER_LOCK is 8, and 
+  * there are 1024 entries in a page table, then there're 128 locks for
+  * a page directory.
+  */
+#define NUM_PT_LOCKS_PER_PD (ENTRY_SIZE/NUM_PT_PER_LOCK)
+
 
 int init_vm();
 uint32_t create_pd();
@@ -112,7 +122,7 @@ int check_mem_validness(char *va, int max_bytes, int is_check_null,
 int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code);
 
 // The followings are for debugging, will remove later
-void test_vm();
+// void test_vm();
 
 #endif
 
