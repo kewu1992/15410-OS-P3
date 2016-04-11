@@ -96,7 +96,8 @@ int readline_syscall_handler(int len, char *buf) {
 
             break;
         } else {
-            putbyte((char)ch);
+            if (!((char)ch == '\b' && reading_count == 0))
+                putbyte((char)ch);
             spinlock_unlock(&reading_lock);
             
             if ((char)ch == '\b')
@@ -120,7 +121,8 @@ int readline_syscall_handler(int len, char *buf) {
 // should only be called by keyboard interrupt, so this function call 
 // will not be interrupted
 void* resume_reading_thr(char ch) {
-    putbyte(ch);
+    if (!(ch == '\b' && reading_count == 0))
+        putbyte(ch);
     if (ch == '\b')
         reading_count = (reading_count == 0) ? 0 : (reading_count - 1);
     else{

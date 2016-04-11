@@ -29,7 +29,7 @@ int main() {
     int ret;
     ret = exec(program, args);
     if(ret < 0) {
-        lprintf("test program == NULL");
+        lprintf("test program == NULL:%d",ret);
     }
 
     char buf[EXEC_MAX_ARG_SIZE*2];
@@ -38,22 +38,27 @@ int main() {
     args[0] = program;
     ret = exec(program, args);
     if(ret < 0) {
-        lprintf("test program not NULL terminated");
+        lprintf("test program not NULL terminated:%d",ret);
     }
 
     program = "\0";
     args[0] = program;
     ret = exec(program, args);
     if(ret < 0) {
-        lprintf("test program empty string");
+        lprintf("test program empty string:%d",ret);
     }
 
     program = "peon";
     ret = exec(program, args);
     if(ret < 0) {
-        lprintf("test args[0] different than pragram");
+        lprintf("test args[0] different than pragram:%d",ret);
     }
 
+    program = "peon";
+    ret = exec(program, (char**)0xdeadbeef);
+    if(ret < 0) {
+        lprintf("test args invalid memory:%d",ret);
+    }
 
     program = "peon";
     char *args2[2 * EXEC_MAX_ARGC];
@@ -61,7 +66,28 @@ int main() {
     args2[0] = program;
     ret = exec(program, args2);
     if(ret < 0) {
-        lprintf("test args not NUll terminated");
+        lprintf("test args[] invalid memory:%d",ret);
+    }
+
+
+    program = "peon";
+    args2[0] = program;
+    int i = 0;
+    char *tmp = "abc";
+    for (i = 1; i < 2 * EXEC_MAX_ARGC; i++)
+        args2[i] = tmp;
+    ret = exec(program, args2);
+    if(ret < 0) {
+        lprintf("test args too long args:%d",ret);
+    }
+
+    program = "peon";
+    args2[0] = program;
+    for (i = 1; i < 2 * EXEC_MAX_ARGC; i++)
+        args2[i] = buf;
+    ret = exec(program, args2);
+    if(ret < 0) {
+        lprintf("test args not NULL terminated:%d",ret);
     }
 
     MAGIC_BREAK;
