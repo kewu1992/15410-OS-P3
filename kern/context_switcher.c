@@ -263,6 +263,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->result = new_thr->tid;
                 new_thr->result = 0;
                 atomic_add(&this_thr->pcb->cur_thr_num, 1);
+                lprintf("process %d get a new thread %d", this_thr->pcb->pid, new_thr->tid);
             } else {
                 // thread fork error
                 lprintf("internal_thread_fork() failed");

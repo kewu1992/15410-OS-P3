@@ -46,7 +46,6 @@
  *          in which case no new task has been created.
  */
 int fork_syscall_handler() {
-    lprintf("fork called");
     context_switch(1, 0);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
@@ -70,7 +69,6 @@ int fork_syscall_handler() {
  *          new thread has been created.
  */
 int thread_fork_syscall_handler() {
-    lprintf("thread fork called");
     context_switch(2, 0);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
