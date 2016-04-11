@@ -1,5 +1,6 @@
 #include <simics.h>
 #include <vm.h>
+#include <syscall_errors.h>
 
 /** @brief System call handler for new_pages()
  *

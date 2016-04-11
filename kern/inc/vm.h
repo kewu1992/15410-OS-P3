@@ -85,17 +85,15 @@ typedef struct {
 
 /*********** Memory error types ***********/
 #define ERROR_MALLOC_LIB (-1)
-#define ERROR_NOT_ENOUGH_MEM 3
-#define ERROR_INSUF_RESOURCE (-1)
-#define ERROR_BASE_NOT_ALIGNED (-2)
-#define ERROR_LEN (-3)
-#define ERROR_OVERLAP (-4)
-#define ERROR_KERNEL_SPACE (-5)
-#define ERROR_UNKNOWN (-6)
+#define ERROR_NOT_ENOUGH_MEM (-2)
+#define ERROR_BASE_NOT_ALIGNED (-3)
+#define ERROR_LEN (-4)
+#define ERROR_OVERLAP (-5)
+#define ERROR_KERNEL_SPACE (-6)
 #define ERROR_READ_ONLY (-7)
 #define ERROR_NOT_NULL_TERM (-8)
 #define ERROR_PAGE_NOT_ALLOC (-9)
-#define ERROR_BASE_NOT_PREV (-1)
+#define ERROR_BASE_NOT_PREV (-10)
 
 /** @brief Num of page tables per lock, if it's 8, then every consecutive 
   * page tables share a lock 
