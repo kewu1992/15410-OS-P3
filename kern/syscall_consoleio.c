@@ -42,7 +42,20 @@ int syscall_read_init() {
     return 0;   
 }
 
-
+/** @brief System call handler for print()
+ *
+ *  This function will be invoked by print_wrapper().
+ *
+ *  Prints len bytes of memory, starting at buf, to the console. The calling 
+ *  thread should not continue until all characters have been printed to the 
+ *  console. Output of two concurrent print()s should not be intermixed.
+ *
+ *  @param base The starting address of bytes to be printed
+ *  @param len The length of bytes to be printed
+ *
+ *  @return On success, return zero.
+ *          On error, return an integer error code less than zero.
+ */
 int print_syscall_handler(int len, char *buf) {
 
     // Start argument check
@@ -50,7 +63,7 @@ int print_syscall_handler(int len, char *buf) {
     int need_writable = 0;
     int max_len = len;
     if(check_mem_validness(buf, max_len, is_check_null, need_writable) < 0) {
-        return -1;
+        return EFAULT;
     }
     // Finish argument check
 
@@ -61,27 +74,33 @@ int print_syscall_handler(int len, char *buf) {
     return 0;
 }
 
-/** @brief System call handler for new_pages()
+/** @brief System call handler for readline()
  *
- *  This function will be invoked by new_pages_wrapper().
+ *  This function will be invoked by readline_wrapper().
  *
- *  Allocates new memory to the invoking task, starting at base and extending 
- *  for len bytes.
+ *  Reads the next line from the console and copies it into the buffer pointed 
+ *  to by buf.
+ *  If there is no line of input currently available, the calling thread is 
+ *  descheduled until one is. If some other thread is descheduled on a 
+ *  readline() or a getchar(), then the calling thread must block and wait its 
+ *  turn to access the input stream. The length of the buffer is indicated by 
+ *  len. If the line is smaller than the buffer, then the complete line 
+ *  including the newline character is copied into the buffer. If the length of 
+ *  the line exceeds the length of the buffer, only len characters should be 
+ *  copied into buf. Available characters should not be committed into buf until
+ *  there is a newline character available, so the user has a chance to 
+ *  backspace over typing mistakes.
+ *  Characters that will be consumed by a readline() should be echoed to the 
+ *  console as soon as possible. If there is no outstanding call to readline() 
+ *  no characters should be echoed. Echoed user input may be interleaved with 
+ *  output due to calls to print(). Characters not placed in the buffer should 
+ *  remain available for other calls to readline() and/or getchar(). 
  *
- *  @param base The starting address for new pages, it should be page-aligned
- *  @param len The length of bytes to be allocated, it should be multiple of
- *             the system page size.
+ *  @param len The maximum length of buffer
+ *  @param len The buffer to store input data.
  *
- *  @return On success, return zero.
- *          On error, returning a negative integer error code.
- *          1) If base is not page-aligned or if len is not a positive integral 
- *             multiple of the system page size, EINVAL will be returned.
- *          2) If any portion of the region represents memory already in the 
- *             task’s address space, EALLOCATED will be returned.
- *          3) If any portion of the region intersects a part of the address 
- *             space reserved by the kernel, EFAULT will be returned.
- *          4) If the operating system has insufficient resources to satisfy the
- *             request, ENOMEM will be returned. 
+ *  @return On success, returns the number of bytes copied into the buffer. 
+ *          On error, returning an integer error code less than zero.
  */
 int readline_syscall_handler(int len, char *buf) {
 
