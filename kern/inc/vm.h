@@ -92,9 +92,10 @@ typedef struct {
 #define ERROR_OVERLAP (-4)
 #define ERROR_KERNEL_SPACE (-5)
 #define ERROR_UNKNOWN (-6)
+#define ERROR_READ_ONLY (-7)
+#define ERROR_NOT_NULL_TERM (-8)
+#define ERROR_PAGE_NOT_ALLOC (-9)
 #define ERROR_BASE_NOT_PREV (-1)
-
-
 
 
 int init_vm();
@@ -106,11 +107,9 @@ void free_space(uint32_t pd_base, int is_kernel_space);
 void free_entire_space(uint32_t pd_base);
 int new_pages(void *base, int len);
 int remove_pages(void *base);
-int is_mem_valid(char *va, int max_bytes, int is_check_null, int need_writable);
+int check_mem_validness(char *va, int max_bytes, int is_check_null, 
+        int need_writable);
 int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code);
-
-
-
 
 // The followings are for debugging, will remove later
 void test_vm();
