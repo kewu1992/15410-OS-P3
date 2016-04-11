@@ -105,7 +105,7 @@ typedef struct {
   * there are 1024 entries in a page table, then there're 128 locks for
   * a page directory.
   */
-#define NUM_PT_LOCKS_PER_PD (ENTRY_SIZE/NUM_PT_PER_LOCK)
+#define NUM_PT_LOCKS_PER_PD (PAGE_SIZE/ENTRY_SIZE/NUM_PT_PER_LOCK)
 
 
 int init_vm();
