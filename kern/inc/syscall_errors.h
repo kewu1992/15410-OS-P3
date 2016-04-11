@@ -8,3 +8,4 @@
 #define ENAMETOOLONG    -36         /* File name too long */
 #define EMORETHR        -256        /* More than one thread */
 #define ETHREAD         -257        /* No such thread */
+#define EALLOCATED      -258        /* Memory address already allocated */
