@@ -759,6 +759,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
  * @return 0 on success; negative integer on error
  */
 int new_pages(void *base, int len) {
+    
 
     // if base is not aligned
     if((uint32_t)base % PAGE_SIZE != 0) {
@@ -771,7 +772,7 @@ int new_pages(void *base, int len) {
     }
 
     // Region will overflow address space
-    if(UINT32_MAX - (uint32_t)base < len) {
+    if(UINT32_MAX - (uint32_t)base + 1 < len) {
         return ERROR_LEN;
     }
 
@@ -783,6 +784,9 @@ int new_pages(void *base, int len) {
 
     // Allocate pages of read-write permission
     int ret = new_region((uint32_t)base, len, 1, TRUE, TRUE);    
+
+    lprintf("new_pages called, base: %x, len: %d, ret: %d", (unsigned)base, 
+            len, ret);
     return ret;
 
 }
@@ -805,7 +809,6 @@ int remove_pages(void *base) {
 }
 
 
-
 /** @brief Check user space memory validness
  *
  *  Can check if region are allocated, NULL terminated, writable
@@ -817,43 +820,42 @@ int remove_pages(void *base) {
  *  before max_bytes are checked
  *  @param need_writable If 1, check if the region is writable
  *
- *  @return 1 if true; 0 if false 
+ *  @return 0 if valid; a negative integer if invalid:
+ *  ERROR_KERNEL_SPACE, ERROR_LEN, ERROR_NOT_NULL_TERM, ERROR_READ_ONLY,
+ *  ERROR_PAGE_NOT_ALLOC
  *
- *  NEED a new interface for return value: 
- *              1      for valid
- *              EFAULT for invalid memory address
- *              E2BIG  for valid memory but not NULL terminated
- *             -3 for ???
- *
- * ****************
- * is_check_null is not compatibility with Region overflow check!
- * ****************
  */
-int is_mem_valid(char *va, int max_bytes, int is_check_null, 
+int check_mem_validness(char *va, int max_bytes, int is_check_null, 
         int need_writable) {
-
-    /*
-    // Region will overflow address space
-    if(UINT32_MAX - (uint32_t)va < max_bytes) {
-        return -1;
-    }
-    */
 
     // Reference kernel memory
     if((uint32_t)va < USER_MEM_START) {
-        return 0;
+        return ERROR_KERNEL_SPACE;
+    }
+
+    if(max_bytes < 0) {
+        return ERROR_LEN;
+    }
+
+    uint32_t last_byte = (uint32_t)va + max_bytes - 1;
+    if(!is_check_null) {
+        if(last_byte < max_bytes) {
+            // Len not valid
+            return ERROR_LEN;
+        }
+    } else {
+        last_byte = (last_byte < max_bytes) ? UINT32_MAX : last_byte;
     }
 
     uint32_t page_lowest = (uint32_t)va & PAGE_ALIGN_MASK;
-    uint32_t page_highest = ((int32_t)va + (uint32_t)max_bytes - 1) &
-        PAGE_ALIGN_MASK;
+    uint32_t page_highest = last_byte & PAGE_ALIGN_MASK;
     int count = 1 + (page_highest - page_lowest) / PAGE_SIZE;
     int i;
 
     uint32_t page = page_lowest;
     pd_t *pd = (pd_t *)get_cr3();
 
-    int bytes_checked = 0;
+    uint32_t current_byte = (uint32_t)va;
     for(i = 0; i < count; i++) {
         uint32_t pd_index = GET_PD_INDEX(page);
         pde_t *pde = &(pd->pde[pd_index]);
@@ -868,47 +870,45 @@ int is_mem_valid(char *va, int max_bytes, int is_check_null,
             pte_t *pte = &(pt->pte[pt_index]);
 
             if(IS_SET(*pte, PG_P)) {
-                // Present
-
+                // Page table is present
                 if(is_check_null) {
-
-                    while(((uint32_t)(va + bytes_checked) & PAGE_ALIGN_MASK) 
-                            == page) {
-
-                        if(bytes_checked == max_bytes) {
+                    while((current_byte & PAGE_ALIGN_MASK) == page) {
+                        if(va[current_byte] == '\0') {
                             return 0;
                         }
 
-                        if(va[bytes_checked++] == '\0') {
-                            return 1;
+                        if(current_byte == last_byte) {
+                            return ERROR_NOT_NULL_TERM;
                         }
+
+                        current_byte++;
                     }
                 } else if(need_writable) {
                     if(!IS_SET(*pte, PG_RW)) {
                         // Page is read-only
                         // If it's marked ZFOD, then it's valid
                         int need_check_error_code = 0;
-                        if(!is_page_ZFOD(page, 0, need_check_error_code)) {
-                            return 0;
+                        uint32_t error_code = 0;
+                        if(!is_page_ZFOD(page, error_code, 
+                                    need_check_error_code)) {
+                            return ERROR_READ_ONLY;
                         }
                     }
                 }
             } else {
                 // Page table entry not present
-                // Return not valid
-                return 0;
+                return ERROR_PAGE_NOT_ALLOC;
             }
         } else {
             // Page directory entry not present
-            // Return not valid
-            return 0;
+            return ERROR_PAGE_NOT_ALLOC;
         }
 
         page += PAGE_SIZE;
     }
 
-    // Return true
-    return 1;
+    // Return valid
+    return 0;
 }
 
 
