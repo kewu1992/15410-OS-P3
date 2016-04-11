@@ -28,13 +28,13 @@ int new_pages_syscall_handler(void *base, int len) {
     
     //lprintf("new_pages base: %x", (unsigned)base);
     int ret = new_pages(base, len);
-    if (ret == ERROR_BASE_NOT_ALIGNED || ERROR_LEN)
+    if (ret == ERROR_BASE_NOT_ALIGNED || ret == ERROR_LEN)
         ret = EINVAL;
     else if (ret == ERROR_KERNEL_SPACE)
         ret = EFAULT;
     else if (ret == ERROR_OVERLAP)
         ret = EALLOCATED;
-    else if (ret == ERROR_MALLOC_LIB || ERROR_NOT_ENOUGH_MEM)
+    else if (ret == ERROR_MALLOC_LIB || ret == ERROR_NOT_ENOUGH_MEM)
         ret = ENOMEM;
     return ret;
 }

@@ -748,7 +748,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
                 pt_lock_index--;
             }
         }
-        return -1;
+        return ERROR_NOT_ENOUGH_MEM;
     }
 
     uint32_t page = page_lowest;
