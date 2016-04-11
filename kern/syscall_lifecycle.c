@@ -129,11 +129,13 @@ int exec_syscall_handler(char* execname, char **argvec) {
         MAGIC_BREAK;
         return EINVAL;
     } else {
-        int rv = is_mem_valid((char *)execname, max_len, is_check_null, 
+        int rv = check_mem_validness((char *)execname, max_len, is_check_null, 
                               need_writable);
         if (rv < 0) {
-            if (rv == E2BIG)
+            if (rv == ERROR_NOT_NULL_TERM)
                 rv = ENAMETOOLONG;
+            else
+                rv = EFAULT;
             MAGIC_BREAK;
             return rv;
         }
@@ -145,8 +147,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
         // Make sure &argvec[argc] is valid
         is_check_null = 0;
         max_len = sizeof(char *);
-        if(is_mem_valid((char *)(argvec + argc), max_len, is_check_null, 
-                    need_writable) != 1) {
+        if(check_mem_validness((char *)(argvec + argc), max_len, is_check_null, 
+                    need_writable) < 0) {
             MAGIC_BREAK;
             return EFAULT;
         }
@@ -157,9 +159,14 @@ int exec_syscall_handler(char* execname, char **argvec) {
         // Make sure string argvec[argc] is valid and null terminated
         is_check_null = 1;
         max_len = EXEC_MAX_ARG_SIZE;
-        int rv = is_mem_valid((char *)argvec[argc], max_len, is_check_null, 
+        int rv = check_mem_validness((char *)argvec[argc], max_len, is_check_null, 
                     need_writable);
         if(rv < 0) {
+            if (rv == ERROR_NOT_NULL_TERM)
+                rv = E2BIG;
+            else
+                rv = EFAULT;
+
             MAGIC_BREAK;
             return rv;
         }
@@ -620,8 +627,8 @@ int wait_syscall_handler(int *status_ptr) {
     int max_len = sizeof(int);
     int need_writable = 1;
     if(status_ptr != NULL && 
-       is_mem_valid((char *)status_ptr, max_len, is_check_null, 
-                                                         need_writable) != 1) {
+       check_mem_validness((char *)status_ptr, max_len, is_check_null, 
+                                                         need_writable) < 0) {
         return EFAULT;
     }
 

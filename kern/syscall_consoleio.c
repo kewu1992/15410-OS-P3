@@ -48,7 +48,7 @@ int print_syscall_handler(int len, char *buf) {
     int is_check_null = 0;
     int need_writable = 0;
     int max_len = len;
-    if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
+    if(check_mem_validness(buf, max_len, is_check_null, need_writable) < 0) {
         return -1;
     }
     // Finish argument check
@@ -66,7 +66,7 @@ int readline_syscall_handler(int len, char *buf) {
     int is_check_null = 0;
     int max_len = len;
     int need_writable = 1;
-    if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
+    if(check_mem_validness(buf, max_len, is_check_null, need_writable) < 0) {
         return -1;
     }
 
@@ -180,8 +180,8 @@ int get_cursor_pos_syscall_handler(int *row, int *col) {
     int is_check_null = 0;
     int max_len = sizeof(int);
     int need_writable = 1;
-    if(!is_mem_valid((char *)row, max_len, is_check_null, need_writable) ||
-        !is_mem_valid((char *)col, max_len, is_check_null, need_writable)) {
+    if(check_mem_validness((char *)row, max_len, is_check_null, need_writable) < 0 ||
+       check_mem_validness((char *)col, max_len, is_check_null, need_writable) < 0) {
         return -1;
     }
 
