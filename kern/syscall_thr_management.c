@@ -59,10 +59,19 @@ unsigned int get_ticks_syscall_handler() {
     return timer_get_ticks();
 }
 
-
+/** @brief System call handler for sleep()
+ *
+ *  This function will be invoked by sleep_wrapper().
+ *
+ *  Deschedules the calling thread until at least ticks timer interrupts have 
+ *  occurred after the call. Returns immediately if ticks is zero.
+ *
+ *  @return Returns an integer error code less than zero if ticks is negative. 
+ *          Returns zero otherwise.
+ */
 int sleep_syscall_handler(int ticks) {
     if (ticks < 0)
-        return -1;
+        return EINVAL;
     else if (ticks == 0)
         return 0;
 
