@@ -785,8 +785,6 @@ int new_pages(void *base, int len) {
     // Allocate pages of read-write permission
     int ret = new_region((uint32_t)base, len, 1, TRUE, TRUE);    
 
-    lprintf("new_pages called, base: %x, len: %d, ret: %d", (unsigned)base, 
-            len, ret);
     return ret;
 
 }

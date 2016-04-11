@@ -56,12 +56,18 @@ keyboard_wrapper:
     addl    $4, %esp                # 'pop' arg
     pushl   (%eax)                  # push this_thr->k_stack_esp
 
+    movl    %cr2, %eax
+    pushl   %eax
+
     call    keyboard_interrupt_handler
     
     #pushl   %esp                    # push argument: %esp
     #pushl   $56                     # push argument: offset of cs
     #call    context_switch_set_esp0 # call context_switch_set_esp0()
     #addl    $8, %esp                # "pop" arguments
+
+    popl    %eax
+    movl    %eax, %cr2
 
     # The following code will restore this_thr->k_stack_esp from stack
     pushl   %esp                    # push arg for tcb_get_entry()
@@ -84,12 +90,18 @@ timer_wrapper:
     addl    $4, %esp                # 'pop' arg
     pushl   (%eax)                  # push this_thr->k_stack_esp
 
+    movl    %cr2, %eax
+    pushl   %eax
+
     call    timer_interrupt_handler
     
     #pushl   %esp                    # push argument: %esp
     #pushl   $56                     # push argument: offset of cs
     #call    context_switch_set_esp0 # call context_switch_set_esp0()
     #addl    $8, %esp                # "pop" arguments
+
+    popl    %eax
+    movl    %eax, %cr2
 
     # The following code will restore this_thr->k_stack_esp from stack
     pushl   %esp                    # push arg for tcb_get_entry()
