@@ -372,7 +372,7 @@ get_ticks_wrapper:
     call    asm_push_ss             # save all data segment selectors
     call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
     
-    call    timer_get_ticks
+    call    get_ticks_syscall_handler
     pushl   %eax                    # temporary save return value
 
     #pushl   %esp                    # push argument: %esp

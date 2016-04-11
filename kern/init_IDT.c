@@ -218,9 +218,9 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     // install set_cursor_pos() syscall handler
     install_IDT_entry(SET_CURSOR_POS_INT, set_cursor_pos_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
-    // interrupt gate?
-    // install get_ticks() syscall handler
-    install_IDT_entry(GET_TICKS_INT, get_ticks_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    // install get_ticks() syscall handler, note that interrupt gate is used for this 
+    // system call otherwise the return value is imprecise.
+    install_IDT_entry(GET_TICKS_INT, get_ticks_wrapper, SEGSEL_KERNEL_CS, 3, 1);
 
     // install sleep() syscall handler
     install_IDT_entry(SLEEP_INT, sleep_wrapper, SEGSEL_KERNEL_CS, 3, 0);

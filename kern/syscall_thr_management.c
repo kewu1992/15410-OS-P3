@@ -46,6 +46,19 @@ int gettid_syscall_handler() {
     return tcb_get_entry((void*)asm_get_esp())->tid;
 }
 
+/** @brief System call handler for get_ticks()
+ *
+ *  This function will be invoked by get_ticks_wrapper().
+ *
+ *  Note that this function should be invoked with interrupt disabled otherwise
+ *  the return value is imprecise.
+ *
+ *  @return The number of timer ticks which have occurred since system boot.
+ */
+unsigned int get_ticks_syscall_handler() {
+    return timer_get_ticks();
+}
+
 
 int sleep_syscall_handler(int ticks) {
     if (ticks < 0)
