@@ -146,10 +146,14 @@ int loadTask(const char *filename, int argc, const char **argv, void** usr_esp, 
     // The last param for new_region, is_ZFOD, if it's 0, then actual frames 
     // are allocated, otherwise if it's 1, then a system-wide all zero page 
     // is used, NO need to memset() the region after new_resion() returns.
-    new_region(simple_elf.e_txtstart, simple_elf.e_txtlen, 0, 0, 0);
-    new_region(simple_elf.e_datstart, simple_elf.e_datlen, 1, 0, 0);
-    new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen, 0, 0, 0);
-    new_region(simple_elf.e_bssstart, simple_elf.e_bsslen, 1, 0, 1);
+    if (new_region(simple_elf.e_txtstart, simple_elf.e_txtlen, 0, 0, 0) < 0)
+        return ENOMEM:
+    if (new_region(simple_elf.e_datstart, simple_elf.e_datlen, 1, 0, 0) < 0)
+        return ENOMEM:
+    if (new_region(simple_elf.e_rodatstart, simple_elf.e_rodatlen, 0, 0, 0) < 0)
+        return ENOMEM:
+    if (new_region(simple_elf.e_bssstart, simple_elf.e_bsslen, 1, 0, 1) < 0)
+        return ENOMEM:
 
     //lprintf("txtstart:%p, txtlen:%d", (void*)simple_elf.e_txtstart, (int)simple_elf.e_txtlen);
     //lprintf("datstart:%p, datlen:%d", (void*)simple_elf.e_datstart, (int)simple_elf.e_datlen);
