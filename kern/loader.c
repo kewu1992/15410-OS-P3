@@ -109,9 +109,6 @@ void loadFirstTask(const char *filename) {
     // create new process
     tcb_t *thread = tcb_create_process(NORMAL, get_cr3());
 
-    lprintf("HERERERERE");
-    MAGIC_BREAK;
-
     const char *argv[1] = {filename};
     if ((rv = loadTask(filename, 1, argv, &usr_esp, &my_program)) < 0)
         panic("Load first task failed");
@@ -243,8 +240,6 @@ void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, int 
     k_stack_esp = push_to_stack(k_stack_esp, (uint32_t)program);
     // push DS
     k_stack_esp = push_to_stack(k_stack_esp, SEGSEL_USER_DS);
-
-    lprintf("loggg");
 
     // set esp and call iret
     if (is_idle)
