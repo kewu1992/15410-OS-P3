@@ -875,7 +875,7 @@ int check_mem_validness(char *va, int max_bytes, int is_check_null,
                 // Page table is present
                 if(is_check_null) {
                     while((current_byte & PAGE_ALIGN_MASK) == page) {
-                        if(va[current_byte] == '\0') {
+                        if(*((char *)current_byte) == '\0') {
                             return 0;
                         }
 
