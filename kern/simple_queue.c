@@ -9,7 +9,6 @@
 
 #include <simple_queue.h>
 #include <control_block.h>
-#define NULL 0
 
 #include <simics.h>
 

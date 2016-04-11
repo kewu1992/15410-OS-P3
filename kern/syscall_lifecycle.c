@@ -129,11 +129,13 @@ int exec_syscall_handler(char* execname, char **argvec) {
         MAGIC_BREAK;
         return EINVAL;
     } else {
-        int rv = is_mem_valid((char *)execname, max_len, is_check_null, 
+        int rv = check_mem_validness((char *)execname, max_len, is_check_null, 
                               need_writable);
         if (rv < 0) {
-            if (rv == E2BIG)
+            if (rv == ERROR_NOT_NULL_TERM)
                 rv = ENAMETOOLONG;
+            else
+                rv = EFAULT;
             MAGIC_BREAK;
             return rv;
         }
@@ -145,8 +147,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
         // Make sure &argvec[argc] is valid
         is_check_null = 0;
         max_len = sizeof(char *);
-        if(is_mem_valid((char *)(argvec + argc), max_len, is_check_null, 
-                    need_writable) != 1) {
+        if(check_mem_validness((char *)(argvec + argc), max_len, is_check_null, 
+                    need_writable) < 0) {
             MAGIC_BREAK;
             return EFAULT;
         }
@@ -157,9 +159,14 @@ int exec_syscall_handler(char* execname, char **argvec) {
         // Make sure string argvec[argc] is valid and null terminated
         is_check_null = 1;
         max_len = EXEC_MAX_ARG_SIZE;
-        int rv = is_mem_valid((char *)argvec[argc], max_len, is_check_null, 
+        int rv = check_mem_validness((char *)argvec[argc], max_len, is_check_null, 
                     need_writable);
         if(rv < 0) {
+            if (rv == ERROR_NOT_NULL_TERM)
+                rv = E2BIG;
+            else
+                rv = EFAULT;
+
             MAGIC_BREAK;
             return rv;
         }
@@ -459,6 +466,10 @@ void vanish_syscall_handler(int is_kernel_kill) {
         panic("This task's pcb is NULL");
     }
 
+    // Set init as the thread's temporary task
+    this_thr->pcb = init_task;
+    // Use init task's page table until death
+    set_cr3(init_task->page_table_base);
     // One less thread in current task
     int cur_thr_num = atomic_add(&this_task->cur_thr_num, -1);
 
@@ -471,7 +482,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         if(is_kernel_kill) {
             // The thread is killed by the kernel
             // set_status(-2) first
-            set_status_syscall_handler(-2);
+            this_task->exit_status->status = -2;
         }
 
         // Assume task init shouldn't vanish and this task isn't the task init
@@ -517,10 +528,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
         // Free resources (page table, hash table entry and pcb) for this task
         uint32_t old_pd = this_task->page_table_base;
-
-        // Use init task's page table until death
-        this_task->page_table_base = init_task->page_table_base;
-        set_cr3(init_task->page_table_base);
 
         // Free old address space
         free_entire_space(old_pd);
@@ -571,9 +578,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
         }
 
         // Delete resources in pcb and free pcb
-        // Set init as the thread's temporary task
-        this_thr->pcb = init_task;
-        // Free resources in pcb
         tcb_free_process(this_task);
     }
 
@@ -623,8 +627,8 @@ int wait_syscall_handler(int *status_ptr) {
     int max_len = sizeof(int);
     int need_writable = 1;
     if(status_ptr != NULL && 
-       is_mem_valid((char *)status_ptr, max_len, is_check_null, 
-                                                         need_writable) != 1) {
+       check_mem_validness((char *)status_ptr, max_len, is_check_null, 
+                                                         need_writable) < 0) {
         return EFAULT;
     }
 

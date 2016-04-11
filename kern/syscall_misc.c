@@ -48,7 +48,7 @@ int readfile_syscall_handler(char* filename, char *buf, int count, int offset) {
     int is_check_null = 0;
     int max_len = count;
     int need_writable = 1;
-    if(!is_mem_valid(buf, max_len, is_check_null, need_writable)) {
+    if(check_mem_validness(buf, max_len, is_check_null, need_writable) < 0) {
         return -1;
     } 
 

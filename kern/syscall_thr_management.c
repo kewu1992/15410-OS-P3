@@ -59,10 +59,19 @@ unsigned int get_ticks_syscall_handler() {
     return timer_get_ticks();
 }
 
-
+/** @brief System call handler for sleep()
+ *
+ *  This function will be invoked by sleep_wrapper().
+ *
+ *  Deschedules the calling thread until at least ticks timer interrupts have 
+ *  occurred after the call. Returns immediately if ticks is zero.
+ *
+ *  @return Returns an integer error code less than zero if ticks is negative. 
+ *          Returns zero otherwise.
+ */
 int sleep_syscall_handler(int ticks) {
     if (ticks < 0)
-        return -1;
+        return EINVAL;
     else if (ticks == 0)
         return 0;
 
@@ -190,7 +199,7 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
     // Check newureg validness
     if(user_newureg != NULL) {
         // Check user memory validness
-        if(!is_mem_valid((char *)user_newureg, sizeof(ureg_t), 0, 0)) {
+        if(check_mem_validness((char *)user_newureg, sizeof(ureg_t), 0, 0) < 0){
             // user_newureg is invalid
             return -1;
         }
@@ -220,12 +229,12 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
 
         // Check swexn handler parameter
         // Check esp3 validness
-        // Don't know how many bytes the user has allocated for exception,
-        // stack, specify 1 byte so is_mem_valid will check at least one page
+        // Don't know how many bytes the user has allocated for exception,stack,
+        // specify 1 byte so check_mem_validness will check at least one page
         int max_bytes = 1; 
         int is_check_null = 0;
         int need_writable = 1;
-        if(!is_mem_valid(esp3, max_bytes, is_check_null, need_writable)) {
+        if(check_mem_validness(esp3, max_bytes, is_check_null, need_writable) < 0) {
             return -1;
         }
 
@@ -233,7 +242,7 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
         max_bytes = 1; 
         is_check_null = 0;
         need_writable = 0;
-        if(!is_mem_valid(esp3, max_bytes, is_check_null, need_writable)) {
+        if(check_mem_validness(esp3, max_bytes, is_check_null, need_writable) < 0) {
             return -1;
         }
 
@@ -294,8 +303,8 @@ int deschedule_syscall_handler(int *reject) {
     int is_check_null = 0;
     int max_len = sizeof(int);
     int need_writable = 1;
-    if(!is_mem_valid((char*)reject, max_len, is_check_null,
-                need_writable)) {
+    if(check_mem_validness((char*)reject, max_len, is_check_null,
+                need_writable) < 0) {
         return EFAULT;
     }
 

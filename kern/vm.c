@@ -878,8 +878,6 @@ int new_pages(void *base, int len) {
     // Allocate pages of read-write permission
     int ret = new_region((uint32_t)base, len, 1, TRUE, TRUE);    
 
-    lprintf("new_pages called, base: %x, len: %d, ret: %d", (unsigned)base, 
-            len, ret);
     return ret;
 
 }
@@ -932,12 +930,13 @@ int check_mem_validness(char *va, int max_bytes, int is_check_null,
 
     uint32_t last_byte = (uint32_t)va + max_bytes - 1;
     if(!is_check_null) {
-        if(last_byte - (uint32_t)va + 1 != max_bytes) {
+        // check overflow
+        if(last_byte < (uint32_t)va) {
             // Len not valid
             return ERROR_LEN;
         }
     } else {
-        last_byte = (last_byte - (uint32_t)va + 1 != max_bytes) ? 
+        last_byte = (last_byte < (uint32_t)va) ?
             UINT32_MAX : last_byte;
     }
 
@@ -995,7 +994,7 @@ int check_mem_validness(char *va, int max_bytes, int is_check_null,
                 // Page table is present
                 if(is_check_null) {
                     while((current_byte & PAGE_ALIGN_MASK) == page) {
-                        if(va[current_byte] == '\0') {
+                        if(*((char *)current_byte) == '\0') {
                             break;
                         }
 

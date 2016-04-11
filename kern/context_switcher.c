@@ -117,7 +117,8 @@ void context_switch(int op, uint32_t arg) {
         // to free its resource.
         tcb_t* zombie_thr = (tcb_t*)(node->thr);
         if(this_thr->tid == zombie_thr->tid || 
-                scheduler_is_exist(zombie_thr->tid)) {
+                //scheduler_is_exist(zombie_thr->tid)) {
+                zombie_thr->state != BLOCKED) {
             // Put it back
             put_next_zombie(node);
         } else {
@@ -388,7 +389,7 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
     // modify all %ebp values in the new thread's kernel stack so that all %ebp
     // values point to the new stack instead of the original stack
     uint32_t diff = (uint32_t)new_thr->k_stack_esp - (uint32_t)this_thr->k_stack_esp;
-    void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 52);
+    void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 56);
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
     ebp = get_last_ebp(ebp);
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;

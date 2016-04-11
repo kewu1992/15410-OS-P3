@@ -200,7 +200,7 @@ void exception_handler(int exception_type) {
         // Check if it's caused by ZFOD and if so fix it
         if(is_page_ZFOD(ureg.cr2, ureg.error_code, 1)) {
             // Return normally
-            lprintf("Kernel fixed ZFOD");
+            //lprintf("Kernel fixed ZFOD");
             return;
         }
     }
@@ -245,6 +245,12 @@ void exception_handler(int exception_type) {
     // Give it a chance to fix the exception
     lprintf("thread tid %d has an exception handler installed",
             this_thr->tid);
+
+    /*
+    lprintf("Before call user swexn handler");
+    dump_register(this_thr->tid, &ureg);
+    lprintf("Now call user swexn handler");
+    */
 
     // Deregister swexn handler first
     void *esp3 = this_thr->swexn_struct->esp3;
