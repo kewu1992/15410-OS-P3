@@ -117,7 +117,8 @@ void context_switch(int op, uint32_t arg) {
         // to free its resource.
         tcb_t* zombie_thr = (tcb_t*)(node->thr);
         if(this_thr->tid == zombie_thr->tid || 
-                scheduler_is_exist(zombie_thr->tid)) {
+                //scheduler_is_exist(zombie_thr->tid)) {
+                zombie_thr->state != BLOCKED) {
             // Put it back
             put_next_zombie(node);
         } else {

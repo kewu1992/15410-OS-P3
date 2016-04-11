@@ -46,7 +46,7 @@ uint32_t get_root_thread_stack_low() {
     // Autostack is not used in multi-threaded mode, de-register exception
     // handler and free exception stack space.
     if(swexn(NULL, NULL, NULL, NULL) < 0) {
-        printf("De-register exception handler failed");
+        printf("De-register exception handler failed\n");
         lprintf("De-register exception handler failed");
         return ERROR_SWEXN_REGIS;
     }
@@ -132,7 +132,7 @@ void swexn_handler(void *arg, ureg_t *ureg) {
         // ureg->cr2 is the memory address that resulted in the fault
         if(ureg->cr2 > ureg->ebp || 
                 (ureg->cr2 + VALID_OUTBOUND) < ureg->esp) {
-            printf("Invalid memory reference");
+            printf("Invalid memory reference\n");
             lprintf("Invalid memory reference");
             return;
         }
@@ -143,7 +143,7 @@ void swexn_handler(void *arg, ureg_t *ureg) {
         uint32_t new_root_thread_stack_low =
             allocate_pages(root_thread_stack_low - 1, ureg->cr2); 
         if(new_root_thread_stack_low == ERROR_NEW_PAGES_GENERAL) {
-            printf("Not enough resources...");
+            printf("Not enough resources...\n");
             lprintf("Not enough resources...");
             return;
         }
@@ -154,7 +154,7 @@ void swexn_handler(void *arg, ureg_t *ureg) {
         uint32_t esp3 = exn_stack_high;
         if(swexn((void *)esp3, swexn_handler, NULL, ureg) < 0) {
             // Registration failed
-            printf("Re-register failed");
+            printf("Re-register failed\n");
             lprintf("Re-register failed");
             return;
         }
