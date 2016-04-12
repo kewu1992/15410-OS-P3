@@ -3,6 +3,7 @@
 
 #include <malloc_internal.h> // for _malloc series
 #include <mutex.h>
+#include <simics.h>
 
 static mutex_t lock;
 

@@ -375,9 +375,7 @@ static mutex_t zombie_list_lock;
  *
  */
 simple_node_t* get_next_zombie() {
-    mutex_lock(&zombie_list_lock);
     simple_node_t* node = simple_queue_dequeue(&zombie_list);
-    mutex_unlock(&zombie_list_lock);
     return node;
 }
 
@@ -393,9 +391,7 @@ mutex_t *get_zombie_list_lock() {
  *
  */
 int put_next_zombie(simple_node_t* node) {
-    mutex_lock(&zombie_list_lock);
     int rv = simple_queue_enqueue(&zombie_list, node);
-    mutex_unlock(&zombie_list_lock);
     return rv;
 }
 
@@ -585,7 +581,9 @@ void vanish_syscall_handler(int is_kernel_kill) {
     simple_node_t node;
     node.thr = this_thr;
 
+    mutex_lock(&zombie_list_lock);
     put_next_zombie(&node);
+    mutex_unlock(&zombie_list_lock);
 
     context_switch(3, 0);
 

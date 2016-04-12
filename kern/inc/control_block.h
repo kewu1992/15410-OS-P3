@@ -91,6 +91,8 @@ tcb_t* tcb_create_process(thread_state_t state, uint32_t new_page_table_base);
 
 void tcb_free_thread(tcb_t *thr);
 
+void tcb_vanish_thread(tcb_t *thr);
+
 void tcb_free_process(pcb_t *process);
 
 tcb_t* tcb_get_entry(void *addr);

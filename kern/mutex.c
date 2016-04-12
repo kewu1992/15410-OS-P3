@@ -111,21 +111,7 @@ void mutex_lock(mutex_t *mp) {
         // mutex is unlocked, get the mutex lock directly and set it to locked
         mp->lock_holder = thr->tid;
         spinlock_unlock(&mp->inner_lock);
-    }
-    /*else if(mp->lock_holder == thr->tid) {
-        // Already have the lock, timer interrupt happened when this thread
-        // was in critical section.
-        spinlock_unlock(&mp->inner_lock);
-        // This thread must have another instance in scheduler's queue that
-        // was put when the timer interrupt happened, stop this term of 
-        // running and wait for the other term to run to finish the previsou
-        // work in critical section.
-        context_switch(3, 0);
-    }
-    */
-    
-    
-    else {
+    } else {
         simple_node_t node;
         node.thr = thr;
 
@@ -143,6 +129,30 @@ void mutex_lock(mutex_t *mp) {
             context_switch(3, 0);
         }
     }
+}
+
+int mutex_try_lock(mutex_t *mp) {
+    tcb_t* thr = tcb_get_entry((void*)asm_get_esp());
+
+    int rv;
+
+    spinlock_lock(&mp->inner_lock);
+    if (mp->lock_holder == -2) {
+        // try to lock a destroied mutex
+        panic("mutex %p has already been destroied!", mp);
+    }
+
+    if (mp->lock_holder == -1) {
+        // mutex is unlocked, get the mutex lock directly and set it to locked
+        mp->lock_holder = thr->tid;
+        rv = 0;
+    } else {
+        // mutex is locked, just return failed
+        rv = -1;
+    }
+    spinlock_unlock(&mp->inner_lock);
+
+    return rv;
 }
 
 /** @brief Unlock mutex

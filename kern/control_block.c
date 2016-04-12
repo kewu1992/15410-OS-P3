@@ -230,6 +230,29 @@ void tcb_free_thread(tcb_t *thr) {
     free(thr);
 }
 
+void tcb_vanish_thread(tcb_t *thr) {
+
+    lprintf("free tcb and stack for thr %d", thr->tid);
+    // Free stack
+    void *stack_esp = thr->k_stack_esp;
+    void *stack_low = tcb_get_low_addr(stack_esp);
+    if(tcb_get_entry(stack_esp) == NULL) {
+        lprintf("The stack to free is NULL");
+        panic("The stack to free is NULL");
+    }
+    tcb_table[GET_K_STACK_INDEX(stack_esp)] = NULL;
+    _sfree(stack_low, K_STACK_SIZE);
+
+    // Free swexn struct
+    if(thr->swexn_struct != NULL) {
+        _free(thr->swexn_struct);
+        thr->swexn_struct = NULL;
+    }
+
+    // Free tcb
+    _free(thr);
+}
+
 /** @brief Free pcb and all resources that are associated with it */
 void tcb_free_process(pcb_t *process) {
     mutex_destroy(&process->task_wait_struct.lock);

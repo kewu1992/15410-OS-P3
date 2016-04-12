@@ -101,29 +101,41 @@ void context_switch(int op, uint32_t arg) {
     // Check if there's any thread to destroy
 
     // Check mutext lib lock holder
-    if(op == 4 ||
-        mutex_get_lock_holder(get_malloc_lib_lock()) == this_thr->tid ||
-            mutex_get_lock_holder(get_zombie_list_lock()) == this_thr->tid) {
-
+    if(op == 4) {
         return; 
-    }
-
-    simple_node_t *node;
-    if((node = get_next_zombie()) != NULL) {
-        // After putting self to zombie list, and on the way to
-        // get next thread to run, timer interrupt is likely to 
-        // happen, so zombie thread is likely to have a chance
-        // to execute the following code, must let other thread
-        // to free its resource.
-        tcb_t* zombie_thr = (tcb_t*)(node->thr);
-        if(this_thr->tid == zombie_thr->tid || 
-                //scheduler_is_exist(zombie_thr->tid)) {
-                zombie_thr->state != BLOCKED) {
-            // Put it back
-            put_next_zombie(node);
+    } else {
+        // try to grab the first lock
+        if (mutex_try_lock(get_zombie_list_lock()) < 0) {
+            return;
         } else {
-            // Zombie thread is ready to be freed
-            tcb_free_thread(zombie_thr);
+            // try to grab the second lock
+            if (mutex_try_lock(get_malloc_lib_lock()) < 0) {
+                mutex_unlock(get_zombie_list_lock());
+                return;
+            } else {
+                // get two locks!
+                simple_node_t *node;
+                if((node = get_next_zombie()) != NULL) {
+                    // After putting self to zombie list, and on the way to
+                    // get next thread to run, timer interrupt is likely to 
+                    // happen, so zombie thread is likely to have a chance
+                    // to execute the following code, must let other thread
+                    // to free its resource.
+                    tcb_t* zombie_thr = (tcb_t*)(node->thr);
+                    if(this_thr->tid == zombie_thr->tid || 
+                            //scheduler_is_exist(zombie_thr->tid)) {
+                            zombie_thr->state != BLOCKED) {
+                        // Put it back
+                        put_next_zombie(node);
+                    } else {
+                        // Zombie thread is ready to be freed
+                        tcb_vanish_thread(zombie_thr);
+                    }
+                }
+                // free locks
+                mutex_unlock(get_malloc_lib_lock());
+                mutex_unlock(get_zombie_list_lock());
+            }
         }
     }
 }
