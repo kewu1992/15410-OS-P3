@@ -195,8 +195,9 @@ int main( int argc, char *argv[] )
     for(i=0; i<threads; i++)
         expect(thr_create(race, (void*)i) >= 0);
     
-    getchar();
+    //getchar();
     expect(set_cursor_pos(24,0));
     
-    task_vanish(0);
+    //task_vanish(0);
+    while(1);
 }

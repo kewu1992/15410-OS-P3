@@ -18,12 +18,12 @@
 #define PAGE_ALIGN_MASK ((unsigned int) ~((unsigned int) (PAGE_SIZE-1)))
 
 /** @brief Error code defined by kernel that OS has insufficient resources */
-#define ERROR_NEW_PAGES_INSUFFICIENT_RESOURCE (-1)
+#define ERROR_NEW_PAGES_INSUFFICIENT_RESOURCE (-12)
 
 /** @brief Error code defined by kernel that any portion of the requested 
  *  region overlap with existing task address space 
  */
-#define ERROR_NEW_PAGES_OVERLAP_EXISTING_REGION (-2)
+#define ERROR_NEW_PAGES_OVERLAP_EXISTING_REGION (-258)
 
 /** @brief Error code indicating new_pages() related errors
   *
