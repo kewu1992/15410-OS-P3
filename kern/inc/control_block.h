@@ -101,4 +101,6 @@ void* tcb_get_high_addr(void *addr);
 
 void* tcb_get_low_addr(void *addr);
 
+int tcb_is_stack_overflow(void *addr);
+
 #endif

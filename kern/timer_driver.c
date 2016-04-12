@@ -15,6 +15,7 @@
 #include <context_switcher.h>
 #include <simics.h>
 #include <control_block.h>
+#include <asm_helper.h>
 
 /** @brief Function pointer points to callback function of timer */
 static void* (*callback)(unsigned int);
@@ -55,9 +56,12 @@ void timer_interrupt_handler() {
 
     enable_interrupts();
 
-    if (next_thr == NULL)
+    if (next_thr == NULL)  {
+        if (tcb_is_stack_overflow((void*)asm_get_esp())) {
+            panic("thread's kernel stack overflow!");
+        }
         context_switch(0, -1);
-    else
+    } else
         context_switch(5, (uint32_t)next_thr);
 }
 
