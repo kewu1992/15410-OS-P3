@@ -5901,7 +5901,7 @@ static void ps_add(bitboard_t key, bitboard_t holes, int16_t value)
 /**
  * Fetch data from the table.
  */
-#define INT16_MIN (-(32767)-1)
+// #define INT16_MIN (-(32767)-1)
 #define PAWNSTRUCTURE_LOOKUP_FAIL INT16_MIN
 static int16_t ps_get(bitboard_t key, bitboard_t *holes)
 {
