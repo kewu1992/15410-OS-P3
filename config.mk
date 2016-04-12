@@ -57,7 +57,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the 410user/progs
 # directory.
 #
-410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait actual_wait sleep_test1 swexn_basic_test swexn_cookie_monster swexn_dispatch swexn_regs mem_permissions make_crash make_crash_helper cho cho2 wait_getpid wild_test1 print_basic yield_desc_mkrun deschedule_hang cho_variant stack_test1
+410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait actual_wait sleep_test1 swexn_basic_test swexn_cookie_monster swexn_dispatch swexn_regs mem_permissions make_crash make_crash_helper cho cho2 wait_getpid wild_test1 print_basic yield_desc_mkrun deschedule_hang cho_variant stack_test1 halt_test mem_eat_test readline_basic fork_bomb minclone_mem register_test
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -119,7 +119,7 @@ AUTOSTACK_OBJS = autostack.o
 #
 # Kernel object files you provide in from kern/
 #
-KERNEL_OBJS = console_driver.o kernel.o loader.o malloc_wrappers.o asm_helper.o asm_new_process_iret.o init_IDT.o handler_wrapper.o vm.o control_block.o context_switcher.o scheduler.o queue.o keyboard_driver.o timer_driver.o asm_invalidate_tlb.o asm_context_switch.o syscall_thr_management.o syscall_lifecycle.o pm.o list.o asm_atomic.o spinlock.o mutex.o syscall_consoleio.o syscall_memory.o simple_queue.o syscall_misc.o hashtable.o priority_queue.o exception_handler.o asm_ret_swexn_handler.o asm_ret_newureg.o seg_tree.o asm_bsf.o
+KERNEL_OBJS = asm_atomic.o asm_bsf.o asm_context_switch.o asm_helper.o asm_invalidate_tlb.o asm_new_process_iret.o asm_ret_newureg.o asm_ret_swexn_handler.o console_driver.o context_switcher.o control_block.o exception_handler.o handler_wrapper.o hashtable.o init_IDT.o kernel.o keyboard_driver.o list.o loader.o malloc_wrappers.o mutex.o pm.o priority_queue.o queue.o scheduler.o seg_tree.o simple_queue.o spinlock.o syscall_consoleio.o syscall_lifecycle.o syscall_memory.o syscall_misc.o syscall_thr_management.o timer_driver.o vm.o
 
 ###########################################################################
 # WARNING: Do not put **test** programs into the REQPROGS variables.  Your
