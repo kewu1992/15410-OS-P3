@@ -4,12 +4,18 @@
  *
  */
 
+#include <stdio.h>
 #include <exception_handler.h>
 #include <vm.h>
 #include <asm_helper.h>
 #include <control_block.h>
 #include <loader.h>
 #include <syscall_inter.h>
+
+/** @brief Max buffer size, 512 is enough since the length of the buffer
+  * is known before hand by the kernel
+  */
+#define MAX_BUF_SIZE 512
 
 /** @brief Put register values saved on stakc to ureg struct */
 static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
@@ -62,23 +68,27 @@ static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
  */
 static void dump_register(int tid, ureg_t *ureg) {
 
-    // Should also print to console, TBD ******************************
-    lprintf("Register dump for thread tid %d:", tid);
-    lprintf("cause: 0x%x, cr2: 0x%x, ds: 0x%x", 
-            (unsigned)ureg->cause, (unsigned)ureg->cr2, (unsigned)ureg->ds);
-    lprintf("es: 0x%x, fs: 0x%x, gs: 0x%x", 
-            (unsigned)ureg->es, (unsigned)ureg->fs, (unsigned)ureg->gs);
-    lprintf("edi: 0x%x, esi: 0x%x, ebp: 0x%x",
-            (unsigned)ureg->edi, (unsigned)ureg->esi, (unsigned)ureg->ebp);
-    lprintf("zero: 0x%x, ebx: 0x%x, edx: 0x%x", 
-            (unsigned)ureg->zero, (unsigned)ureg->ebx, (unsigned)ureg->edx);
-    lprintf("ecx: 0x%x, eax: 0x%x, error code: 0x%x",
+    char buf[MAX_BUF_SIZE];
+
+    sprintf(buf, "\nRegister dump for thread tid %d:\n"
+                "cause: 0x%x, cr2: 0x%x, ds: 0x%x\n"
+                "es: 0x%x, fs: 0x%x, gs: 0x%x\n"
+                "edi: 0x%x, esi: 0x%x, ebp: 0x%x\n"
+                "zero: 0x%x, ebx: 0x%x, edx: 0x%x\n"
+                "ecx: 0x%x, eax: 0x%x, error code: 0x%x\n"
+                "eip: 0x%x, cs: 0x%x, eflags: 0x%x\n"
+                "esp: 0x%x, ss: 0x%x\n", tid,
+            (unsigned)ureg->cause, (unsigned)ureg->cr2, (unsigned)ureg->ds,
+            (unsigned)ureg->es, (unsigned)ureg->fs, (unsigned)ureg->gs,
+            (unsigned)ureg->edi, (unsigned)ureg->esi, (unsigned)ureg->ebp,
+            (unsigned)ureg->zero, (unsigned)ureg->ebx, (unsigned)ureg->edx,
             (unsigned)ureg->ecx, (unsigned)ureg->eax, 
-            (unsigned)ureg->error_code);
-    lprintf("eip: 0x%x, cs: 0x%x, eflags: 0x%x",
-            (unsigned)ureg->eip, (unsigned)ureg->cs, (unsigned)ureg->eflags);
-    lprintf("esp: 0x%x, ss: 0x%x",
+            (unsigned)ureg->error_code, (unsigned)ureg->eip, 
+            (unsigned)ureg->cs, (unsigned)ureg->eflags,
             (unsigned)ureg->esp, (unsigned)ureg->ss);
+
+    lprintf(buf);
+    print_syscall_handler(strlen(buf), buf, 1);
 
 }
 
@@ -95,71 +105,109 @@ static void dump_register(int tid, ureg_t *ureg) {
 static void exception_interpret(int exception_type, uint32_t fault_va, 
         uint32_t error_code) {
 
-    // Should also print to console, TBD*************************
+    char buf[MAX_BUF_SIZE];
     switch(exception_type) {
         case IDT_DE: 
+            print_syscall_handler(strlen("Division Error"), 
+                    "Division Error", 1);
             lprintf("Division Error");
             break;
         case IDT_DB: 
+            print_syscall_handler(strlen("Debug Exception"), 
+                    "Debug Exception", 1);
             lprintf("Debug Exception");
             break;
         case IDT_NMI: 
+            print_syscall_handler(strlen("Non-Maskable Interrupt"), 
+                    "Non-Maskable Interrupt", 1);
             lprintf("Non-Maskable Interrupt");
             break;
         case IDT_BP: 
+            print_syscall_handler(strlen("Breakpoint"), "Breakpoint", 1);
             lprintf("Breakpoint");
             break;
         case IDT_OF: 
+            print_syscall_handler(strlen("Overflow"), "Overflow", 1);
             lprintf("Overflow");
             break;
         case IDT_BR:
+            print_syscall_handler(strlen("BOUND Range exceeded"), 
+                    "BOUND Range exceeded", 1);
             lprintf("BOUND Range exceeded");
             break;
         case IDT_UD: 
+            print_syscall_handler(strlen("UnDefined Opcode"), 
+                    "UnDefined Opcode", 1);
             lprintf("UnDefined Opcode");
             break;
         case IDT_NM: 
+            print_syscall_handler(strlen("No Math coprocessor"), 
+                    "No Math coprocessor", 1);
             lprintf("No Math coprocessor");
             break;
         case IDT_DF: 
+            print_syscall_handler(strlen("Double Fault"), "Double Fault", 1);
             lprintf("Double Fault");
             break;
         case IDT_CSO: 
+            print_syscall_handler(strlen("Coprocessor Segment Overrun"), 
+                    "Coprocessor Segment Overrun", 1);
             lprintf("Coprocessor Segment Overrun");
             break;
         case IDT_TS: 
+            print_syscall_handler(strlen("Invalid Task Segment Selector"), 
+                    "Invalid Task Segment Selector", 1);
             lprintf("Invalid Task Segment Selector");
             break;
         case IDT_NP: 
+            print_syscall_handler(strlen("Segment Not Present"), 
+                    "Segment Not Present", 1);
             lprintf("Segment Not Present");
             break;
         case IDT_SS: 
+            print_syscall_handler(strlen("Stack Segment Fault"), 
+                    "Stack Segment Fault", 1);
             lprintf("Stack Segment Fault");
             break;
         case IDT_GP: 
+            print_syscall_handler(strlen("General Protection Fault"), 
+                    "General Protection Fault", 1);
             lprintf("General Protection Fault");
             break;
         case IDT_PF: 
-            lprintf("Page fault: a %s in %s mode to a %s page at address 0x%x",
+            sprintf(buf, 
+                    "Page fault: a %s in %s mode to a %s page at address 0x%x",
                     IS_SET(error_code, PG_RW) ? "write" : "read",
                     IS_SET(error_code, PG_US) ? "user" : "kernel",
                     IS_SET(error_code, PG_P) ? "protected" : "non-present",
                     (unsigned)fault_va);
+            print_syscall_handler(strlen(buf), buf, 1);
+            lprintf(buf);
             break;
         case IDT_MF: 
+            print_syscall_handler(strlen("X87 Math Fault"), 
+                    "X87 Math Fault", 1);
             lprintf("X87 Math Fault");
             break;
         case IDT_AC: 
+            print_syscall_handler(strlen("Alignment Check"), 
+                    "Alignment Check", 1);
             lprintf("Alignment Check");
             break;
         case IDT_MC: 
+            print_syscall_handler(strlen("Machine Check"), 
+                    "Machine Check", 1);
             lprintf("Machine Check");
             break;
         case IDT_XF: 
+            print_syscall_handler(strlen("SSE Floating Point Exception"), 
+                    "SSE Floating Point Exception", 1);
             lprintf("SSE Floating Point Exception");
             break;
         default: 
-            lprintf("Unknown exception type: %d", exception_type);
+            sprintf(buf, "Unknown exception type: %d", exception_type);
+            print_syscall_handler(strlen(buf), buf, 1);
+            lprintf(buf);
             break;
     }
 
@@ -216,15 +264,6 @@ void exception_handler(int exception_type) {
         panic("tcb is NULL");
     }
 
-    // DEBUG
-    /*
-       if(pf_need_debug) {
-       dump_register(this_thr->tid, &ureg);
-       MAGIC_BREAK;
-       }
-       */
-    // DEBUG
-
     if(this_thr->swexn_struct == NULL) {
         // Thread doesn't have a swexn handler registered
         // Print a reason to kill the thread, should print to the console
@@ -236,8 +275,8 @@ void exception_handler(int exception_type) {
         dump_register(this_thr->tid, &ureg);
 
         // Kill thread
-        int is_kernel_kill = 1;
-        vanish_syscall_handler(is_kernel_kill);
+        int is_kernel_call = 1;
+        vanish_syscall_handler(is_kernel_call);
         panic("Should not reach here");
     }
 

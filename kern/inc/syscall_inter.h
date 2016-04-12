@@ -37,4 +37,6 @@ void set_init_pcb(pcb_t *init_task);
 
 void vanish_syscall_handler(int is_kernel_kill);
 
+int print_syscall_handler(int len, char *buf, int is_kernel_call);
+
 #endif

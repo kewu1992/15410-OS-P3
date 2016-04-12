@@ -255,8 +255,10 @@ static int remove_region(uint32_t va) {
             // Free the frame if it's not the system wide all-zero frame
             uint32_t frame = *pte & PAGE_ALIGN_MASK;
             free_frames_raw(frame);
-            unreserve_frames(1);
         }
+        // Whether ZFOD, the frame was reserved at the time of allocation,
+        // still need to unreserve.
+        unreserve_frames(1);
 
         is_finished = IS_SET(*pte, PG_NEW_PAGES_END);
 
@@ -634,8 +636,10 @@ void free_space(uint32_t pd_base, int is_kernel_space) {
                         if(!IS_SET(pt->pte[j], PG_ZFOD)) {
                             uint32_t frame = pt->pte[j] & PAGE_ALIGN_MASK;
                             free_frames_raw(frame);
-                            unreserve_frames(1);
                         }
+                        // Whether ZFOD, the frame was reserved at the time of allocation,
+                        // still need to unreserve.
+                        unreserve_frames(1);
 
                     }
                 }

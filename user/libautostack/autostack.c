@@ -132,7 +132,7 @@ void swexn_handler(void *arg, ureg_t *ureg) {
         // ureg->cr2 is the memory address that resulted in the fault
         if(ureg->cr2 > ureg->ebp || 
                 (ureg->cr2 + VALID_OUTBOUND) < ureg->esp) {
-            printf("Invalid memory reference\n");
+            // printf("Invalid memory reference\n");
             lprintf("Invalid memory reference");
             return;
         }

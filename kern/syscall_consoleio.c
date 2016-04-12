@@ -52,20 +52,25 @@ int syscall_read_init() {
  *
  *  @param base The starting address of bytes to be printed
  *  @param len The length of bytes to be printed
+ *  @param is_kernel_call Flag showing if the caller is the kernel rather
+ *  than the user.
  *
  *  @return On success, return zero.
  *          On error, return an integer error code less than zero.
  */
-int print_syscall_handler(int len, char *buf) {
+int print_syscall_handler(int len, char *buf, int is_kernel_call) {
 
     // Start argument check
-    int is_check_null = 0;
-    int need_writable = 0;
-    int max_len = len;
-    if(check_mem_validness(buf, max_len, is_check_null, need_writable) < 0) {
-        return EFAULT;
+    if(!is_kernel_call) {
+        int is_check_null = 0;
+        int need_writable = 0;
+        int max_len = len;
+        if(check_mem_validness(buf, max_len, is_check_null, 
+                    need_writable) < 0) {
+            return EFAULT;
+        }
+        // Finish argument check
     }
-    // Finish argument check
 
     mutex_lock(&print_lock);
     putbytes((const char*)buf, len);
