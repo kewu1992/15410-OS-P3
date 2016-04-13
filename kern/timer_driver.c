@@ -16,6 +16,9 @@
 #include <simics.h>
 #include <control_block.h>
 
+/** @brief Frequency */
+#define FREQ 100
+
 /** @brief Function pointer points to callback function of timer */
 static void* (*callback)(unsigned int);
 
@@ -31,7 +34,7 @@ static unsigned int numTicks;
  *  @return Void.
  */
 void init_timer_driver(void* (*tickback)(unsigned int)) {
-    uint16_t interrupt_rate = (int)(TIMER_RATE * 0.01);
+    uint16_t interrupt_rate = (int)(TIMER_RATE / FREQ);
 
     outb(TIMER_MODE_IO_PORT, TIMER_SQUARE_WAVE);
     outb(TIMER_PERIOD_IO_PORT, (uint8_t)interrupt_rate);
