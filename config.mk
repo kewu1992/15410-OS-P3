@@ -57,7 +57,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the 410user/progs
 # directory.
 #
-410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait actual_wait sleep_test1 swexn_basic_test swexn_cookie_monster swexn_dispatch swexn_regs mem_permissions make_crash make_crash_helper cho cho2 wait_getpid wild_test1 print_basic yield_desc_mkrun deschedule_hang cho_variant stack_test1 halt_test mem_eat_test readline_basic fork_bomb minclone_mem register_test
+410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait actual_wait sleep_test1 swexn_basic_test swexn_cookie_monster swexn_dispatch swexn_regs mem_permissions make_crash make_crash_helper cho cho2 wait_getpid wild_test1 print_basic yield_desc_mkrun deschedule_hang cho_variant stack_test1 halt_test mem_eat_test readline_basic fork_bomb minclone_mem register_test ack fib swexn_stands_for_swextensible swexn_uninstall_test
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -65,7 +65,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield my_wild_test1 my_cho my_yield_desc_mkrun test_readfile test_swexn test_swexn_helper my_new_pages cyclone agility_drill cvar_test join_specific_test thr_exit_join multitest paraguay startle switzerland beady_test racer rwlock_downgrade_read_test bistromath cat mandelbrot
+STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield my_wild_test1 my_cho my_yield_desc_mkrun test_readfile test_swexn test_swexn_helper my_new_pages cyclone agility_drill cvar_test join_specific_test thr_exit_join multitest paraguay startle switzerland beady_test racer rwlock_downgrade_read_test bistromath cat mandelbrot juggle excellent largetest my_fork
 
 
 ###########################################################################

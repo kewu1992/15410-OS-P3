@@ -209,7 +209,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if (this_thr->pcb->cur_thr_num > 1) {
                 //the invoking task contains more than one thread,reject fork()
                 lprintf("fork() with more than one thread");
-                MAGIC_BREAK;
+                // MAGIC_BREAK;
 
                 printf("fork() failed because more than one thread\n");
                 this_thr->result = EMORETHR;
@@ -220,7 +220,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if (new_thr == NULL) {
                 // thread_fork error
                 lprintf("internal_thread_fork() failed");
-                MAGIC_BREAK;
+                // MAGIC_BREAK;
 
                 printf("internal_thread_fork() failed when fork()");
                 this_thr->result = ENOMEM;
@@ -231,8 +231,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             uint32_t new_page_table_base = clone_pd();
             if (new_page_table_base == ERROR_MALLOC_LIB ||
                 new_page_table_base == ERROR_NOT_ENOUGH_MEM) {
-                lprintf("clone_pd() failed");
-                MAGIC_BREAK;
 
                 printf("clone_pd() failed when fork()");
                 tcb_free_thread(new_thr);
@@ -245,7 +243,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 new_thr->swexn_struct = malloc(sizeof(swexn_t));
                 if(new_thr->swexn_struct == NULL) {
                     lprintf("malloc failed");
-                    free_entire_space(new_page_table_base);
+                    int need_unreserve_frames = 1;
+                    free_entire_space(new_page_table_base, 
+                            need_unreserve_frames);
                     tcb_free_thread(new_thr);
                     this_thr->result = ENOMEM;
                     return this_thr;
@@ -262,7 +262,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
                 printf("tcb_create_process_only() failed when fork()\n");
                 free(new_thr->swexn_struct);
-                free_entire_space(new_page_table_base);
+                int need_unreserve_frames = 1;
+                free_entire_space(new_page_table_base, need_unreserve_frames);
                 tcb_free_thread(new_thr);
                 this_thr->result = ENOMEM;
                 return this_thr;
