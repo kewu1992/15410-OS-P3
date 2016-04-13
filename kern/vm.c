@@ -1,6 +1,14 @@
 /** @file vm.c
  *  @brief Implements virtual memory.
  *
+ *  This file implements virtual memory. 16 MB kernel space (0x0 to 0xffffff)
+ *  are directily mapped to the same physical memory, e.g., virtual memory 
+ *  0x1000 maps to 0x1000, for all tasks. User space, 0x1000000 and above
+ *  are mapped differently for different tasks. Except the page directory,
+ *  tasks share the same kernel page tables, which are marked as global.
+ *  ZFOD is used for pages requested by new_pages() syscall and initial
+ *  thread stack.
+ *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu (kewu)
  *
@@ -106,10 +114,8 @@ static void enable_pge_flag() {
 
 /** @brief Count number of pages allocated in user space
  *
- *  This function is called by clone_pd so that it knows how many new pages
- *  are needed in the future and can call reserve_frames to check and reserve
- *  that many physical frames to avoid allocating some pages and then finding
- *  not enough frames left.
+ *  This function is called by clone_pd so that it can know how many new frames
+ *  are needed in the future.
  *
  *  @return Number of pages allocated in user space
  */
@@ -120,11 +126,11 @@ static int count_pages_user_space() {
     int i, j;
     // Skip kernel page tables, start from user space
     for(i = NUM_PT_KERNEL; i < PAGE_SIZE/ENTRY_SIZE; i++) {
-        if((pd->pde[i] & (1 << PG_P)) == 1) {
+        if(IS_SET(pd->pde[i], PG_P)) {
 
             pt_t *pt = (pt_t *)(pd->pde[i] & PAGE_ALIGN_MASK);
             for(j = 0; j < PAGE_SIZE/ENTRY_SIZE; j++) {
-                if((pt->pte[j] & (1 << PG_P)) == 1) {
+                if(IS_SET(pt->pte[j], PG_P)) {
                     num_pages_allocated++;
                 }
             }
