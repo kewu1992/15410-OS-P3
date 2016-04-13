@@ -141,8 +141,19 @@ static int count_pages_user_space() {
 }
 
 
-/** @brief Clear page directory entry and free corresponding
-  * page table
+/** @brief Clear page directory entry specified and free corresponding
+  * page tables.
+  *
+  * This function is needed when kernel memory becomes insufficient during 
+  * the process of allocating page tables and changes need to be reverted.
+  *
+  * @param bitmap A bitmap where 1s in it are the relative index of the page 
+  * directory entry to clear.
+  * @param bitmap_size The size of the bitmap
+  * @param pd_index_start The offset that the index in the bitmap should
+  * consider to get the absolute index in the page directory entry
+  *
+  * @return void
   *
   */
 static void clear_pd_entry(char *bitmap, int bitmap_size, int pd_index_start) {
@@ -167,16 +178,19 @@ static void clear_pd_entry(char *bitmap, int bitmap_size, int pd_index_start) {
 }
 
 
-/** @brief Count number of pages allocated in region
+/** @brief Count number of pages allocated in region and allocate page
+ *  directories along the way.
  *
- *  This function is called by new_region to know how many
- *  pages have already been allocated to decide how many
- *  new frames are needed.
+ *  This function is called by new_region to know how many pages have already 
+ *  been allocated to decide how many new frames are needed. In addition, 
+ *  page tables are allocated for this region if previously not allocated,
+ *  But this is done in a all or none fashion, meaning all newly needed pages 
+ *  tables can be allocated or none are created by reverting changes back.
  *
  *  @param va The virtual address of the start of the region
  *  @param size_bytes The size of the region
  *  @param is_new_pages_syscall Flag indicating if the purpose
- *  of calling this function is to do new_pages_syscall
+ *  of calling this function is to serve new_pages syscall.
  *
  *  @return Number of pages allocated in region on success,
  *  a negative integer on error.
@@ -234,7 +248,6 @@ static int count_pages_allocated(uint32_t va, int size_bytes,
             // Allocate a new page table
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
             if(new_pt == NULL) {
-                lprintf("smemalign failed");
                 // Revert changes 
                 clear_pd_entry(bitmap, bitmap_size, page_lowest_pd_index);
                 return ERROR_MALLOC_LIB;
@@ -386,7 +399,8 @@ static int remove_region(uint32_t va) {
  *
  *  @return 1 on true; 0 on false 
  */
-int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
+int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) 
+{
 
     // To be eligible for ZFOD check, the fault must be 
     // a write from user space to a page that is present.
@@ -447,8 +461,8 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
             // Set as read-write
             SET_BIT(*pte, PG_RW);
             // Allocate a new frame
-            // Reserved allocation before, should have enough memory
-            // Else, something's wrong, should panic
+            // Since we have reserved allocation before, should have enough 
+            // memory; else, something's wrong, should panic.
             uint32_t new_f = get_frames_raw();
             if(new_f == ERROR_NOT_ENOUGH_MEM) {
                 panic("get_frames_raw failed in is_page_ZFOD");
@@ -458,7 +472,7 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code) {
             // Set page table entry
             *pte = new_f | (*pte & (~PAGE_ALIGN_MASK));
 
-            // Invalidate tlb for page
+            // Invalidate tlb for page as we have updated page table entry
             asm_invalidate_tlb(page);
 
             // Clear new frame
@@ -532,7 +546,7 @@ static uint32_t init_pd() {
 /** @brief Init virtual memory
  *  
  *  Create the first page directory to map kernel address space, 
- *  enable paging, and initial physical memory manager.
+ *  enable paging, and initialize physical memory manager.
  *
  *  @return 0 on success; negative integer on error
  */
@@ -570,7 +584,7 @@ int init_vm() {
     return ret;
 }
 
-/** @brief Create a new address space
+/** @brief Create a new address space that only covers kernel space
  *
  *  @return New page directory base
  */
@@ -579,7 +593,6 @@ uint32_t create_pd() {
     // Only create a new page diretory
     pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
     if(pd == NULL) {
-        lprintf("smemalign failed");
         return ERROR_MALLOC_LIB;
     }
     memset((void *)pd, 0, PAGE_SIZE);
@@ -597,19 +610,22 @@ uint32_t create_pd() {
  *
  *  A new page directory along with new page tables are allocate. Page
  *  table entries in user space all point to new frames that are exact copies
- *  of old frames, while page table entries in kernel space still point to
- *  old frames.
- *  This function is called by fork(), and fork is not permitted when 
- *  multithreading is enabled, so there's no need to acquire page table
- *  lock when performing this operation.
+ *  of the frames of the address space to clone, while page table entries in 
+ *  kernel space still point to the same frames of the address space to clone.
  *
- *  @return The new page directory base address
+ *  This function is called by fork(), and as fork is not permitted when 
+ *  a task is multithreading, so there's no need to acquire page table
+ *  locks when performing this operation. On failure, resources allocated
+ *  for creating the new address space will be all freed.
+ *
+ *  @return The new page directory base address on success, a negative integer
+ *  on error.
  */
 uint32_t clone_pd() {
     // The pd to clone
     pd_t *old_pd = (pd_t *)get_cr3();
 
-    // Number of pages allocated in this user space
+    // Number of pages allocated in the user space of the task
     int num_pages_allocated = count_pages_user_space();
 
     // Reserve all frames that will be needed
@@ -622,14 +638,12 @@ uint32_t clone_pd() {
     // A buffer to copy contents between frames
     char *frame_buf = malloc(PAGE_SIZE);
     if(frame_buf == NULL) {
-        lprintf("malloc failed");
         return ERROR_MALLOC_LIB;
     }
 
     // Clone pd
     pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
     if(pd == NULL) {
-        lprintf("smemalign failed");
         free(frame_buf);
         return ERROR_MALLOC_LIB;
     }
@@ -638,17 +652,17 @@ uint32_t clone_pd() {
     int i, j;
     for(i = 0; i < PAGE_SIZE/ENTRY_SIZE; i++) {
         if(IS_SET(old_pd->pde[i], PG_P)) {
-            // Clone pt
-
             // Use the same page tables and frames for kernel space
             if(i < NUM_PT_KERNEL) {
+                // Clone page table entry
                 memcpy(&pd->pde[i], (void *)&old_pd->pde[i], ENTRY_SIZE);
                 continue;
             }
 
+            // Clone page table
             void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
             if(new_pt == NULL) {
-                lprintf("smemalign failed");
+                // Revert changes and free resources
                 free(frame_buf);
                 int need_unreserve_frames = 0;
                 free_entire_space((uint32_t)pd, need_unreserve_frames);
@@ -657,11 +671,11 @@ uint32_t clone_pd() {
                 // know how many frames we have reserved, and when 
                 // free_entire_space traverses page directory, it doesn't
                 // know the exact number of frames to unreserve because
-                // we stuck cloning in the middle. 
+                // we get stuck when cloning and the page directory isn't
+                // complete.
                 unreserve_frames(num_pages_allocated);
                 return ERROR_MALLOC_LIB;
             } 
-            
             uint32_t old_pt_addr = old_pd->pde[i] & PAGE_ALIGN_MASK;
             memcpy((void *)new_pt, (void *)old_pt_addr, PAGE_SIZE);
             pd->pde[i] = (uint32_t)new_pt | GET_CTRL_BITS(old_pd->pde[i]);
@@ -679,16 +693,20 @@ uint32_t clone_pd() {
                     // Find out the corresponding virtual address that the
                     // current page table entry points to.
                     uint32_t va = GET_VA_BASE(i, j);
+                    // Copy the content in the frame to a buffer
                     memcpy(frame_buf, (void *)va, PAGE_SIZE);
 
-                    // Temporarily change the frame where the
-                    // old page table entry points to to copy contents to the 
+                    // Temporarily change the frame where the old page table 
+                    // entry points to to the new frame so that we can copy 
+                    // contents to the new frame by enabling mapping of the
                     // new frame.
                     ((pt_t *)old_pt_addr)->pte[j] = 
                         new_f | GET_CTRL_BITS(pt->pte[j]);
                     // Invalidate page in tlb as we update page table entry
                     asm_invalidate_tlb(va);
                     memcpy((void *)va, frame_buf, PAGE_SIZE);
+                    // Change back old page table entry to point to the old
+                    // frame.
                     ((pt_t *)old_pt_addr)->pte[j] = 
                         old_frame_addr | GET_CTRL_BITS(pt->pte[j]);
                     // Invalidate page in tlb as we update page table entry
@@ -702,6 +720,7 @@ uint32_t clone_pd() {
         }
     }
 
+    // Free allocated buffer
     free(frame_buf);
     return (uint32_t)pd;
 }
@@ -736,7 +755,7 @@ void free_entire_space(uint32_t pd_base, int need_unreserve_frames) {
  *  @param is_kernel_space 1 for kernel space; 0 for user space
  *
  *  @param need_unreserve_frames Flag indicating if there's need to
- *  unreserve frames while freeing. (Since there are situations 
+ *  unreserve frames while freeing. (This is needed since there are situations 
  *  where frames are unreserved in a different place, like clone_pd());
  *
  *  @return 0 on success; a negative integer on error
@@ -770,8 +789,8 @@ void free_space(uint32_t pd_base, int is_kernel_space,
                         }
 
                         if(need_unreserve_frames) {
-                            // Whether ZFOD, the frame was reserved at the time of
-                            // allocation, still need to unreserve.
+                            // Whether ZFOD, the frame was reserved at the 
+                            // time of allocation, still need to unreserve.
                             unreserve_frames(1);
                         }
 
@@ -794,7 +813,10 @@ void free_space(uint32_t pd_base, int is_kernel_space,
  *
  *  This call will be called by kernel to allocate initial program space, or
  *  called by new_pages system call to allocate space requested by user 
- *  program later.
+ *  program later. In case any failure happens like not enough kernel memory
+ *  for page tables during the allocating process, all resources already
+ *  allocated in the life span of this call will be freed and changes will be
+ *  reverted back.
  *
  *  @param va The virtual address of the base of the region to allocate
  *  @param size_bytes The size of the region
@@ -861,8 +883,10 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
     }
 
 
-    // Count the number of pages allocated in the region and 
-    // allocate page tables if there isn't any
+    // Count the number of pages allocated in the region and allocate page 
+    // tables to cover the region if necessary. Upon completion of the 
+    // count_pages_allocated() call, all page tables needed for the region
+    // will be availbale on success.
     int num_pages_allocated = count_pages_allocated(va, size_bytes, 
             is_new_pages_syscall);
     if(num_pages_allocated < 0) {
@@ -879,7 +903,11 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
     }
 
     if(is_new_pages_syscall && num_pages_allocated > 0) {
-        // Some pages have already been allocated in this address space
+        // Some pages have already been allocated in this address space,
+        // which is an error for new_pages syscall, and should not proceed,
+        // while if kernel calls this function to allocate initial space
+        // for tasks, it's OK to have regions overlap (e.g., rodata and text
+        // segments may overlap with each other.)
         int i;
         int pt_lock_index = highest_pt_lock_index;
         for(i = 0; i < num_pt_lock; i++) {
@@ -896,8 +924,8 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
     // Reserve number of frames that will be used in the worst case in the 
     // future, since pages marked as ZFOD now is likely to be requested to
     // be writable in the future, and it's strange to tell the requester that
-    // no physical memory is availale, so that we should count the frames
-    // as allocated now.
+    // no physical memory is availale at that time, so that we should count 
+    // the frames as allocated now.
     if(reserve_frames(count - num_pages_allocated) == -1) {
         if(is_new_pages_syscall) {
             int i;
@@ -910,6 +938,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
         return ERROR_NOT_ENOUGH_MEM;
     }
 
+    // Traverse region to enable mappings.
     uint32_t page = page_lowest;
     pd_t *pd = (pd_t *)get_cr3();
 
@@ -922,7 +951,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
         if(!IS_SET(*pde, PG_P)) {
             // not present
             // Impossible since we have allocated it in 
-            // count_pages_allocated.
+            // count_pages_allocated().
             panic("Allocated page table not present?!");
         }
 
@@ -947,8 +976,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
                 if(page == page_lowest) {
                     SET_BIT(pte_ctrl_bits, PG_NEW_PAGES_START);
                 }
-
-                // The page is the last one of the region new_pages() requests
+                // The page is the last one in the region new_pages() requests
                 if(page == page_highest) {
                     SET_BIT(pte_ctrl_bits, PG_NEW_PAGES_END);
                 }
@@ -987,6 +1015,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
         page += PAGE_SIZE;
     }
 
+    // Unlock locks
     if(is_new_pages_syscall) {
         int i;
         int pt_lock_index = highest_pt_lock_index;
@@ -1045,7 +1074,7 @@ int new_pages(void *base, int len) {
  * @brief remove_pages syscall
  *  
  * Free memory for contiguous pages whose virtual address starts from base. 
- * Call remove_region to do the actual work.
+ * Will call remove_region to do the actual work.
  *
  * @param base The The virtual address of the base of the start page of
  * contiguous pages.
@@ -1066,8 +1095,8 @@ int remove_pages(void *base) {
  *
  *  @param va The virtual address of the start of the region
  *  @param max_bytes Max bytes to check
- *  @param is_check_null If 1, then check if a '\0' is encountered
- *  before max_bytes are checked
+ *  @param is_check_null If 1, then check if a '\0' is encountered before 
+ *  max_bytes are encountered
  *  @param need_writable If 1, check if the region is writable
  *
  *  @return 0 if valid; a negative integer if invalid:
@@ -1109,7 +1138,7 @@ int check_mem_validness(char *va, int max_bytes, int is_check_null,
 
     uint32_t current_byte = (uint32_t)va;
 
-    // Get page table lock of current task
+    // Get page table lock
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     if(this_thr == NULL) {
         panic("tcb is NULL");

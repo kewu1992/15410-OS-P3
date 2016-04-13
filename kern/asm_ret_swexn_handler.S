@@ -15,7 +15,7 @@
 asm_ret_swexn_handler:
     addl    $4, %esp        # Pop ret addr, %esp now points to eip
 
-    movl 16(%esp), %eax       # set ds, es, fs, gs same as ss       
+    movl 16(%esp), %eax     # Set ds, es, fs, gs same as ss       
     movw    %ax, %ds         
     movw    %ax, %es
     movw    %ax, %fs
@@ -28,5 +28,5 @@ asm_ret_swexn_handler:
     movl    $0, %esi        
     movl    $0, %edi        
     movl    $0, %ebp        
-    iret
+    iret                    # Return to user mode
 

@@ -1,3 +1,12 @@
+/** @file mem_errors.h 
+ *
+ *  @brief Contains error type definition for memory management.
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs
+ */
 #ifndef _MEM_ERRORS_H_
 #define _MEM_ERRORS_H_
 

@@ -1,7 +1,17 @@
-/** @brief Exception handler 
+/** @file exception_handler.c
+ *  @brief Implements exception handling.
  *
+ *  Exception handling is done by first having a wrapper for each exception 
+ *  type defined in idt.h, which will pushed the exception type as an argument
+ *  and then call exception_handler(), which will first check if the exception
+ *  is ZFOD and if so, fix and return, otherwise, check if faulting thread
+ *  has an swexn handler installed, if so, give it a chance to fix the 
+ *  exception, otherwise, dump registers and kill the thread.
  *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
  *
+ *  @bug No known bugs.
  */
 
 #include <stdio.h>
@@ -12,17 +22,20 @@
 #include <loader.h>
 #include <syscall_inter.h>
 
-/** @brief Max buffer size, 512 is enough since the length of the buffer
-  * is known before hand by the kernel
+/** @brief Max buffer size for printing, 512 is enough since the possible 
+  * length of the content to print is known beforehand by the kernel.
   */
 #define MAX_BUF_SIZE 512
+
+/** @brief The bad return address set for user's swexn handler */
+#define BAD_ADDR 0xdeadbeef
 
 /** @brief Put register values saved on stakc to ureg struct */
 static void get_ureg(ureg_t *ureg, uint32_t *ebp, int has_error_code) {
 
     // According to register saving code custom in handler_wrapper.S,
-    // with ebp, the offset to saved register values are constant
-    /* The stack looks like the following:
+    // With ebp known, the offset to saved register values are constant
+    /* The stack looks like the following at this point:
        SS 
        ESP
        EFLAGS
@@ -239,8 +252,6 @@ void exception_handler(int exception_type) {
     // Fill in ureg struct from values on stack
     get_ureg(&ureg, ebp, has_error_code);
 
-    // DEBUG
-    // int pf_need_debug = 0;
     // Precheck if exception is page fault and caused by ZFOD
     if(exception_type == IDT_PF) {
         // Get faulting address
@@ -248,14 +259,9 @@ void exception_handler(int exception_type) {
         // Check if it's caused by ZFOD and if so fix it
         if(is_page_ZFOD(ureg.cr2, ureg.error_code, 1)) {
             // Return normally
-            //lprintf("Kernel fixed ZFOD");
             return;
         }
     }
-
-    // DEBUG
-    //      pf_need_debug = 1;
-
 
     // Check if current thread has an exception handler installed
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
@@ -290,15 +296,17 @@ void exception_handler(int exception_type) {
     free(this_thr->swexn_struct);
     this_thr->swexn_struct = NULL;
 
-    // Set up user's expcetion stack
-    /* The user's exception stack should look like the following:
-       actual ureg struct
-       ureg_t *ureg
+    // Set up user's exception handler's stack
+    /* The user space exception handler's stack should look like the 
+       following:
+       Actual ureg struct
+       Pointer to ureg struct
        swexn->arg
-       ret addr(0xdeadbeef) <-%esp should point to here before iret
+       ret addr(BAD_ADDR) <-%esp should point here before swexn handler is
+                            is executed.
 
 
-       0xdeadbeed is an invalid address that will cause page fault
+       BAD_ADDR is an invalid address that will cause page fault
        if user returns directly from swexn handler.
     */
 
@@ -312,13 +320,17 @@ void exception_handler(int exception_type) {
     // Push swexn handler's first argument
     *((uint32_t *)(actual_ureg_pos - 2 * sizeof(uint32_t))) = 
         (uint32_t)arg;
-    // Push return address
-    *((uint32_t *)(actual_ureg_pos - 3 * sizeof(uint32_t))) = 0xdeadbeef;
+    // Push return address, which is a "bad address" that when the user
+    // swexn handler returns directly, it will trigger a page fault.
+    *((uint32_t *)(actual_ureg_pos - 3 * sizeof(uint32_t))) = BAD_ADDR;
 
     // Set up kernel exception handler's stack before returning to user space
     // to run swexn hanlder
     // asm_ret_swexn_handler(eip, cs, eflags, esp, ss);
-    lprintf("About to run user space swexn handler");
+    // where eip is the swexn handler's address, cs is the user cs, eflags
+    // is the default initial eflags when the first task loads, esp points
+    // to the return address of the swexn handler (which is a bad address),
+    // ss is the user ss.
     asm_ret_swexn_handler(eip, SEGSEL_USER_CS, 
             get_init_eflags(), actual_ureg_pos - 3 * sizeof(uint32_t), 
             SEGSEL_USER_DS);

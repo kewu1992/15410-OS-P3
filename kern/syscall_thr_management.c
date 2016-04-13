@@ -38,18 +38,6 @@ int syscall_deschedule_init() {
     return error ? -1 : 0;
 }
 
-/*
-void func_overflow() {
-    
-    int buf[256];
-    int i;
-    for (i = 0; i < 100000; i++)
-        buf[0] = buf[1];
-
-    func_overflow();
-}
-*/
-
 /** @brief System call handler for gettid()
  *
  *  @return The thread ID of the invoking thread.
@@ -156,11 +144,11 @@ int yield_syscall_handler(int tid) {
 
 /*************************** swexn *************************/
 
-/** @brief Check values in ureg validness
+/** @brief Check validness of values in ureg
  *
- * @param ureg The ureg struct to check
+ *  @param ureg The ureg struct to check
  *
- * @return 1 if valid; 0 if invalid
+ *  @return 1 if valid, else 0
  *
  */
 static int is_newureg_valid(ureg_t *ureg) {
@@ -179,7 +167,6 @@ static int is_newureg_valid(ureg_t *ureg) {
     }
 
     // Check eflags
-    // Check reserved bits
     if(EFLAGS_GET_RSV(ureg->eflags) != EFLAGS_EX_VAL_RSV || 
             EFLAGS_GET_IOPL(ureg->eflags) != EFLAGS_EX_VAL_IOPL ||
             EFLAGS_GET_TF(ureg->eflags) != EFLAGS_EX_VAL_TF ||
@@ -193,19 +180,19 @@ static int is_newureg_valid(ureg_t *ureg) {
 
 }
 
-/** @brief swexn syscall
+/** @brief swexn syscall handler
  *
- * @param esp3 The exception stack address (one word higher than the first
- * address that the kernel should use to push values onto exception stack.
- * @param eip The first instruction of the handler function
+ *  @param esp3 The exception stack address (one word higher than the first
+ *  address that the kernel should use to push values onto exception stack.)
+ *  @param eip The first instruction of the handler function
+ *  @param arg The argument to pass to the swexn handler
+ *  @param user_newureg The ureg struct that the user wants kernel to adopt
  *
- * @return 0 on success; -1 on error
+ *  @return 0 on success; a negative integer on error
  *
  */
 int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg, 
         ureg_t *user_newureg) {
-
-    lprintf("swexn syscall handler called");
 
     ureg_t newureg;
     // Check newureg validness
@@ -213,21 +200,19 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
         // Check user memory validness
         if(check_mem_validness((char *)user_newureg, sizeof(ureg_t), 0, 0) < 0){
             // user_newureg is invalid
-            return -1;
+            return EINVAL;
         }
         // Copy new_ureg to kernel space
         memcpy(&newureg, user_newureg, sizeof(ureg_t));
         // Check newureg validness
         if(!is_newureg_valid(&newureg)) {
-            lprintf("Values in newureg isn't valid");
-            return -1;
+            return EINVAL;
         }
     }
 
     // Register or deregister swexn handler
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     if(this_thr == NULL) {
-        lprintf("tcb is NULL");
         panic("tcb is NULL");
     }
     if(esp3 == NULL || eip == NULL) {
@@ -241,21 +226,22 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
 
         // Check swexn handler parameter
         // Check esp3 validness
-        // Don't know how many bytes the user has allocated for exception,stack,
-        // specify 1 byte so check_mem_validness will check at least one page
+        // Specify 1 byte so check_mem_validness will check at least one page.
         int max_bytes = 1; 
         int is_check_null = 0;
         int need_writable = 1;
-        if(check_mem_validness(esp3, max_bytes, is_check_null, need_writable) < 0) {
-            return -1;
+        if(check_mem_validness(esp3, max_bytes, is_check_null, need_writable)
+                < 0) {
+            return EINVAL;
         }
 
         // Check eip validness
         max_bytes = 1; 
         is_check_null = 0;
         need_writable = 0;
-        if(check_mem_validness(esp3, max_bytes, is_check_null, need_writable) < 0) {
-            return -1;
+        if(check_mem_validness(esp3, max_bytes, is_check_null, need_writable) 
+                < 0) {
+            return EINVAL;
         }
 
         // Record swexn handler parameter
@@ -263,24 +249,21 @@ int swexn_syscall_handler(void *esp3, swexn_handler_t eip, void *arg,
             // swexn register isn't registered now
             this_thr->swexn_struct = malloc(sizeof(swexn_t));
             if(this_thr->swexn_struct == NULL) {
-                lprintf("malloc failed");
-                return -1; // Should separate error types
+                return ENOMEM;
             }
         }
-        // Whether registered or not, modify saved value
+        // Reregister swexn handler
         this_thr->swexn_struct->esp3 = esp3;
         this_thr->swexn_struct->eip = eip;
         this_thr->swexn_struct->arg = arg;
     }
 
-    // Adopt newureg 
     if(user_newureg != NULL) {
-        lprintf("swexn: newureg isn't NULL, will adopt it");
         // newureg is the same as user_newureg except that it's a copy in
-        // in the kernel space
+        // the kernel space.
+        // Adopt newureg specified by the user
         asm_ret_newureg(&newureg);
-
-        panic("swexn: adopted newureg but back from user space to kernel "
+        panic("swexn: adopted newureg but back from user to kernel "
                 "exception handler?!");
     }
 
