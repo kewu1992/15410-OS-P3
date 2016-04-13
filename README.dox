@@ -2,9 +2,59 @@
 
 @mainpage 15-410 Project 3
 
-@author Name1 (id1)
-@author Name2 (id2)
+@author Ke Wu (kewu)
+@author Jian Wang (jianwan3)
 
-Same drill as last time.
+1. Lock
+
+2. Memory Management
+The virtual memory system uses paging and ZFOD (Zero-fill on demand) with a 
+physical frame allocator that supports allocating and freeing a single frame.
+
+
+Use of page table entry's "For programmer's use" bits
+There are 3 bits in page table entry that are "For programmer's use", so that
+each of them can be of use for a purpose. Specifically, we use them to mark a 
+page as ZFOD, start page of new_pages syscall, and end page of new_pages 
+syscall, repectively. The advantage of dedicating a bit to ZFOD is obvious.
+Say, when we serve a new_pages syscall call, we marked the page table entries 
+of pages to allocate as ZFOD, so that in the future, when a page fault occurs,
+we can check the corresponding bit to see if the fault is caused by ZFOD, and
+if so, we can allocate a new frame and clear the bit. The reason for the other 
+two bits to be used to mark the start and end page of a new_pages syscall is 
+to save the effort of recording regions that are results of new_pages syscall.
+With the help of the two bits, the check of validness of free_page's base 
+parameter is trivial and we can quickly find the end page of a previous 
+new_pages syscall as we traverse and free. The extra storage overhead for
+new_pages and remove_pages are thus near zero.
+
+Preemptibility in memory
+Each task has its own unique page directory, so that page directories in 
+different tasks can be accessed concurrently by different tasks without 
+interfering with each other. However, within a task, different threads share
+page tables in a page directory and there're race conditions when accessing
+this shared data structure concurrently. Thus, locks are needed for page table
+consistency within a task. We devised a solution that every 16 consecutive
+page tables share a mutex lock to achieve concurrency with consistency 
+protection. This means there're 64 locks for each page directory, which is not 
+a too big memory overhead. Each time a thread needs to perform some operation
+in a memory region, it needs to acquire all locks for the page tables that 
+cover the region before it can proceed. Usually locks are hold till the
+operation is complete as it's not tolerable for a new_pages syscall to acquire
+locks, check if certain region has some pages already allocated and release 
+the lock, do some calculation, acquire locks again, and do the allocation,
+because it's entirely possible pages are removed by other threads during the 
+time the thread does the calculation.
+
+Physicall memory allocator uses a segment tree implementation instead of a 
+naive bitmap to improve performance. Although only a single mutex is used to 
+protect the physical memory allocation, this is not a real preemptibility 
+bottle neck in the sense that most of the memory operations like new_pages,
+clone page table, does not require frames at the time of the operation since
+ZFOD is used and a large portion of the pages pointed to the system-wide 
+all-zero frame. Besides, segment tree's O(log(n)) allocation and deallocation 
+time complexity makes each thread's time in critical section tolerable when a 
+frame is really needed.
 
 */
+

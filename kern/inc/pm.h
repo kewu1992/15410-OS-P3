@@ -1,6 +1,6 @@
 /** @file pm.h 
  *
- *  @brief Header file for pm.c
+ *  @brief Contains public interface for physical memory manager.
  *
  */
 #ifndef _PM_H_

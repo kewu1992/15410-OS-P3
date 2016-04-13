@@ -12,11 +12,11 @@ asm_ret_newureg:
 
     addl    $4, %esp        # Pop ret addr, %esp now points to newureg pointer
 
-    movl    (%esp), %eax       # Put the pointer to newureg in %eax
-    addl    $8, %eax             # %eax gets &newureg->ds
-    movl    %eax, %esp          # %esp points to &newureg->ds
+    movl    (%esp), %eax    # Put the pointer to newureg in %eax
+    addl    $8, %eax        # %eax gets &newureg->ds
+    movl    %eax, %esp      # %esp points to &newureg->ds
 
-    popl    %ds                 # Set segment registers
+    popl    %ds             # Set segment registers
     popl    %es                 
     popl    %fs                
     popl    %gs                
