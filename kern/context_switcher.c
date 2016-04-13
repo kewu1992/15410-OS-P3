@@ -316,7 +316,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 // let sheduler to choose the next thread to run
                 new_thr = scheduler_block();
                 if (new_thr == NULL) {
-                    if (idle_thr == NULL)
+                    if (this_thr == idle_thr)
+                        panic("idle thread try to block itself, something goes wrong!");
+                    else if (idle_thr == NULL)
                         panic("no other process is running, %d can not be blocked", this_thr->tid);
                     else
                         return idle_thr;
