@@ -34,8 +34,6 @@ simple_node_t* simple_queue_remove_tid(simple_queue_t *deque, int tid);
 
 int simple_queue_destroy(simple_queue_t *deque);
 
-int simple_queue_is_exist(simple_queue_t *deque, int tid);
-
 int simple_queue_size(simple_queue_t *deque);
 
 
