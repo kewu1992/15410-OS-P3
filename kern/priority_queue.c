@@ -23,7 +23,7 @@
  */
 int pri_queue_init(pri_queue* queue, int (*compare) (void*, void*)) {
     queue->compare = compare;
-    queue-head.next = NULL;
+    queue->head.next = NULL;
     return 0;
 }
 

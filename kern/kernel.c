@@ -1,40 +1,24 @@
 /** @file kernel.c
  *  @brief An initial kernel.c
  *
- *  You should initialize things in kernel_main(),
- *  and then run stuff.
+ *  Do some initialization for kernel and load the first task (idle task)
  *
- *  @author Harry Q. Bovik (hqbovik)
- *  @author Fred Hacker (fhacker)
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
  *  @bug No known bugs.
  */
 
 #include <common_kern.h>
-
-/* libc includes. */
-#include <stdio.h>
 #include <simics.h>                 /* lprintf() */
-
 /* multiboot header file */
 #include <multiboot.h>              /* boot_info */
-
 /* x86 specific includes */
 #include <x86/asm.h>                /* enable_interrupts() */
-
-
 #include <init_IDT.h>
-
-#include <cr.h>
 #include <loader.h>
-#include <eflags.h>
-#include <assert.h>
-
-#include <stdint.h>// for uint32_t
-
-#include <vm.h> // For vm
+#include <vm.h>
 #include <scheduler.h>
 #include <control_block.h>
-
 #include <console.h>
 #include <syscall_inter.h>
 #include <context_switcher.h>
@@ -49,7 +33,6 @@ static void kernel_init();
  */
 int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
 {
-    lprintf( "Hello from a brand new kernel!" );
     
     lprintf("Initializing kernel");
     kernel_init();
@@ -62,7 +45,9 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     return 0;
 }
 
-
+/** @brief Initialize kernel 
+ *  The order of initialization may not be changed
+ */
 void kernel_init() {
 
     if (malloc_init() < 0)
