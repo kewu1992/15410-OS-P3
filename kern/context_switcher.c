@@ -1,10 +1,48 @@
 /** @file context_switcher.c
  *  @brief This file contains implementation of a context switcher 
  *
+ *  There are multiple operations that are supported by context_switcher:
+ *  op  arg             meaning
+ *  0   -1              Normal context switch driven by timer interupt. the 
+ *                      invoking thread will be put to the tail of the queue of 
+ *                      scheduler, scheduler will choose the next thread (which
+ *                      is the head of the queue of scheduler) to run.
+ *
+ *  1   0               Fork and context switch to the new process. Old thread
+ *                      will be put to the queue of scheduler.
+ *
+ *  2   0               Thread_fork and context switch to the new thread. Old 
+ *                      thread will be put to the queue of scheduler.
+ *
+ *  3   0               Block the calling thread and let scheduler to choose
+ *                      the next thread to run. The 'block' is done by simply
+ *                      don't put the calling thread to the queue of scheduler.
+ *                      Note that if a thread calls context_switch(OP_BLOCK), 
+ *                      its tcb must be stored in another queue which belongs to 
+ *                      the object that the thread is blocking (e.g queue of 
+ *                      mutex, queue of sleep, queue of readline).
+ *
+ *  4   tcb_t*          Make runable a blocked thread identified by its tcb. 
+ *                      Notice that this is not really a context switch. It will
+ *                      just put the tcb of the thread that will be made 
+ *                      runnable to the queue of scheduler without any context
+ *                      switching.
+ *
+ *  5   tcb_t*          Resume (wake up) a blocked thread (make runnable and
+ *                      context switch to that thread immediately).  
+ *
+ *  6   -1 or 0-N       yield to -1 or a given tid.
+ *
+ *
+ *
  *  @author Ke Wu (kewu)
  *  @author Jian Wang (jianwan3)
  *
- *  @bug No known bugs.
+ *  @bug context_switch(OP_YIELD, tid) needs to search the queue of scheduler to
+ *       find if the thread is in the queue. We realize this is an O(n) 
+ *       operation and it violates the requirement in the handout that any 
+ *       operation of scheduler should be done in constant time. But we don't
+ *       have time to fix this issue. 
  */
 #include <scheduler.h>
 #include <asm_helper.h>
@@ -19,6 +57,7 @@
 #include <asm_atomic.h>
 #include <syscall_errors.h>
 #include <simple_queue.h>
+#include <context_switcher.h>
 
 extern void asm_context_switch(int op, uint32_t arg, tcb_t *this_thr);
 
@@ -33,35 +72,14 @@ static spinlock_t spinlock;
 extern tcb_t* idle_thr;
 
 /** @brief Context switch from a thread to another thread. 
- *  
- *  There are multiple options for context_switch(): 
- *  op  arg             meaning
- *  0   -1              normal context switch by timer interupt
  *
- *  1   0               fork and context switch to new process
- *
- *  2   0               thread_fork and context switch to new thread
- *
- *  3   0               block the calling thread and yield(-1)
- *
- *  4   tcb_t*          make_runable a blocked thread identified by its tcb
- *
- *  5   tcb_t*          resume a blocked thread (make_runnable and context 
- *                      switch to that thread immediately)  
- *  6   -1 or 0-N       yield to -1 or a given tid
- *
- *  @param op The option for context_switch()
- *  @param arg The argument for context_switch(). With different options, this 
+ *  @param op The operation for context_switch()
+ *  @param arg The argument for context_switch(). With different operation, this 
  *             argument has different meannings.
  *
  *  @return void
  */
 void context_switch(int op, uint32_t arg) {
-    /* 
-     *  *****************
-     *  What if interrupt during context switch???
-     *  *****************
-     */
 
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     if (this_thr == NULL)
@@ -410,23 +428,6 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
 
     return new_thr;
-}
-
-/* IS IT REALLY NECESSARY?
- * 
- * Any syscall/interrupt need to call this function before iret.
- * Context switch (change of esp0) can happen in anywhere
- */
-void context_switch_set_esp0(int offset, uint32_t esp) {
-
-    uint32_t cs;
-    memcpy(&cs, (void*)(esp + offset), 4);
-    if (cs != asm_get_cs()) {
-        // kernel --> user, privilege change, SS, ESP, EFLAGS, CS, EIP
-        set_esp0(esp + offset + 16);
-    } else {
-        // kernel --> kernel, don't need to set esp0
-    }
 }
 
 

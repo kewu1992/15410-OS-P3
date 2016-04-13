@@ -1,3 +1,13 @@
+/** @file context_switcher.h
+ *  @brief This file contains definition of operations and function interface 
+ *         of context_switcher.c.
+ *
+ *  @author Ke Wu (kewu)
+ *  @author Jian Wang (jianwan3)
+ *
+ *  @bug No known bugs.
+ */
+
 #ifndef _CONTEXT_SWITCHER_H_
 #define _CONTEXT_SWITCHER_H_
 
@@ -11,10 +21,8 @@
 #define OP_RESUME 5
 #define OP_YIELD 6
 
-void context_switch(int op, uint32_t arg);
-
-void context_switch_set_esp0(int offset, uint32_t esp);
-
 int context_switcher_init();
+
+void context_switch(int op, uint32_t arg);
 
 #endif
