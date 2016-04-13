@@ -14,6 +14,9 @@
 /** @brief Get index of tcb table based on kernel stack address */
 #define GET_K_STACK_INDEX(x)    (((unsigned int)(x)) >> K_STACK_BITS)
 
+
+#define STACK_OVERFLOW_LIMIT    0x1C00
+
 /** @brief This tcb table contains thread control block data structure for
  *         all threads created by kernel.
  */
@@ -301,4 +304,9 @@ void* tcb_get_high_addr(void *addr) {
  */
 void* tcb_get_low_addr(void *addr) {
     return (void*)(GET_K_STACK_INDEX(addr) * K_STACK_SIZE);
+}
+
+
+int tcb_is_stack_overflow(void *addr) {
+    return ((tcb_get_high_addr(addr) - addr) > STACK_OVERFLOW_LIMIT);
 }

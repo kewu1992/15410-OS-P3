@@ -38,6 +38,18 @@ int syscall_deschedule_init() {
     return error ? -1 : 0;
 }
 
+/*
+void func_overflow() {
+    
+    int buf[256];
+    int i;
+    for (i = 0; i < 100000; i++)
+        buf[0] = buf[1];
+
+    func_overflow();
+}
+*/
+
 /** @brief System call handler for gettid()
  *
  *  @return The thread ID of the invoking thread.
