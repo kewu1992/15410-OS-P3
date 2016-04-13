@@ -2,6 +2,7 @@
  *  @brief This file contains definition of operations of context switcher and 
  *         function interfaces of context_switcher.c.
  *
+ *  @author Jian Wang (jianwan3)
  *  @author Ke Wu (kewu)
  *
  *  @bug No known bugs.
