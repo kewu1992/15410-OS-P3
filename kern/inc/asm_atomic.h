@@ -1,3 +1,12 @@
+/** @file asm_atomic.h
+ *
+ *  @brief This file contains interfaces for two atomic operations.
+ *
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs.
+ */
+
 #ifndef _ASM_ATOMIC_H_
 #define _ASM_ATOMIC_H_
 

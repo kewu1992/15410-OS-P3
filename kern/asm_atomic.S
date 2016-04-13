@@ -1,3 +1,11 @@
+/** @file asm_atomic.S
+ *
+ *  @brief This file contains implementation of atomic_add() and asm_xchg().
+ *  
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs
+ */
 
 # int atomic_add(int* num, int val)
 .globl atomic_add
@@ -11,7 +19,7 @@ atomic_add:
     movl    8(%esp), %ecx           # %ecx = num
     movl    (%ecx), %eax            # %eax = *num
 .L1:
-    leal    (%eax, %ebx, 1), %edx        # %edx = *num + val
+    leal    (%eax, %ebx, 1), %edx   # %edx = *num + val
     lock cmpxchgl   %edx, (%ecx)    # Compare %eax with (%ecx), 
                                     # If equal (%ecx) = %edx
                                     # If not equal, %eax = (%ecx)

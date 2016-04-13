@@ -1,8 +1,8 @@
 /** @file asm_helper.S
- *  @brief This file contains some assembly helper functions 
+ *
+ *  @brief This file contains implementation of some assembly helper functions 
  *
  *  @author Ke Wu (kewu)
- *  @author Jian Wang (jianwan3)
  *
  *  @bug No known bugs.
  */
@@ -37,7 +37,7 @@ asm_get_cs:
 
 asm_pop_generic:
     popl    24(%esp)         # move ret addr
-    popl    %ebp             # restore all generic registers except %esp and %eax
+    popl    %ebp             # restore all generic registers except %esp, %eax
     popl    %edi
     popl    %esi
     popl    %edx

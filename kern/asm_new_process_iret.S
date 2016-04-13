@@ -6,7 +6,6 @@
  *  SEGSEL_USER_DS and execute iret.
  *
  *  @author Ke Wu (kewu)
- *  @author Jian Wang (jianwan3)
  *
  *  @bug No known bugs.
  */

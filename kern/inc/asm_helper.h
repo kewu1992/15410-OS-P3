@@ -1,3 +1,12 @@
+/** @file asm_helper.h
+ *
+ *  @brief This file contains interfaces for some assembly helper functions 
+ *
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs.
+ */
+
 #ifndef _ASM_HELPER_H_
 #define _ASM_HELPER_H_
 
@@ -57,6 +66,15 @@ void asm_push_ss();
 /** @brief Set all data segment selectors to SEGSEL_KERNEL_DS */
 void asm_set_ss();
 
+/** @brief Using bsf instruction to search the parameter for the least 
+ *         significant set bit (1 bit).
+ * 
+ *  @param value The value that will be searched for the least significant set 
+ *               bit 
+ *
+ *  @return The bit index of the least significant set bit. If the parameter
+ *          equals to zero, the return value is undefined.
+ */
 int asm_bsf(uint32_t value);
 
 #endif
