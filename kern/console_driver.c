@@ -41,6 +41,9 @@ static uint16_t logical_cursor;
 /** @brief To indicate if the hardware cursor is currently hidden */
 static char is_hidden;
 
+/** @brief A spinlock is necessary to make sure one call of putbyte() will 
+ *         not be interruped (e.g. by keyboard interrupt which may also
+ *         putbyte() on screen to echo character of readline())*/
 static spinlock_t spinlock;
 
 /** @brief Initialize console device driver
@@ -121,7 +124,7 @@ void scrollup() {
  *  on the handout web page for more backspace behavior.
  *
  *  This function is not thread-safe, it is caller's reponsibility
- *  to make sure that no one putbyte() is interleaved with another
+ *  to make sure that one call of putbyte() is not interleaved with another
  *
  *  @param ch the character to print
  *  @return The input character

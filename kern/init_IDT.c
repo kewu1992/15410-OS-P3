@@ -1,13 +1,22 @@
 /** @file init_IDT.c
- *  @brief Install interrupt handlers and initialize device drivers
+ *  @brief Install exception, interrupt and system call handlers and 
+ *         initialize device drivers
  *
- *  This file contains function to install interrupt handler, i.e. fill the 
- *  corresponding entires in IDT. It also contians some helper functions and
- *  some macros to help filling IDT entries.
+ *  This file contains function to install exception, interrupt and system call 
+ *  handler, i.e. fill the corresponding entires in IDT. It also contians some 
+ *  helper functions and some macros to help filling IDT entries.
  *
+ *  In terms of gate type. Two interrupt handlers are using interrupt gate.
+ *  Because they will manipulate some data structures which should not be 
+ *  interrupted (even by a different interrupt). See timer_driver.c and 
+ *  keyboard_driver.c for more details. Almost all system call handlers are 
+ *  using trap gate. All exception handlers are using trap gate. They can be
+ *  interrupted at any time. 
+ *
+ *
+ *  @author Jian Wang (jianwan3)
  *  @author Ke Wu <kewu@andrew.cmu.edu>
- *  @bug Using trap gate or interrupt gate !!!!!!!!!!
- *       -->  it will affect whether all wrappers need to set esp0
+ *  @bug No known bug
  */
 
 #include <asm.h>
@@ -67,7 +76,7 @@
  *  @param handler The address of interrupt handler function
  *  @return Void.
  */
-void fill_handler(void* base, void* handler) {
+static void fill_handler(void* base, void* handler) {
     char* cbase = (char*)base;
     uint32_t handler_addr = (uint32_t)handler;
 
@@ -83,7 +92,7 @@ void fill_handler(void* base, void* handler) {
  *                entry, should be either SEGSEL_KERNEL_CS or SEGSEL_USER_CS
  *  @return Void.
  */
-void fill_segsel(void* base, uint16_t segsel) {
+static void fill_segsel(void* base, uint16_t segsel) {
     memcpy((char*)base+GATE_SEGSEL_BEGIN, &segsel, GATE_SEGSEL_SIZE);
 }
 
@@ -101,7 +110,7 @@ void fill_segsel(void* base, uint16_t segsel) {
  *
  *  @return Void.
  */
-void fill_option(void* base, int DPL, int gate_type) {
+static void fill_option(void* base, int DPL, int gate_type) {
     uint16_t gate_type_option, dpl_option;
 
     if (gate_type == 0)
@@ -122,7 +131,6 @@ void fill_option(void* base, int DPL, int gate_type) {
 
 /** @brief Install an IDT entry
  *
- *
  *  @param index The index in the IDT entry
  *  @param handler The address of handler function 
  *  @param segsel Indicate which segment selector to be filled in to the IDT,
@@ -134,7 +142,8 @@ void fill_option(void* base, int DPL, int gate_type) {
  *
  *  @return Void.
  */
-void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int gate_type) {
+static void install_IDT_entry(int index, void *hanlder, uint16_t segsel, 
+                                                      int DPL, int gate_type) {
     void* idt_entry = 
         (void*)((char*)idt_base() + index * IDT_ENTRY_SIZE);
     fill_handler(idt_entry, hanlder);
@@ -143,8 +152,9 @@ void install_IDT_entry(int index, void *hanlder, uint16_t segsel, int DPL, int g
 }
 
 
-static void init_exception_IDT() {
 
+/** @brief Helper function to install all exception handlers */
+static void init_exception_IDT() {
     install_IDT_entry(IDT_DE, de_wrapper, SEGSEL_KERNEL_CS, 3, 0);
     install_IDT_entry(IDT_DB, db_wrapper, SEGSEL_KERNEL_CS, 3, 0);
     install_IDT_entry(IDT_NMI, nmi_wrapper, SEGSEL_KERNEL_CS, 3, 0);
@@ -164,14 +174,12 @@ static void init_exception_IDT() {
     install_IDT_entry(IDT_AC, ac_wrapper, SEGSEL_KERNEL_CS, 3, 0);
     install_IDT_entry(IDT_MC, mc_wrapper, SEGSEL_KERNEL_CS, 3, 0);
     install_IDT_entry(IDT_XF, xf_wrapper, SEGSEL_KERNEL_CS, 3, 0);
-
 }
 
-/** @brief The driver-library initialization function
+/** @brief The IDT initialization function
  *
- *  Install interrupt handlers (keyboard and timer) in IDT (interrupt descriptor
- *  table), i.e. fill the corresponding entires in IDT. Note that the two 
- *  interrupt handlers are using trap gates.  
+ *  Install exception, system call and interrupt (keyboard and timer) handlers 
+ *  in IDT, i.e. fill the corresponding entires in IDT.
  *
  *  @param tickback Pointer to clock-tick callback function
  *   
@@ -201,7 +209,8 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     install_IDT_entry(NEW_PAGES_INT, new_pages_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // install remove_pages() syscall handler
-    install_IDT_entry(REMOVE_PAGES_INT, remove_pages_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(REMOVE_PAGES_INT, remove_pages_wrapper, 
+                                                        SEGSEL_KERNEL_CS, 3, 0);
 
     // install swexn() syscall handler
     install_IDT_entry(SWEXN_INT, swexn_wrapper, SEGSEL_KERNEL_CS, 3, 0);
@@ -213,13 +222,15 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     install_IDT_entry(READLINE_INT, readline_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // install set_term_color() syscall handler
-    install_IDT_entry(SET_TERM_COLOR_INT, set_term_color_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(SET_TERM_COLOR_INT, set_term_color_wrapper, 
+                                                        SEGSEL_KERNEL_CS, 3, 0);
 
     // install set_cursor_pos() syscall handler
-    install_IDT_entry(SET_CURSOR_POS_INT, set_cursor_pos_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(SET_CURSOR_POS_INT, set_cursor_pos_wrapper, 
+                                                        SEGSEL_KERNEL_CS, 3, 0);
 
-    // install get_ticks() syscall handler, note that interrupt gate is used for this 
-    // system call otherwise the return value is imprecise.
+    // install get_ticks() syscall handler, note that interrupt gate is used for
+    // this system call otherwise the return value is imprecise.
     install_IDT_entry(GET_TICKS_INT, get_ticks_wrapper, SEGSEL_KERNEL_CS, 3, 1);
 
     // install sleep() syscall handler
@@ -232,25 +243,30 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     install_IDT_entry(WAIT_INT, wait_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // install set_status() syscall handler
-    install_IDT_entry(SET_STATUS_INT, set_status_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(SET_STATUS_INT, set_status_wrapper, SEGSEL_KERNEL_CS, 
+                                                                        3, 0);
 
     // install yield() syscall handler
     install_IDT_entry(YIELD_INT, yield_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // install thread_fork() syscall handler
-    install_IDT_entry(THREAD_FORK_INT, thread_fork_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(THREAD_FORK_INT, thread_fork_wrapper, SEGSEL_KERNEL_CS, 
+                                                                        3, 0);
 
     // install deschedule() syscall handler
-    install_IDT_entry(DESCHEDULE_INT, deschedule_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(DESCHEDULE_INT, deschedule_wrapper, SEGSEL_KERNEL_CS, 
+                                                                        3, 0);
 
     // install make_runnable() syscall handler
-    install_IDT_entry(MAKE_RUNNABLE_INT, make_runnable_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(MAKE_RUNNABLE_INT, make_runnable_wrapper, 
+                                                        SEGSEL_KERNEL_CS, 3, 0);
 
     // install readfile() syscall handler
     install_IDT_entry(READFILE_INT, readfile_wrapper, SEGSEL_KERNEL_CS, 3, 0);
 
     // install get_cursor_pos() syscall handler
-    install_IDT_entry(GET_CURSOR_POS_INT, get_cursor_pos_wrapper, SEGSEL_KERNEL_CS, 3, 0);
+    install_IDT_entry(GET_CURSOR_POS_INT, get_cursor_pos_wrapper, 
+                                                        SEGSEL_KERNEL_CS, 3, 0);
 
     // install exception's IDT
     init_exception_IDT();
