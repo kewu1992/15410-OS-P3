@@ -9,7 +9,6 @@
 
 #include <vm.h>
 #include <pm.h>
-#include <list.h>
 #include <control_block.h>
 #include <asm_helper.h>
 

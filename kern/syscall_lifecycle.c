@@ -14,7 +14,6 @@
 #include <asm_atomic.h>
 #include <syscall_errors.h>
 #include <stdio.h>
-#include <list.h>
 
 /** @brief At most half of the kernel stack to be used as buffer of exec() */
 #define MAX_EXEC_BUF (K_STACK_SIZE>>1)

@@ -57,4 +57,6 @@ void asm_push_ss();
 /** @brief Set all data segment selectors to SEGSEL_KERNEL_DS */
 void asm_set_ss();
 
+int asm_bsf(uint32_t value);
+
 #endif

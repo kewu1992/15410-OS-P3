@@ -4,7 +4,6 @@
 #include <common_kern.h>
 #include <cr.h>
 #include <asm_atomic.h>
-#include <list.h>
 
 #include <simics.h>
 
@@ -83,7 +82,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
     process->cur_thr_num = 1;
     
     if(simple_queue_init(&process->child_exit_status_list) < 0) {
-        printf("list_init() failed in tcb_create_process_only()\n");
+        printf("simple_queue_init() failed in tcb_create_process_only()\n");
         free(process->exit_status);
         free(process->exit_status_node);
         free(process);

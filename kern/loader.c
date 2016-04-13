@@ -41,19 +41,14 @@
 
 #define ALIGNMENT 4
 
-/* The number of user executables in the table of contents. */
-extern const int exec2obj_userapp_count;
-
-/* The table of contents. */
-extern const exec2obj_userapp_TOC_entry exec2obj_userapp_TOC[MAX_NUM_APP_ENTRIES];
-
 extern void asm_new_process_iret(void *esp);
 
 extern void asm_idle_process_iret(void *esp);
 
 static uint32_t init_eflags;
 
-
+/** @brief tcb for idle task, it is a global variable that will be used
+ *         in context_switcher.c as well */
 tcb_t* idle_thr;
 
 /* --- Local function prototypes --- */ 
