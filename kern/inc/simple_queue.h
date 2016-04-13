@@ -1,6 +1,8 @@
 /** @file simple_queue.h
- *  @brief This file defines the interface of a queue that
+ *  @brief This file defines the interface of a simple queue that
  *         doesn't use malloc().
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug None known
  */
 
 #ifndef _SIMPLE_QUEUE_H_
