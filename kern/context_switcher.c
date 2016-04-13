@@ -81,7 +81,7 @@ void context_switch(int op, uint32_t arg) {
     // lprintf("after: %p", this_thr);
     // lprintf("after: %d", this_thr->tid);
 
-    if (op == 1 && this_thr->result == 0) {        
+    if (op == OP_FORK && this_thr->result == 0) {        
         lprintf("fork process %d with thread %d (pd:%x)", this_thr->pcb->pid, 
                 this_thr->tid, (unsigned int)(this_thr->pcb->page_table_base));
 
@@ -101,7 +101,7 @@ void context_switch(int op, uint32_t arg) {
     // Check if there's any thread to destroy
 
     // Check mutext lib lock holder
-    if(op == 4) {
+    if(op == OP_MAKE_RUNNABLE) {
         return; 
     } else {
         // try to grab the first lock
@@ -163,8 +163,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                         ? 1 : 0;
 
     switch(op) {
-        case 0: // normal context switch 
-        case 6: // yield -1 or yield to a specific thread
+        case OP_CONTEXT_SWITCH: // normal context switch 
+        case OP_YIELD:  // yield -1 or yield to a specific thread
             // let sheduler choose the next thread to run
             new_thr = scheduler_get_next((int)arg);
             if (new_thr == NULL) {
@@ -187,7 +187,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if (this_thr != idle_thr)
                 scheduler_make_runnable(this_thr);
             return new_thr;
-        case 1:    // fork and context switch to new thread
+        case OP_FORK:    // fork and context switch to new thread
             if (this_thr->pcb->cur_thr_num > 1) {
                 //the invoking task contains more than one thread,reject fork()
                 lprintf("fork() with more than one thread");
@@ -267,7 +267,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             scheduler_make_runnable(this_thr);
             return new_thr;
 
-        case 2:    // thread_fork and context switch to new thread
+        case OP_THREAD_FORK:    // thread_fork and context switch to new thread
             new_thr = internal_thread_fork(this_thr);
 
             if (new_thr != NULL) {
@@ -294,7 +294,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             scheduler_make_runnable(this_thr);
             return new_thr;
 
-        case 3: // block
+        case OP_BLOCK: // block itself
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
             spinlock_lock(&spinlock);
@@ -325,7 +325,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 } else
                     return new_thr;
             }            
-        case 4: // make_runnable a thread
+        case OP_MAKE_RUNNABLE: // make_runnable a thread
             new_thr = (tcb_t*)arg;
             if (new_thr == NULL)
                 return this_thr;
@@ -346,7 +346,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             }
 
             return this_thr;
-        case 5: // resume a thread
+        case OP_RESUME: // resume a thread
             new_thr = (tcb_t*)arg;
             
             // will unlock in asm_context_switch() --> after context switch to 

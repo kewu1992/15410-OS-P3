@@ -78,7 +78,7 @@ void mutex_destroy(mutex_t *mp) {
         printf("Destroy mutex %p failed, mutex is locked, "
                 "will try again...\n", mp);
         spinlock_unlock(&mp->inner_lock);
-        context_switch(0, -1);
+        context_switch(OP_CONTEXT_SWITCH, -1);
         spinlock_lock(&mp->inner_lock);
     }
 
@@ -87,7 +87,7 @@ void mutex_destroy(mutex_t *mp) {
         printf("Destroy mutex %p failed, some threads are blocking on it, "
                 "will try again later...\n", mp);
         spinlock_unlock(&mp->inner_lock);
-        context_switch(0, -1);
+        context_switch(OP_CONTEXT_SWITCH, -1);
         spinlock_lock(&mp->inner_lock);
     }
 
@@ -133,7 +133,7 @@ void mutex_lock(mutex_t *mp) {
 
         // while this thread doesn't get the mutex, block itself
         while(mp->lock_holder != thr->tid) {
-            context_switch(3, 0);
+            context_switch(OP_BLOCK, 0);
         }
     }
 }
@@ -210,6 +210,8 @@ void mutex_unlock(mutex_t *mp) {
     spinlock_unlock(&mp->inner_lock);
 
     if (node != NULL) {
-        context_switch(4, (uint32_t)node->thr);
+        // Make runnable the blocked thread in the head of queue (and now it is
+        // the holder of the mutex, so it can make progress when it is running)
+        context_switch(OP_MAKE_RUNNABLE, (uint32_t)node->thr);
     }
 }

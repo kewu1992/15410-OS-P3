@@ -63,9 +63,9 @@ void timer_interrupt_handler() {
         if (tcb_is_stack_overflow((void*)asm_get_esp())) {
             panic("thread's kernel stack overflow!");
         }
-        context_switch(0, -1);
+        context_switch(OP_CONTEXT_SWITCH, -1);
     } else
-        context_switch(5, (uint32_t)next_thr);
+        context_switch(OP_RESUME, (uint32_t)next_thr);
 }
 
 unsigned int timer_get_ticks() {

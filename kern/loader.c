@@ -265,7 +265,7 @@ void* push_to_stack(void *esp, uint32_t value) {
     idle_thr = tcb_get_entry((void*)asm_get_esp());
     
     // fork
-    context_switch(1, 0);
+    context_switch(OP_FORK, 0);
     if (tcb_get_entry((void*)asm_get_esp())->result == 0) {        
         // child process, exec(init)
         char my_execname[] = "init";

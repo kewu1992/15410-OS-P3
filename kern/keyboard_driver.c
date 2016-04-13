@@ -93,7 +93,7 @@ void keyboard_interrupt_handler(){
     // if thr != NULL, it means one thread should be waked up
     if (thr) {
         enable_interrupts();
-        context_switch(5, (uint32_t)thr);
+        context_switch(OP_RESUME, (uint32_t)thr);
     }
 }
 
