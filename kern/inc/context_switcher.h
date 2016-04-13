@@ -1,9 +1,8 @@
 /** @file context_switcher.h
- *  @brief This file contains definition of operations and function interface 
- *         of context_switcher.c.
+ *  @brief This file contains definition of operations of context switcher and 
+ *         function interfaces of context_switcher.c.
  *
  *  @author Ke Wu (kewu)
- *  @author Jian Wang (jianwan3)
  *
  *  @bug No known bugs.
  */

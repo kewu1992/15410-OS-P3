@@ -1,6 +1,6 @@
 /** @file asm_atomic.h
  *
- *  @brief This file contains interfaces for two atomic operations.
+ *  @brief This file contains interfaces of two atomic operations.
  *
  *  @author Ke Wu (kewu)
  *

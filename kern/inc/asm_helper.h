@@ -1,6 +1,6 @@
 /** @file asm_helper.h
  *
- *  @brief This file contains interfaces for some assembly helper functions 
+ *  @brief This file contains interfaces of some assembly helper functions 
  *
  *  @author Ke Wu (kewu)
  *

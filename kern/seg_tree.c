@@ -1,19 +1,64 @@
-#include <stdio.h>
+/** @file seg_tree.c
+ *  @brief This file contains implementation of a segment tree
+ *
+ *  This data structure is used as physical frames allocator to track free 
+ *  frames. The segment tree is a perfect binary tree. Each node is 32-bits.
+ *  The leaf nodes of the segment tree represent physical frames.  Here, bitmap 
+ *  is used to save space. So each leaf node can represent allocation states of
+ *  32 physical frames. Each internal node of the segment tree stores a single 
+ *  value which is the smallest index of free frame in all of its child 
+ *  leaf nodes. 
+ *
+ *  When VM system ask for a physical frame, PM system will give it the physical 
+ *  frame that has the smallest index in all free frames. Note that this is the 
+ *  value stored in the root of segment tree. Then segment tree will mark the 
+ *  corresponding bit in the leaf node as allocated. After that. O(logn) time is
+ *  needed to update the segment tree for maintenance. Similarly, when VM system
+ *  frees a frame, O(logn) time is needed to update the segment tree.
+ *
+ *  Compared with a simple bitmap implementation of physical frames allocator. 
+ *  Segment tree implementation costs double memory space. However, the simple
+ *  bitmap needs O(n) time to allocate/free a frame while segment tree needs 
+ *  O(logn) time.
+ *
+ *  @author Ke Wu (kewu)
+ *  @bug No known bug
+ */
+
 #include <stdint.h>
-#include <stdlib.h>
-
-// #define MAX_NUM 7477
-
+#include <malloc.h>
+#include <asm_helper.h>
 #include <seg_tree.h>
 
+/** @brief Check if a given node index is a leaf node */
 #define IS_LEAF(x)  (x>=size)
+
+/** @brief Check if a given node index is a valid node */
 #define IS_VALID(x) (x<2*size)
 
+/** @brief The number of physical frames. Note that the number of physical 
+ *         frame is not necessary the number of leaf nodes in segment tree. 
+ *         Because 1). Bitmap is used so each leaf node represent 32 frames
+ *                 2). the number of physical frames may not be a power of 2,
+ *                     so some padding leaf nodes might be necessary to make 
+ *                     sure that the segment tree is a perfect tree */
 static int max_num;
 
-extern int asm_bsf(uint32_t value);
+/** @brief The array of segment tree. Because it is a perfect tree, so the 
+ *         relationship between parent node and child node can be easily 
+ *         calculated by index */
+static uint32_t *seg_tree;
 
-uint32_t get_next_pow2(uint32_t value) {
+/** @brief The number of leaf nodes */
+static uint32_t size;
+
+/** @brief Get the next number that is a power of 2
+ *   
+ *  @param value The next number that is a power of 2 should >= this value
+ *
+ *  @return The next number that is a power of 2
+ */
+static uint32_t get_next_pow2(uint32_t value) {
     value--;
     value |= value >> 1;
     value |= value >> 2;
@@ -24,22 +69,35 @@ uint32_t get_next_pow2(uint32_t value) {
     return value;
 }
 
-static uint32_t *seg_tree;
-
-static uint32_t size;
-
-uint32_t init_recursive(uint32_t index) {
+/** @brief Helper function for segment tree initialization
+ *   
+ *  This function will initialize a node of segment tree recursively. It will 
+ *  first initialize its left child node and right child node, and then set its
+ *  value based on its children. 
+ *
+ *  @param index The index of the node that will be initialized
+ *
+ *  @return The value for this node, which will be used for its parent node
+ */
+static uint32_t init_recursive(uint32_t index) {
     if (!IS_VALID(index))
         return NAN;
 
     if (!IS_LEAF(index)) {
+        // for internal node, first initialize its child nodes. 
+        // Because at first all physical frames are free, the smallest index of
+        // free frame must be the value of its left child node
         seg_tree[index] = init_recursive(index * 2);
         init_recursive(index * 2 + 1);
         return seg_tree[index];
     } else {
+        // for leaf node, mark its value as 0xFFFFFFFF, which means all 32 
+        // frames are free at begining
         if ((index-size+1) << 5 <= max_num){
-            seg_tree[index] = NAN;
+            seg_tree[index] = 0xFFFFFFFF;
         } else {
+            // for leaf node that not all 32 bits are valid physical frames,
+            // only mark part of its bits as 1 (free)
             seg_tree[index] = 0;
             uint32_t mask = 1;
             int i = 0;
@@ -49,10 +107,19 @@ uint32_t init_recursive(uint32_t index) {
                 mask <<= 1;
             }
         }
+        // If seg_tree[index] equals to zero, it means no free physical frame,
+        // so just return NAN, other wise return the free frame with the
+        // smallest idnex 
         return (seg_tree[index] == 0) ? NAN : (index-size)<<5;
     }
 }
 
+/** @brief Initialize segment tree data structure
+ *   
+ *  @param num The num of physical frames.
+ *
+ *  @return On success return 0, on error return -1
+ */
 int init_seg_tree(int num) {
 
     max_num = num;
@@ -69,10 +136,21 @@ int init_seg_tree(int num) {
 
 }
 
-void update_tree(uint32_t index) {
+/** @brief Update segment tree
+ * 
+ *  This will go from an internal node to the root of segment 
+ *  tree and update the values of all nodes on the path.
+ *   
+ *  @param index The internal node to start updating.
+ *
+ *  @return Void
+ */
+static void update_tree(uint32_t index) {
+    // updating tree unitl the root
     while (index != 0) {
         uint32_t left, right;
         int left_index = index*2;
+        // get value from its child nodes
         if (IS_LEAF(left_index)) {
             left = (seg_tree[left_index] == 0) ? NAN : 
                     ((left_index-size) << 5) + asm_bsf(seg_tree[left_index]);
@@ -85,98 +163,50 @@ void update_tree(uint32_t index) {
         } else
             right = seg_tree[right_index];
 
+        // update value of this node
         seg_tree[index] = (left != NAN) ? left : right;
+        
+        // continue update its parent node
         index /= 2;
     }
 }
 
+/** @brief Get the free physical frame with the smallest index
+ *   
+ *  @return On success return the free physical frame with the smallest index
+ *          On error, return NAN which means there is no free frame.
+ */
 uint32_t get_next() {
+    // the free physical frame with the smallest index is the value of root
     uint32_t rv = seg_tree[1];
     if (rv == NAN)
         return NAN;
 
+    // mark the corresponding bit as allcoated
     uint32_t index = (rv >> 5) + size;
     int pos = rv % 32;
     seg_tree[index] &= ~(1<<pos);
+
+    // update segment tree
     update_tree(index/2);
 
     return rv;
 }
 
-void put_back(uint32_t bits) {
-    uint32_t index = (bits >> 5) + size;
-    int pos = bits % 32;
+/** @brief Free a physical frame
+ *
+ *  @param frame_index The index of the physical frame that will be freed
+ *   
+ *  @return Void
+ */
+void put_back(uint32_t frame_index) {
+    // mark the corresponding bit as freed
+    uint32_t index = (frame_index >> 5) + size;
+    int pos = frame_index % 32;
     seg_tree[index] |= (1<<pos);
+
+    // update segment tree
     update_tree(index/2);
 }
-
-
-/*
-
-
-static int *naive;
-void init_naive(){
-    naive = calloc(max_num, sizeof(int));
-}
-uint32_t get_next_naive(){
-    int i;
-    for (i = 0; i < max_num; i++)
-        if (naive[i] == 0) {
-            naive[i] = 1;
-            return i;
-        }
-    return -1;
-}
-void put_back_naive(uint32_t index){
-    naive[index] = 0;
-}
-
-
-
-int main() {
-    init();
-    init_naive();
-    
-    int array[max_num+1];
-    int count = 0;
-    while (1) {
-        if (count == 0) {
-            uint32_t mine = get_next();
-            uint32_t naives = get_next_naive();
-            if (mine != naives){
-                printf("error!\n");
-                break;
-            }
-            printf("get %d\n", (int)mine);
-            if (mine != NAN)
-                array[count++] = mine;
-        } else {
-            int r = rand() % 7;
-            if (r < 3) {
-                int index = rand() % count;
-                put_back(array[index]);
-                put_back_naive(array[index]);
-                printf("put back %d\n", array[index]);
-                int i;
-                for (i = index; i < count; i++)
-                    array[i] = array[i+1];
-                count--;
-            } else {
-                uint32_t mine = get_next();
-                uint32_t naives = get_next_naive();
-                if (mine != naives) {
-                    printf("error!\n");
-                    break;
-                }
-                printf("get %d\n", (int)mine);
-                if (mine != NAN)
-                    array[count++] = mine;
-            }
-        }
-    }
-
-    return 0;
-}
-*/
 
 

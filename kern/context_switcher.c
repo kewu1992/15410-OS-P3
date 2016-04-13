@@ -36,7 +36,6 @@
  *
  *
  *  @author Ke Wu (kewu)
- *  @author Jian Wang (jianwan3)
  *
  *  @bug context_switch(OP_YIELD, tid) needs to search the queue of scheduler to
  *       find if the thread is in the queue. We realize this is an O(n) 
@@ -294,7 +293,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->result = new_thr->tid;
                 new_thr->result = 0;
                 atomic_add(&this_thr->pcb->cur_thr_num, 1);
-                lprintf("process %d get a new thread %d", this_thr->pcb->pid, new_thr->tid);
+                lprintf("process %d get a new thread %d", 
+                                            this_thr->pcb->pid, new_thr->tid);
             } else {
                 // thread fork error
                 lprintf("internal_thread_fork() failed");
@@ -328,7 +328,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 if (this_thr->state == NORMAL) {
                     this_thr->state = BLOCKED;
                 } else  {
-                    lprintf("strange state in context_switch(3,0): %d", this_thr->state);
+                    lprintf("strange state in context_switch(3,0): %d", 
+                                                            this_thr->state);
                     MAGIC_BREAK;
                 }
 
