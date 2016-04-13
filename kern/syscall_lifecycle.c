@@ -254,7 +254,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
         this_thr->pcb->page_table_base = old_pd;
         set_cr3(old_pd);
 
-        free_entire_space(new_pd);
+        int need_unreserve_frames = 1;
+        free_entire_space(new_pd, need_unreserve_frames);
 
         /*
         for(i = 0; i < argc; i++)
@@ -265,7 +266,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
         return rv;
     }
 
-    free_entire_space(old_pd);
+    int need_unreserve_frames = 1;
+    free_entire_space(old_pd, need_unreserve_frames);
 
     /*
     for(i = 0; i < argc; i++)
@@ -524,7 +526,8 @@ void vanish_syscall_handler(int is_kernel_kill) {
         uint32_t old_pd = this_task->page_table_base;
 
         // Free old address space
-        free_entire_space(old_pd);
+        int need_unreserve_frames = 1;
+        free_entire_space(old_pd, need_unreserve_frames);
 
         // Get hashtable's lock
         mutex_lock(&ht_pid_pcb_lock);

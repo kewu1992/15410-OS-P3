@@ -282,14 +282,6 @@ void exception_handler(int exception_type) {
 
     // Current thread has an exception handler installed
     // Give it a chance to fix the exception
-    lprintf("thread tid %d has an exception handler installed",
-            this_thr->tid);
-
-    /*
-    lprintf("Before call user swexn handler");
-    dump_register(this_thr->tid, &ureg);
-    lprintf("Now call user swexn handler");
-    */
 
     // Deregister swexn handler first
     void *esp3 = this_thr->swexn_struct->esp3;
@@ -308,7 +300,7 @@ void exception_handler(int exception_type) {
 
        0xdeadbeed is an invalid address that will cause page fault
        if user returns directly from swexn handler.
-       */
+    */
 
     // Position of ureg struct on user's exception stack
     uint32_t actual_ureg_pos = (uint32_t)esp3 - 

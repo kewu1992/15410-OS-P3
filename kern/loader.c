@@ -294,7 +294,8 @@ void* push_to_stack(void *esp, uint32_t value) {
             panic("load init failed");
         }
 
-        free_entire_space(old_pd);
+        int need_unreserve_frames = 1;
+        free_entire_space(old_pd, need_unreserve_frames);
 
         // modify tcb
         this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
