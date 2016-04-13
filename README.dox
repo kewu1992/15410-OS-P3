@@ -7,7 +7,25 @@
 
 1. Lock
 
-2. Memory Management
+
+2. Vanish
+When a thread vanishes, it adds itself to a list
+Things a thread can free itself
+Things a thread needs other thread to free: kernel stack, tcb,
+
+When the thread to vanish is the last one in a task, it needs to report its
+exit status to its parent task. The thread will first check if its parent 
+task is alive, which is accomplished by consulting a hashtable that maps a pid
+to a pcb. If pcb corresponding to the pid exists in the hashtable, then the 
+parent task is alive and the vanisning task can put its exit status to parent 
+task's child_exit_status_list.
+
+
+Use a hashtable to map task pid to its pcb, as well as to indicate if the task
+is alive (if not, hashtable will return NULL).
+
+
+3. Memory Management
 The virtual memory system uses paging and ZFOD (Zero-fill on demand) with a 
 physical frame allocator that supports allocating and freeing a single frame.
 

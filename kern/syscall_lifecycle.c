@@ -30,7 +30,7 @@
  *  memory regions of the invoking task. The new task contains a single thread 
  *  which is a copy of the thread invoking fork() except for the return value of
  *  the system call. The exit status of a newly-created task is 0. If a thread
- *  in the task invoking fork() has a software exception handler registered, the 
+ *  in the task invoking fork() has a software exception handler registered, the
  *  corresponding thread in the newly-created task will have exactly the same
  *  handler registered.
  *
@@ -108,8 +108,6 @@ int exec_syscall_handler(char* execname, char **argvec) {
     // first check the number of threads for this task
     if (this_thr->pcb->cur_thr_num > 1) {
         //the invoking task contains more than one thread, reject exec()
-        lprintf("exec() with more than one thread");
-        MAGIC_BREAK;
 
         printf("exec() failed because more than one thread\n");
         return EMORETHR;
@@ -123,7 +121,6 @@ int exec_syscall_handler(char* execname, char **argvec) {
     int max_len = EXEC_MAX_ARG_SIZE;
     int need_writable = 0;
     if(execname == NULL || execname[0] == '\0') {
-        MAGIC_BREAK;
         return EINVAL;
     } else {
         int rv = check_mem_validness((char *)execname, max_len, is_check_null, 
@@ -133,7 +130,6 @@ int exec_syscall_handler(char* execname, char **argvec) {
                 rv = ENAMETOOLONG;
             else
                 rv = EFAULT;
-            MAGIC_BREAK;
             return rv;
         }
     }
@@ -144,9 +140,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
         // Make sure &argvec[argc] is valid
         is_check_null = 0;
         max_len = sizeof(char *);
-        if(check_mem_validness((char *)(argvec + argc), max_len, is_check_null, 
+        if(check_mem_validness((char *)(argvec + argc), max_len, is_check_null,
                     need_writable) < 0) {
-            MAGIC_BREAK;
             return EFAULT;
         }
 
@@ -156,15 +151,14 @@ int exec_syscall_handler(char* execname, char **argvec) {
         // Make sure string argvec[argc] is valid and null terminated
         is_check_null = 1;
         max_len = EXEC_MAX_ARG_SIZE;
-        int rv = check_mem_validness((char *)argvec[argc], max_len, is_check_null, 
-                    need_writable);
+        int rv = check_mem_validness((char *)argvec[argc], max_len, 
+                is_check_null, need_writable);
         if(rv < 0) {
             if (rv == ERROR_NOT_NULL_TERM)
                 rv = E2BIG;
             else
                 rv = EFAULT;
 
-            MAGIC_BREAK;
             return rv;
         }
 
@@ -173,47 +167,22 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
     // check number of arguments
     if (argc == EXEC_MAX_ARGC || argvec[argc] != NULL) {
-        MAGIC_BREAK;
         return E2BIG;
     }
 
     // argvec[0] should be the same string as execname
     if(argvec[0] == NULL || strncmp(execname, argvec[0], EXEC_MAX_ARG_SIZE)) {
-        MAGIC_BREAK;
         return EINVAL;
     }
     // Finish argument check
 
 
     // Start copying execname and argv to kernel memory
-    //char my_execname[strlen(execname) + 1];
     char my_execname[EXEC_MAX_ARG_SIZE];
     memcpy(my_execname, execname, strlen(execname) + 1);
 
     // copy argv to kernel memory
     char *argv[argc];
-
-    // copy argv[] to kernel memory
-    /*
-    for(i = 0; i < argc; i++) {
-        argv[i] = malloc(strlen(argvec[i])+1);
-        if (argv[i] == NULL)
-            break;
-        memcpy(argv[i], argvec[i], strlen(argvec[i])+1);
-    }
-
-    if (i != argc) {
-        // not enough memory
-        for(i = 0; i < argc; i++) {
-            if (argv[i] != NULL)
-                free(argv[i]);
-            else
-                break;
-        }
-        MAGIC_BREAK;
-        return -7;
-    }
-    */
 
     char tmp_argv[argc][EXEC_MAX_ARG_SIZE];
     for(i = 0; i < argc; i++) {
@@ -221,7 +190,6 @@ int exec_syscall_handler(char* execname, char **argvec) {
         memcpy(argv[i], argvec[i], strlen(argvec[i])+1);
     }
     // Finish copying
-
 
 
     // Start exec()
@@ -232,23 +200,16 @@ int exec_syscall_handler(char* execname, char **argvec) {
     // recover old address space
     uint32_t new_pd = create_pd();
     if(new_pd == ERROR_MALLOC_LIB) {
-        lprintf("create_pd() failed in exec()");
-        /*
-        for(i = 0; i < argc; i++)
-            free(argv[i]);
-        */
-        MAGIC_BREAK;
         return ENOMEM;
     }
     this_thr->pcb->page_table_base = new_pd;
     set_cr3(new_pd);
 
-    lprintf("Thread %d about to load task, new pd:%x", this_thr->tid, (unsigned int)new_pd);
-
     // load task
     void *my_program, *usr_esp;
     int rv;
-    if ((rv = loadTask(my_execname, argc, (const char**)argv, &usr_esp, &my_program)) < 0) {
+    if ((rv = loadTask(my_execname, argc, (const char**)argv, &usr_esp, 
+                    &my_program)) < 0) {
         // load task failed
         this_thr->pcb->page_table_base = old_pd;
         set_cr3(old_pd);
@@ -256,22 +217,11 @@ int exec_syscall_handler(char* execname, char **argvec) {
         int need_unreserve_frames = 1;
         free_entire_space(new_pd, need_unreserve_frames);
 
-        /*
-        for(i = 0; i < argc; i++)
-            free(argv[i]);
-        */
-        lprintf("loadTask() failed in exec() with %d error code\n", rv);
-        MAGIC_BREAK;
         return rv;
     }
 
     int need_unreserve_frames = 1;
     free_entire_space(old_pd, need_unreserve_frames);
-
-    /*
-    for(i = 0; i < argc; i++)
-        free(argv[i]);
-    */
 
     // modify tcb
     this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
@@ -305,8 +255,6 @@ void set_status_syscall_handler(int status) {
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     
     this_thr->pcb->exit_status->status = status;
-
-    lprintf("set status for task %d: %d", this_thr->pcb->pid, status);
 }
 
 
@@ -325,26 +273,36 @@ void set_init_pcb(pcb_t *init_pcb) {
     init_task = init_pcb; 
 }
 
-/** @brief Hashtable to pid to pcb map, dead process doesn't have
- * entry in hashtable
+/** @brief Hashtable to map pid to pcb, dead process doesn't have entry in 
+ *  hashtable.
  */
 static hashtable_t ht_pid_pcb;
 /** @brief Lock for ht_pid_pcb */
 static mutex_t ht_pid_pcb_lock;
 
 
-/** @brief The size of hash table to stroe pid to pcb map */
+/** @brief The initial size of hash table to stroe pid to pcb map,
+  * pick a prime number 
+  */
 #define PID_PCB_HASH_SIZE 1021
 
-/** @brief The hash function for hash table */
+/** @brief The hash function for hash table 
+  *
+  * @param key The hash function key
+  *
+  * @return The hashed value
+  *
+  */
 static int ht_pid_pcb_hashfunc(void *key) {
     int tid = (int)key;
     return tid % PID_PCB_HASH_SIZE;
 }
 
-/** @brief Get wait status of a task
+/** @brief Get pcb for pid
  *
- *  @return The wait status on success; NULL on error
+ *  @param pid The pid of the task to look for
+ *
+ *  @return Task's pcb if it's alive; NULL if not
  */
 void *get_parent_task(int pid) {
     int is_find = 0;
@@ -355,10 +313,11 @@ void *get_parent_task(int pid) {
     return NULL;
 }
 
-/** @brief Store pid to pcb maping for a task
- *  The list stores a map from pid to pcb for an alive task
+/** @brief Put pid to pcb mapping for a task
  *
- *  @return On success return zero, on error return -1
+ *  @param pid Key of the hashtable
+ *  @param pcb Value of the hashtable
+ *  @return On success return zero, a negative integer on error
  */
 int ht_put_task(int pid, pcb_t *pcb) {
     mutex_lock(&ht_pid_pcb_lock);
@@ -367,6 +326,11 @@ int ht_put_task(int pid, pcb_t *pcb) {
     return rv;
 }
 
+/** @brief Remove a task's pid to pcb mapping entry from the hashtable
+ *
+ *  @param pid Key of the hashtable
+ *  @return void
+ */
 void ht_remove_task(int pid) {
     int is_find;
     mutex_lock(&ht_pid_pcb_lock);
@@ -374,27 +338,32 @@ void ht_remove_task(int pid) {
     mutex_unlock(&ht_pid_pcb_lock);
 }
 
+/** @brief A list that stores the thread to reap */
 static simple_queue_t zombie_list;
 
+/** @brief The lock for the zombie list */
 static mutex_t zombie_list_lock;
 
 /** @brief Get next zombie in the thread zombie list
  *
  *  @return On success, return the next zombie thread, on error return NULL
- *
  */
 simple_node_t* get_next_zombie() {
     simple_node_t* node = simple_queue_dequeue(&zombie_list);
     return node;
 }
 
+/** @brief Get the lock for the zombie list
+ *
+ *  @return Lock for the zombie list
+ */
 mutex_t *get_zombie_list_lock() {
     return &zombie_list_lock;
 }
 
 /** @brief Put next zombie in the thread zombie list
  *
- * @param thread_zombie The place to store zombie thread
+ * @param node The node describing the zombie thread
  *
  * @return 0 on success; -1 on error
  *
@@ -404,7 +373,7 @@ int put_next_zombie(simple_node_t* node) {
     return rv;
 }
 
-/** @brief Allocate a system wide stack devoted to vanish
+/** @brief Initialize vanish syscall
  *
  *  @return 0 on success; -1 on error
  *
@@ -448,7 +417,8 @@ int syscall_vanish_init() {
   * child tasks that have not been collected via wait() are also be made 
   * available to the kernel-launched “init” task.
   *
-  * @param is_kernel_kill A flag indicating if kernel is the caller
+  * @param is_kernel_kill A flag indicating if kernel is the caller of the 
+  * function.
   * 
   * @return Should never return
   *
@@ -457,11 +427,8 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     if(this_thr == NULL) {
-        lprintf("tcb is NULL");
         panic("tcb is NULL");
     }
-
-    lprintf("vanish syscall handler called for %d", this_thr->tid);
 
     // Get pcb of current task
     pcb_t *this_task = this_thr->pcb;
@@ -499,7 +466,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
         if(parent_task == NULL) {
             // Parent is dead 
-            lprintf("parent %d is dead", this_task->ppid);
             // Report to init task
             parent_task = init_task;
         }
@@ -527,7 +493,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         } else {
             mutex_unlock(&task_wait->lock);
         }
-        // ======= End report exit status to its parent or init task ===========
+        // ======= End report exit status to its parent or init task ==========
 
         // Free resources (page table, hash table entry and pcb) for this task
         uint32_t old_pd = this_task->page_table_base;
@@ -545,8 +511,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         int is_find; 
         hashtable_remove(&ht_pid_pcb, (void*)this_task->pid, &is_find);
         if(is_find == 0) {
-            lprintf("delete task %d in hashtable failed", this_task->pid);
-            MAGIC_BREAK;
+            panic("delete task %d in hashtable failed", this_task->pid);
         }
         // Release pcb's lock
         mutex_unlock(&this_task_wait->lock);
@@ -559,9 +524,11 @@ void vanish_syscall_handler(int is_kernel_kill) {
         task_wait_t *init_task_wait = &init_task->task_wait_struct;
         mutex_lock(&init_task_wait->lock);
 
-        // Put children tasks' exit_status into init task's child exit status list
+        // Put children tasks' exit_status into init task's child exit status 
+        // list
         int has_unreaped_child = 0;
-        while((node = simple_queue_dequeue(&this_task->child_exit_status_list)) != NULL) {
+        while((node = simple_queue_dequeue(
+                        &this_task->child_exit_status_list)) != NULL) {
             has_unreaped_child = 1;
             simple_queue_enqueue(&init_task->child_exit_status_list, node);
             init_task_wait->num_zombie++;
@@ -597,8 +564,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
 
     context_switch(OP_BLOCK, 0);
 
-    lprintf("Vanished thread will never reach here");
-    MAGIC_BREAK;
+    panic("Vanished thread will never reach here");
 
 }
 
@@ -633,16 +599,15 @@ int wait_syscall_handler(int *status_ptr) {
     int max_len = sizeof(int);
     int need_writable = 1;
     if(status_ptr != NULL && 
-       check_mem_validness((char *)status_ptr, max_len, is_check_null, 
-                                                         need_writable) < 0) {
+        check_mem_validness((char *)status_ptr, max_len, is_check_null, 
+        need_writable) < 0) {
         return EFAULT;
     }
 
     // Get current thread
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     if(this_thr == NULL) {
-        lprintf("tcb is NULL");
-        MAGIC_BREAK;
+        panic("tcb is NULL");
     }
 
     // define a node for simple queue using stack space
@@ -652,8 +617,7 @@ int wait_syscall_handler(int *status_ptr) {
     // Get current task
     pcb_t *this_task = this_thr->pcb;
     if(this_task == NULL) {
-        lprintf("pcb is NULL");
-        MAGIC_BREAK;
+        panic("pcb is NULL");
     }
 
     task_wait_t *wait = &(this_task->task_wait_struct);
@@ -679,7 +643,8 @@ int wait_syscall_handler(int *status_ptr) {
         } else {
             // have zombie task, can reap directly
             wait->num_zombie--;
-            simple_node_t *node = simple_queue_dequeue(&this_task->child_exit_status_list);
+            simple_node_t *node = 
+                simple_queue_dequeue(&this_task->child_exit_status_list);
             mutex_unlock(&wait->lock);
 
             exit_status_t *es = (exit_status_t*)node->thr;
@@ -687,7 +652,6 @@ int wait_syscall_handler(int *status_ptr) {
             if(status_ptr != NULL)
                 *status_ptr = es->status;
             int rv = es->pid;
-            lprintf("task %d reaped task %d, with exit status %d", this_task->pid, rv, es->status);
             free(es);
             free(node);
             return rv;
