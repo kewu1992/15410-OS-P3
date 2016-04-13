@@ -74,6 +74,7 @@ void kernel_init() {
         panic("Initialize scheduler failed!");
 
     // Initialize system call specific data structure
+    
     if (syscall_print_init() < 0)
         panic("Initialize syscall print() failed!");
 

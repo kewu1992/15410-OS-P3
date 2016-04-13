@@ -184,7 +184,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
         case OP_CONTEXT_SWITCH: // normal context switch 
         case OP_YIELD:  // yield -1 or yield to a specific thread
             // let sheduler choose the next thread to run
+            spinlock_lock(&spinlock);
             new_thr = scheduler_get_next((int)arg);
+            spinlock_unlock(&spinlock);
             if (new_thr == NULL) {
                 if ((int)arg == -1)
                     // no other thread to yield to, just return this thread
@@ -193,7 +195,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                     // The requested thread doesn't exist
                     this_thr->result = ETHREAD;
                 return this_thr;
-            } 
+            }
 
             this_thr->result = (is_syscall) ? 0 : this_thr->result;
 

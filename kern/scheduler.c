@@ -1,35 +1,25 @@
 #include <simple_queue.h>
 #include <control_block.h>
-#include <spinlock.h>
-#include <cr.h>
 #include <simics.h>
 
-
-
-
 static simple_queue_t queue;
-static spinlock_t spinlock;
 
 int scheduler_init() {
     if (simple_queue_init(&queue) < 0)
         return -1;
-    if (spinlock_init(&spinlock) < 0)
-        return -1;
     return 0;
 }
 
-// thread-safe
+// thread-unsafe
 tcb_t* scheduler_get_next(int mode) {
     simple_node_t* node;
 
-    spinlock_lock(&spinlock);
     if (mode == -1)
         node = simple_queue_dequeue(&queue);
     else {
         // yield to a specific thread
         node = simple_queue_remove_tid(&queue, mode);
     }
-    spinlock_unlock(&spinlock);
 
     if (node == NULL)
         return NULL;
