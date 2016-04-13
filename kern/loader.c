@@ -185,7 +185,8 @@ int loadTask(const char *filename, int argc, const char **argv,
     // calculate pages needed initially
     int page_num = len / PAGE_SIZE + 1;
     // allocate page
-    new_region(MAX_ADDR - page_num * PAGE_SIZE + 1, page_num * PAGE_SIZE, 1, 0, 0);
+    if (new_region(MAX_ADDR - page_num * PAGE_SIZE + 1, page_num * PAGE_SIZE, 1, 0, 0) < 0)
+        return ENOMEM;
 
     // put argv[]
     int arg_len;
