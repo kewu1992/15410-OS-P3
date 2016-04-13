@@ -34,7 +34,7 @@ typedef struct {
 
 int hashtable_init(hashtable_t *table);
 
-void hashtable_put(hashtable_t *table, void* key, void* vaule);
+int hashtable_put(hashtable_t *table, void* key, void* value);
 
 void* hashtable_get(hashtable_t *table, void* key, int *is_find);
 

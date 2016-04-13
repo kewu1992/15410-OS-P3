@@ -358,11 +358,19 @@ void *get_parent_task(int pid) {
 /** @brief Store pid to pcb maping for a task
  *  The list stores a map from pid to pcb for an alive task
  *
- *  @return Void
+ *  @return On success return zero, on error return -1
  */
-void ht_put_task(int pid, pcb_t *pcb) {
+int ht_put_task(int pid, pcb_t *pcb) {
     mutex_lock(&ht_pid_pcb_lock);
-    hashtable_put(&ht_pid_pcb, (void *)pid, (void *)pcb); 
+    int rv = hashtable_put(&ht_pid_pcb, (void *)pid, (void *)pcb); 
+    mutex_unlock(&ht_pid_pcb_lock);
+    return rv;
+}
+
+void ht_remove_task(int pid) {
+    int is_find;
+    mutex_lock(&ht_pid_pcb_lock);
+    hashtable_remove(&ht_pid_pcb, (void*)pid, &is_find);
     mutex_unlock(&ht_pid_pcb_lock);
 }
 

@@ -58,9 +58,17 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
     else
         process->ppid = -1;
 
+    // Put pid to pcb mapping in hashtable
+    if (ht_put_task(process->pid, process) < 0) {
+        printf("ht_put_task() failed in tcb_create_process_only()\n");
+        free(process);
+        return NULL;
+    }
+
     process->exit_status = malloc(sizeof(exit_status_t));
     if (process->exit_status == NULL) {
         printf("malloc() failed in tcb_create_process_only()\n");
+        ht_remove_task(process->pid);
         free(process);
         return NULL;
     }
@@ -73,6 +81,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
     if (process->exit_status_node == NULL) {
         printf("malloc() failed in tcb_create_process_only()\n");
         free(process->exit_status);
+        ht_remove_task(process->pid);
         free(process);
         return NULL;
     }
@@ -85,6 +94,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
         printf("simple_queue_init() failed in tcb_create_process_only()\n");
         free(process->exit_status);
         free(process->exit_status_node);
+        ht_remove_task(process->pid);
         free(process);
         return NULL;
     }
@@ -96,6 +106,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
         simple_queue_destroy(&process->child_exit_status_list);
         free(process->exit_status);
         free(process->exit_status_node);
+        ht_remove_task(process->pid);
         free(process);
         return NULL;
     }
@@ -105,6 +116,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
         simple_queue_destroy(&process->child_exit_status_list);
         free(process->exit_status);
         free(process->exit_status_node);
+        ht_remove_task(process->pid);
         free(process);
         return NULL;
     }
@@ -127,14 +139,11 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
             for(j = 0; j < i - 1; j++) {
                 mutex_destroy(&process->pt_locks[j]);
             }
+            ht_remove_task(process->pid);
             free(process);
             return NULL;
         }
     }
-
-    // Put pid to pcb mapping in hashtable
-    ht_put_task(process->pid, process);
-
 
     // must be last step
     thread->pcb = process;

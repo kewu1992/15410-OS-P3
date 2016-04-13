@@ -6,7 +6,7 @@
  *  hash function are contained in the hashtable_t data structure 
  *  which is self-defined by user and passed to this program. The 
  *  collision resolution for this implementation is separate chaining
- *  with linked lists. This hash table is thread-safe.
+ *  with linked lists. This hash table is NOT thread-safe.
  *
  *  @author Ke Wu (kewu)
  *  @bug No known bug
@@ -21,7 +21,7 @@
  *  
  *  @param table The hash table that need to initialize
  *
- *  @return On success return 0, on error return a negative number      
+ *  @return On success return 0, on error return a negative number
  */
 int hashtable_init(hashtable_t *table) {
     table->array = malloc(sizeof(hashnode_t) * table->size);
@@ -40,24 +40,21 @@ int hashtable_init(hashtable_t *table) {
  *  @param key Key of <key, value> pair
  *  @param value Value of <key, value> pair
  *
- *  @return Void
+ *  @return On success return zero, on error return -1
  */
-void hashtable_put(hashtable_t *table, void* key, void* value) {
+int hashtable_put(hashtable_t *table, void* key, void* value) {
     int index = table->func(key);
 
     hashnode_t *hp = malloc(sizeof(hashnode_t));
-    while (!hp) {
-        lprintf("malloc failed, will try again...");
-        printf("malloc failed, will try again...\n");
- //       yield(-1);
-        //MAGIC_BREAK;
-        hp = malloc(sizeof(hashnode_t));
-    }
+    if (!hp)
+        return -1;
+
     hp->key = key;
     hp->value = value;
 
     hp->next = table->array[index].next;
     table->array[index].next = hp;
+    return 0;
 }
 
 
