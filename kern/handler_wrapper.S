@@ -60,11 +60,6 @@ keyboard_wrapper:
     pushl   %eax
 
     call    keyboard_interrupt_handler
-    
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
 
     popl    %eax
     movl    %eax, %cr2
@@ -94,11 +89,6 @@ timer_wrapper:
     pushl   %eax
 
     call    timer_interrupt_handler
-    
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
 
     popl    %eax
     movl    %eax, %cr2
@@ -121,11 +111,6 @@ gettid_wrapper:
     
     call    gettid_syscall_handler
     pushl   %eax                    # temporary save return value
-
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
     
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
@@ -140,11 +125,6 @@ fork_wrapper:
     call    fork_syscall_handler
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-    
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -161,11 +141,6 @@ exec_wrapper:
     addl    $8, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-    
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -200,11 +175,6 @@ new_pages_wrapper:
     call    new_pages_syscall_handler
     addl    $8, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
-
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
     
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
@@ -221,11 +191,6 @@ remove_pages_wrapper:
     addl    $4, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-    
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -244,11 +209,6 @@ swexn_wrapper:
     addl    $16, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-    
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -271,11 +231,6 @@ readline_wrapper:
     addl    $8, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-    
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -290,11 +245,6 @@ set_term_color_wrapper:
     call    set_term_color_syscall_handler
     addl    $4, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
-
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
 
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
@@ -312,11 +262,6 @@ set_cursor_pos_wrapper:
     addl    $8, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -333,11 +278,6 @@ get_cursor_pos_wrapper:
     addl    $8, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -353,11 +293,6 @@ sleep_wrapper:
     call    sleep_syscall_handler
     addl    $4, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
-
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
 
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
@@ -385,11 +320,6 @@ get_ticks_wrapper:
     call    get_ticks_syscall_handler
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -404,11 +334,6 @@ wait_wrapper:
     call    wait_syscall_handler
     addl    $4, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
-
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
 
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
@@ -426,11 +351,6 @@ set_status_wrapper:
     addl    $4, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
 
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
-
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
     call    asm_pop_generic         # restore all generic registers except %esp and %eax
@@ -445,11 +365,6 @@ yield_wrapper:
     call    yield_syscall_handler
     addl    $4, %esp                # "pop" arguments
     pushl   %eax                    # temporary save return value
-
-    #pushl   %esp                    # push argument: %esp
-    #pushl   $56                     # push argument: offset of cs
-    #call    context_switch_set_esp0 # call context_switch_set_esp0()
-    #addl    $8, %esp                # "pop" arguments
 
     popl    %eax                    # restore return value
     call    asm_pop_ss              # restore all data segment selectors
@@ -607,7 +522,7 @@ df_wrapper:
     pusha
     call    asm_push_ss         # save all data segment selectors
     call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
-    pushl   $IDT_DF     # push exception type
+    pushl   $IDT_DF             # push exception type
     call    exception_handler   # call generic exception handler
     addl    $4, %esp            # "pop" argument
     call    asm_pop_ss          # restore all data segment selectors
@@ -619,7 +534,7 @@ cso_wrapper:
     pusha
     call    asm_push_ss         # save all data segment selectors
     call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
-    pushl   $IDT_CSO     # push exception type
+    pushl   $IDT_CSO            # push exception type
     call    exception_handler   # call generic exception handler
     addl    $4, %esp            # "pop" argument
     call    asm_pop_ss          # restore all data segment selectors
@@ -631,7 +546,7 @@ ts_wrapper:
     pusha
     call    asm_push_ss         # save all data segment selectors
     call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
-    pushl   $IDT_TS     # push exception type
+    pushl   $IDT_TS             # push exception type
     call    exception_handler   # call generic exception handler
     addl    $4, %esp            # "pop" argument
     call    asm_pop_ss          # restore all data segment selectors
@@ -643,7 +558,7 @@ np_wrapper:
     pusha
     call    asm_push_ss         # save all data segment selectors
     call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
-    pushl   $IDT_NP     # push exception type
+    pushl   $IDT_NP             # push exception type
     call    exception_handler   # call generic exception handler
     addl    $4, %esp            # "pop" argument
     call    asm_pop_ss          # restore all data segment selectors
@@ -655,7 +570,7 @@ ss_wrapper:
     pusha
     call    asm_push_ss         # save all data segment selectors
     call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
-    pushl   $IDT_SS     # push exception type
+    pushl   $IDT_SS             # push exception type
     call    exception_handler   # call generic exception handler
     addl    $4, %esp            # "pop" argument
     call    asm_pop_ss          # restore all data segment selectors
@@ -667,7 +582,7 @@ gp_wrapper:
     pusha
     call    asm_push_ss         # save all data segment selectors
     call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
-    pushl   $IDT_GP     # push exception type
+    pushl   $IDT_GP             # push exception type
     call    exception_handler   # call generic exception handler
     addl    $4, %esp            # "pop" argument
     call    asm_pop_ss          # restore all data segment selectors
@@ -703,7 +618,7 @@ ac_wrapper:
     pusha
     call    asm_push_ss         # save all data segment selectors
     call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
-    pushl   $IDT_AC     # push exception type
+    pushl   $IDT_AC             # push exception type
     call    exception_handler   # call generic exception handler
     addl    $4, %esp            # "pop" argument
     call    asm_pop_ss          # restore all data segment selectors
@@ -727,7 +642,7 @@ xf_wrapper:
     pusha
     call    asm_push_ss         # save all data segment selectors
     call    asm_set_ss          # set segment selectors to SEGSEL_KERNEL_DS
-    pushl   $IDT_XF     # push exception type
+    pushl   $IDT_XF             # push exception type
     call    exception_handler   # call generic exception handler
     addl    $4, %esp            # "pop" argument
     call    asm_pop_ss          # restore all data segment selectors
