@@ -40,7 +40,7 @@ asm_context_switch:
     movl    (%eax), %esp    # %esp = next_thr->k_stack_esp
     addl    $12, %esp       # reclaim space
     popl    (%eax)          # pop this_thr->k_stack_esp
-    call    context_switch_block_unlock # unlock block_lock, only useful when block() and resume()
+    call    context_switch_unlock # unlock spinlock
     popl    %eax            # pop %cr2
     movl    %eax, %cr2      # restore %cr2
     popf                    # pop EFLAGS

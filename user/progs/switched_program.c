@@ -1,6 +1,7 @@
 #include <simics.h>
 #include <syscall.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 char c0[14] = "test"; // data segment
 char *c1 = "test"; // rodata segment
@@ -10,11 +11,8 @@ void func() {
 }
 
 int main() {
-    lprintf("I am switched program!");
-    halt();
-    
-    char* argv[] = {"small_program", "233333", NULL};
-    exec("small_program", argv);
-    
+    int *a = malloc(sizeof(int));
+    printf("here:%d", *a);
+
     return 0;
 }

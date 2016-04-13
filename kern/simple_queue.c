@@ -60,32 +60,6 @@ int simple_queue_destroy(simple_queue_t *deque) {
         return 0;
 }
 
-/** @brief Check if given tid exists in the queue
-  *
-  * @param deque The queue to search
-  * @param tid The thread to search
-  *
-  * @return 1 on success; -1 on failure
-  *
-  */
-int simple_queue_is_exist(simple_queue_t *deque, int tid) {
-    simple_node_t* node = &(deque->head);
-
-    while(node->next != &(deque->tail)) {
-        if (((tcb_t *)(node->next->thr))->tid == tid) {
-            return 1;
-        }
-
-        lprintf("simple exist: %d", 
-                ((tcb_t *)(node->next->thr))->tid);
-
-
-        node = node->next;
-    }
-
-    return 0;
-}
-
 int simple_queue_size(simple_queue_t *deque) {
     int count = 0;
     simple_node_t* node = &(deque->head);

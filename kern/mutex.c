@@ -1,16 +1,15 @@
-/** NEED TO CHANGE COMMENT!
- *  @file mutex.c
+/** @file mutex.c
  *  @brief Implementation of mutex
  *
  *  mutex_t contains the following fields
- *     1. lock_available: it is an integer to indicate if the mutex lock is
- *        available. lock_available == 1 means available (unlocked), 
- *        lock_available == 0 means unavailable (locked).
- *        lock_available == -1 means the mutex is destroied
+ *     1. lock_holder: it is an integer to indicate the holder of the mutex 
+ *        lock, -1 means mutex is available, -2 means mutex is destroied. A
+ *        non-negative number means mutex is locked by someone, the number is 
+ *        the tid of the thread that holding the mutex.
  *     2. inner_lock: a spinlock to protect critical section of mutex code.
  *     3. deque: a double-ended queue to store the threads that are blocking on
  *        the mutex. The queue is FIFO so first blocked thread will get the 
- *        mutex first.
+ *        mutex first. 
  *
  *  To achieve bounded waiting, a spinlock and a queue are used. Although 
  *  spinlock itself doesn't satisfy bounded waitting, the critical section 
@@ -21,6 +20,16 @@
  *  implementation of mutex directly because we can not predict what the 
  *  critical section mutex is trying to protect. So spinlock help mutex somewhat
  *  approximate bounded waiting.
+ *
+ *  Note that to avoid using malloc() (which will be protected by mutex after 
+ *  mutex is implemented...), the stack space of blocked threads is used to 
+ *  construct node for queue. Because the stack of the procedure call will not 
+ *  be destroied until the blocked thread get the mutex, so it is safe.
+ *
+ *  A thread that can not get the mutex immediately when calling mutex_lock() 
+ *  will be blocked on the mutex and will not be scheduled by scheduler until 
+ *  the mutex holder give the lock to the blocked thread and make it runnable. 
+ *  
  *
  *  @author Ke Wu (kewu)
  *  @author Jian Wang (jianwan3)
@@ -69,7 +78,7 @@ void mutex_destroy(mutex_t *mp) {
         printf("Destroy mutex %p failed, mutex is locked, "
                 "will try again...\n", mp);
         spinlock_unlock(&mp->inner_lock);
-        context_switch(0, -1);
+        context_switch(OP_CONTEXT_SWITCH, -1);
         spinlock_lock(&mp->inner_lock);
     }
 
@@ -78,7 +87,7 @@ void mutex_destroy(mutex_t *mp) {
         printf("Destroy mutex %p failed, some threads are blocking on it, "
                 "will try again later...\n", mp);
         spinlock_unlock(&mp->inner_lock);
-        context_switch(0, -1);
+        context_switch(OP_CONTEXT_SWITCH, -1);
         spinlock_lock(&mp->inner_lock);
     }
 
@@ -91,7 +100,7 @@ void mutex_destroy(mutex_t *mp) {
  *  
  *  A thread will gain exclusive access to the region
  *  after this call if it successfully acquires the lock
- *  until it calles mutex_unlock; or, it will block until
+ *  until it calles mutex_unlock(); or, it will block until
  *  it gets the lock if other thread is holding the lock
  *
  *  @param mp The mutex to lock
@@ -107,7 +116,7 @@ void mutex_lock(mutex_t *mp) {
         panic("mutex %p has already been destroied!", mp);
     }
 
-    if (mp->lock_holder == -1){
+    if (mp->lock_holder == -1) {
         // mutex is unlocked, get the mutex lock directly and set it to locked
         mp->lock_holder = thr->tid;
         spinlock_unlock(&mp->inner_lock);
@@ -116,7 +125,7 @@ void mutex_lock(mutex_t *mp) {
         node.thr = thr;
 
         // mutex is locked, enter the tail of queue to wait, note that stack
-        // memory is used for mutex_node. Because the stack of mutex_lock()
+        // memory is used for queue_node. Because the stack of mutex_lock()
         // will not be destroied until this thread get the mutex, so it is safe
         simple_queue_enqueue(&mp->deque, &node);
 
@@ -124,13 +133,23 @@ void mutex_lock(mutex_t *mp) {
 
         // while this thread doesn't get the mutex, block itself
         while(mp->lock_holder != thr->tid) {
-//            lprintf("mutex lock holder is %d, %d will block", mp->lock_holder,
-//                    thr->tid);
-            context_switch(3, 0);
+            context_switch(OP_BLOCK, 0);
         }
     }
 }
 
+/** @brief Try to lock mutex
+ *  
+ *  Try to lock a mutex. If the mutex is unlocked, then the invoking thread will
+ *  get the mutex lock immediately. However, unlike mutex_lock(), if the mutex
+ *  is locked by other thread, the thread that invoking mutex_try_lock() will
+ *  not be blocked, instead it will return with a failure value. 
+ *
+ *  @param mp The mutex to try to lock
+ *
+ *  @return Return zero if the thread get the mutex successfully, return -1 if
+ *          the mutex is unavailable and the thread didn't get the mutex.
+ */
 int mutex_try_lock(mutex_t *mp) {
     tcb_t* thr = tcb_get_entry((void*)asm_get_esp());
 
@@ -157,9 +176,9 @@ int mutex_try_lock(mutex_t *mp) {
 
 /** @brief Unlock mutex
  *  
- *  A thread's exclusive access to the region before this call
- *  till mutex_lock will be lost after this call and other threads
- *  awaiting the lock will have a chance to gain the lock.
+ *  A thread's exclusive access to the critical region will be lost after this 
+ *  call and other threads awaiting the lock will have a chance to gain the 
+ *  lock.
  *
  *  @param mp The mutex to unlock
  *
@@ -173,11 +192,9 @@ void mutex_unlock(mutex_t *mp) {
         panic("mutex %p has already been destroied!", mp);
     }
 
-    
     while (mp->lock_holder == -1) {
         panic("try to unlock an unlocked mutex %p", mp);
     }
-    
 
     simple_node_t* node = simple_queue_dequeue(&mp->deque);
 
@@ -193,12 +210,8 @@ void mutex_unlock(mutex_t *mp) {
     spinlock_unlock(&mp->inner_lock);
 
     if (node != NULL) {
-        //lprintf("mutex unlock: old holder gives lock to %d", mp->lock_holder);
-        context_switch(4, (uint32_t)node->thr);
+        // Make runnable the blocked thread in the head of queue (and now it is
+        // the holder of the mutex, so it can make progress when it is running)
+        context_switch(OP_MAKE_RUNNABLE, (uint32_t)node->thr);
     }
-}
-
-
-int mutex_get_lock_holder(mutex_t *mp) {
-    return mp->lock_holder;
 }

@@ -182,7 +182,7 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     // install keyboard interrupt handler
     install_IDT_entry(KEY_IDT_ENTRY, keyboard_wrapper, SEGSEL_KERNEL_CS, 0, 1);
 
-    // instll timer interrupt handler ????????? gate type???????
+    // instll timer interrupt handler
     install_IDT_entry(TIMER_IDT_ENTRY, timer_wrapper, SEGSEL_KERNEL_CS, 0, 1);
 
     // install gettid() syscall handler

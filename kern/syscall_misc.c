@@ -5,6 +5,7 @@
 #include <vm.h>
 
 extern void sim_halt(void);
+extern void asm_hlt(void);
 
 static char *dot_file;
 static int dot_file_length;
@@ -13,7 +14,7 @@ void halt_syscall_handler() {
     sim_halt();
 
     // if kernel is run on real hardware....
-    panic("kernel is halt!");
+    asm_hlt();
 }
 
 int syscall_readfile_init() {

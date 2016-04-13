@@ -99,7 +99,7 @@ int sleep_syscall_handler(int ticks) {
 
     spinlock_unlock(&sleep_lock);
 
-    context_switch(3, 0);
+    context_switch(OP_BLOCK, 0);
 
     return 0;
 }
@@ -149,7 +149,7 @@ void* timer_callback(unsigned int ticks) {
  */
 int yield_syscall_handler(int tid) {
 
-    context_switch(6, tid);
+    context_switch(OP_YIELD, tid);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
@@ -335,7 +335,7 @@ int deschedule_syscall_handler(int *reject) {
     simple_queue_enqueue(&deschedule_queue, &node);
     mutex_unlock(&deschedule_mutex);
 
-    context_switch(3, 0);
+    context_switch(OP_BLOCK, 0);
     return 0;
 }
 
@@ -357,7 +357,7 @@ int make_runnable_syscall_handler(int tid) {
     mutex_unlock(&deschedule_mutex);
 
     if (node != NULL) {
-        context_switch(4, (uint32_t)node->thr);
+        context_switch(OP_MAKE_RUNNABLE, (uint32_t)node->thr);
         return 0;
     } else
         return ETHREAD;

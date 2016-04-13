@@ -18,6 +18,8 @@
 .globl asm_pop_ss
 .globl asm_push_ss
 .globl asm_set_ss
+.globl asm_bsf
+.globl asm_hlt
 
 
 asm_get_ebp:
@@ -80,3 +82,10 @@ asm_set_ss:
     popl    %gs
     ret
 
+asm_bsf:
+    bsf 4(%esp), %eax
+    ret
+
+asm_hlt:
+    cli
+    hlt

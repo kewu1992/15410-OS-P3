@@ -14,7 +14,6 @@
 #include <asm_atomic.h>
 #include <syscall_errors.h>
 #include <stdio.h>
-#include <list.h>
 
 /** @brief At most half of the kernel stack to be used as buffer of exec() */
 #define MAX_EXEC_BUF (K_STACK_SIZE>>1)
@@ -46,7 +45,7 @@
  *          in which case no new task has been created.
  */
 int fork_syscall_handler() {
-    context_switch(1, 0);
+    context_switch(OP_FORK, 0);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
@@ -69,7 +68,7 @@ int fork_syscall_handler() {
  *          new thread has been created.
  */
 int thread_fork_syscall_handler() {
-    context_switch(2, 0);
+    context_switch(OP_THREAD_FORK, 0);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
@@ -516,7 +515,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         if(node != NULL) {
             wait_thr = (tcb_t *)node->thr;
             mutex_unlock(&task_wait->lock);
-            context_switch(4, (uint32_t)wait_thr);
+            context_switch(OP_MAKE_RUNNABLE, (uint32_t)wait_thr);
         } else {
             mutex_unlock(&task_wait->lock);
         }
@@ -566,7 +565,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
             if(node != NULL) {
                 wait_thr = (tcb_t *)node->thr;
                 mutex_unlock(&init_task_wait->lock);
-                context_switch(4, (uint32_t)wait_thr);
+                context_switch(OP_MAKE_RUNNABLE, (uint32_t)wait_thr);
             } else {
                 mutex_unlock(&init_task_wait->lock);
             }
@@ -588,7 +587,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
     put_next_zombie(&node);
     mutex_unlock(&zombie_list_lock);
 
-    context_switch(3, 0);
+    context_switch(OP_BLOCK, 0);
 
     lprintf("Vanished thread will never reach here");
     MAGIC_BREAK;
@@ -667,7 +666,7 @@ int wait_syscall_handler(int *status_ptr) {
             simple_queue_enqueue(&wait->wait_queue, &node);
             mutex_unlock(&wait->lock);
 
-            context_switch(3, 0);
+            context_switch(OP_BLOCK, 0);
             continue;
         } else {
             // have zombie task, can reap directly

@@ -41,19 +41,14 @@
 
 #define ALIGNMENT 4
 
-/* The number of user executables in the table of contents. */
-extern const int exec2obj_userapp_count;
-
-/* The table of contents. */
-extern const exec2obj_userapp_TOC_entry exec2obj_userapp_TOC[MAX_NUM_APP_ENTRIES];
-
 extern void asm_new_process_iret(void *esp);
 
 extern void asm_idle_process_iret(void *esp);
 
 static uint32_t init_eflags;
 
-
+/** @brief tcb for idle task, it is a global variable that will be used
+ *         in context_switcher.c as well */
 tcb_t* idle_thr;
 
 /* --- Local function prototypes --- */ 
@@ -190,7 +185,8 @@ int loadTask(const char *filename, int argc, const char **argv,
     // calculate pages needed initially
     int page_num = len / PAGE_SIZE + 1;
     // allocate page
-    new_region(MAX_ADDR - page_num * PAGE_SIZE + 1, page_num * PAGE_SIZE, 1, 0, 0);
+    if (new_region(MAX_ADDR - page_num * PAGE_SIZE + 1, page_num * PAGE_SIZE, 1, 0, 0) < 0)
+        return ENOMEM;
 
     // put argv[]
     int arg_len;
@@ -269,7 +265,7 @@ void* push_to_stack(void *esp, uint32_t value) {
     idle_thr = tcb_get_entry((void*)asm_get_esp());
     
     // fork
-    context_switch(1, 0);
+    context_switch(OP_FORK, 0);
     if (tcb_get_entry((void*)asm_get_esp())->result == 0) {        
         // child process, exec(init)
         char my_execname[] = "init";

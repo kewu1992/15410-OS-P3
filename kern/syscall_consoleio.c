@@ -138,7 +138,7 @@ int readline_syscall_handler(int len, char *buf) {
             
             spinlock_unlock(&reading_lock);
 
-            context_switch(3, 0); // no input available, block itself
+            context_switch(OP_BLOCK, 0); // no input available, block itself
 
             break;
         } else {

@@ -90,19 +90,19 @@ void set_hardware_cursor(uint16_t offset) {
  *  @return Void
  */
 void scrollup() {
-    int end = (CONSOLE_HEIGHT - 1) * CONSOLE_WIDTH * 2;
+    int end_index = (CONSOLE_HEIGHT - 1) * CONSOLE_WIDTH * 2;
     int offset = CONSOLE_WIDTH * 2;
     int i;
     // copy data from line i to line i-1
-    for (i = 0; i < end; i += 2){
+    for (i = 0; i < end_index; i += 2){
         *(char *)(CONSOLE_MEM_BASE + i) = 
                                     *(char *)(CONSOLE_MEM_BASE + i + offset);
         *(char *)(CONSOLE_MEM_BASE + i + 1) = 
                                 *(char *)(CONSOLE_MEM_BASE + i + 1 + offset);
     }
-    end += CONSOLE_WIDTH*2;
+    end_index += CONSOLE_WIDTH*2;
     // put spaces on the last line
-    for (; i < end; i += 2){
+    for (; i < end_index; i += 2){
         *(char *)(CONSOLE_MEM_BASE + i) = ' ';
         *(char *)(CONSOLE_MEM_BASE + i + 1) = term_color;
     }
@@ -319,9 +319,9 @@ void show_cursor() {
  *  @return Void.
  */
 void clear_console() {
-    int end = CONSOLE_HEIGHT * CONSOLE_WIDTH * 2;
+    int end_index = CONSOLE_HEIGHT * CONSOLE_WIDTH * 2;
     int i;
-    for (i = 0; i < end; i += 2) {
+    for (i = 0; i < end_index; i += 2) {
         *(char *)(CONSOLE_MEM_BASE + i) = ' ';
         *(char *)(CONSOLE_MEM_BASE + i + 1) = term_color;
     }
