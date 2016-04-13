@@ -1,15 +1,13 @@
-/**
- * The 15-410 kernel project.
- * @name loader.c
+/** @file loader.c
+ *  @brief This file contains functions for loading a new program.
  *
- * Functions for the loading
- * of user programs from binary 
- * files should be written in
- * this file. The function 
- * elf_load_helper() is provided
- * for your use.
+ *  Load user programs from binary files into memory and prepare user stack and
+ *  kernel stack for the new process. 
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
+ *  @bug No known bugs.
  */
-/*@{*/
 
 /* --- Includes --- */
 #include <string.h>
@@ -35,34 +33,63 @@
 #include <context_switcher.h>
 #include <syscall_errors.h>
 
+/** @brief The maximum address space supported by the kernel */
 #define MAX_ADDR 0xFFFFFFFF
 
-#define SIZE_USER_STACK  20
+/** @brief The size of arguments for the entry point _main() of user program.
+ *         There are four arguments in _main() so it needs 20 bytes */
+#define SIZE_USER_STACK_ARG  20
 
+/** @brief Alignment that %esp must align */
 #define ALIGNMENT 4
 
+/** @brief Jump to the prepared kernel stack and iret to run user program
+ *
+ *  This function will set %esp to a new value (a new stack), set data segment 
+ *  selectors to SEGSEL_USER_DS and execute iret. The data for iret should be 
+ *  preparted by load_kernel_stack(). 
+ *
+ *  @param esp The new value that %esp will set to.
+ *
+ *  @return Should never return
+ */
 extern void asm_new_process_iret(void *esp);
 
+/** @brief Jump to the prepared kernel stack and iret to run idle task
+ *
+ *  This function is very similar with asm_new_process_iret() except that it
+ *  will call idle_process_init() before iret to do some initialization for 
+ *  idle task.
+ *
+ *  @param esp The new value that %esp will set to.
+ *
+ *  @return Should never return
+ */
 extern void asm_idle_process_iret(void *esp);
 
+/** @brief The initial value of EFLAGS that will be set to every new process */
 static uint32_t init_eflags;
 
 /** @brief tcb for idle task, it is a global variable that will be used
  *         in context_switcher.c as well */
 tcb_t* idle_thr;
 
-/* --- Local function prototypes --- */ 
-static void* push_to_stack(void *esp, uint32_t value);
-
-/** @brief Return default eflags
-  * 
-  * @return void
-  */
+/** @brief Return the initial value of EFLAGS */
 uint32_t get_init_eflags() {
     return init_eflags;
 }
 
-int is_file_exist(const char *filename) {
+
+/* --- Local function prototypes --- */ 
+
+static void* push_to_stack(void *esp, uint32_t value);
+
+
+/** @brief Check if a file exists in 'file system' 
+ *  @param filename The filename of the file to check
+ *  @return Return 1 if the file exists, otherwise return 0
+ */
+static int is_file_exist(const char *filename) {
     int i;
     for (i = 0; i < exec2obj_userapp_count; i++)
         if (strcmp(filename, exec2obj_userapp_TOC[i].execname) == 0) {
@@ -71,19 +98,19 @@ int is_file_exist(const char *filename) {
     return 0;
 }
 
+
 /**
- * Copies data from a file into a buffer.
+ * @brief Copies data from a file into a buffer.
  *
  * @param filename   the name of the file to copy data from
  * @param offset     the location in the file to begin copying from
  * @param size       the number of bytes to be copied
  * @param buf        the buffer to copy the data into
  *
- * @return returns the number of bytes copied on succes; -1 on failure
+ * @return Returns the number of bytes copied on success; -1 on failure
  */
 int getbytes( const char *filename, int offset, int size, char *buf )
 {
-    //lprintf("filename:%s; offset:%d; size:%d; buf:%p", filename, offset, size, buf);
     int i;
     for (i = 0; i < exec2obj_userapp_count; i++)
         if (strcmp(filename, exec2obj_userapp_TOC[i].execname) == 0) {
@@ -95,6 +122,14 @@ int getbytes( const char *filename, int offset, int size, char *buf )
     return -1;
 }
 
+/** @brief Load the first task
+ *
+ *  This function will be invoked by kernel_main(). Normally the first task
+ *  to load is idle. 
+ *
+ *  @param filename The executable file of the first task to be loaded  
+ *  @return Should never return
+ */
 void loadFirstTask(const char *filename) {  
     init_eflags = get_eflags();
 
@@ -121,6 +156,23 @@ void loadFirstTask(const char *filename) {
     // should never reach here
 }
 
+
+/** @brief Load a task from binary file into memory
+ *
+ *  This function will load user programs from binary files into memory and 
+ *  prepare for user stack (arguments of _main()). 
+ *
+ *  @param filename The executable file of the task to be loaded  
+ *  @param argc The number of arguments in argv[] (arguments for main())
+ *  @param argv The arguments vector (arguments for main())
+ *  @param usr_esp This is also a return value, it will be used to store the 
+ *         %esp value when iret to user program at the first time
+ *  @param my_program This is also a return value, it will be used to store the
+ *         %eip value when iret to user program at the first time (entry point
+ *         of user program)
+ *
+ *  @return On success return zero, on error a negative number is retuned
+ */
 int loadTask(const char *filename, int argc, const char **argv, 
                                             void** usr_esp, void** my_program) {
 
@@ -152,12 +204,7 @@ int loadTask(const char *filename, int argc, const char **argv,
     if (new_region(simple_elf.e_bssstart, simple_elf.e_bsslen, 1, 0, 1) < 0)
         return ENOMEM;
 
-    //lprintf("txtstart:%p, txtlen:%d", (void*)simple_elf.e_txtstart, (int)simple_elf.e_txtlen);
-    //lprintf("datstart:%p, datlen:%d", (void*)simple_elf.e_datstart, (int)simple_elf.e_datlen);
-    //lprintf("rodatstart:%p, rodatslen:%d", (void*)simple_elf.e_rodatstart, (int)simple_elf.e_rodatlen);
-    //lprintf("bssstart:%p, bsslen:%d", (void*)simple_elf.e_bssstart, (int)simple_elf.e_bsslen);
-
-    // copy bytes from elf
+    // copy bytes from elf to memory
     getbytes(filename, (int)simple_elf.e_txtoff, 
             (int)simple_elf.e_txtlen, 
             (char*)simple_elf.e_txtstart);
@@ -167,13 +214,13 @@ int loadTask(const char *filename, int argc, const char **argv,
     getbytes(filename, (int)simple_elf.e_rodatoff, 
             (int)simple_elf.e_rodatlen, 
             (char*)simple_elf.e_rodatstart);
-    // ZFOD is used, NO need to memset() the region after new_resion() returns.
-    //memset((void*)simple_elf.e_bssstart, 0, (size_t)simple_elf.e_bsslen);
+    // ZFOD is used, NO need to memset() the bss region
 
-    // calculate total bytes needed to prepare user program
+
+    // calculate total bytes needed to prepare user program stack
     int i, len = 0;
     // user stack arguments
-    len += SIZE_USER_STACK;
+    len += SIZE_USER_STACK_ARG;
     // space for argv
     len += argc * sizeof(char*);
     // sapce for argv[]
@@ -182,10 +229,11 @@ int loadTask(const char *filename, int argc, const char **argv,
     // deal with alignment
     len += ALIGNMENT - len % ALIGNMENT;
 
-    // calculate pages needed initially
+    // calculate pages needed for user program stack initially
     int page_num = len / PAGE_SIZE + 1;
     // allocate page
-    if (new_region(MAX_ADDR - page_num * PAGE_SIZE + 1, page_num * PAGE_SIZE, 1, 0, 0) < 0)
+    if (new_region(MAX_ADDR - page_num * PAGE_SIZE + 1, page_num * PAGE_SIZE, 
+                                                                   1, 0, 0) < 0)
         return ENOMEM;
 
     // put argv[]
@@ -211,7 +259,7 @@ int loadTask(const char *filename, int argc, const char **argv,
 
     // set user stack for _main()
     void* user_esp = (void*)addr;
-    // push stack_low ??? DO WE NEED TO +1?
+    // push stack_low
     user_esp = push_to_stack(user_esp, MAX_ADDR - page_num * PAGE_SIZE + 1);
     // push stack_high
     user_esp = push_to_stack(user_esp, MAX_ADDR);
@@ -226,10 +274,24 @@ int loadTask(const char *filename, int argc, const char **argv,
     return 0;
 }
 
+/** @brief Prepare the kernel stack for a newly loaded process
+ *
+ *  This function will prepare the kernel stack for a new process and jump to 
+ *  that stack and execute iret.
+ *
+ *  @param k_stack_esp The initial value of esp for kernel stack  
+ *  @param u_stack_esp The initial value of esp for user stack  
+ *  @param program The entry point of user program
+ *  @param is_idle Indicate if it is the idle process that will be loaded
+ *
+ *  @return Should never return
+ */
 void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, 
                                                                 int is_idle) {
     //set esp0
     set_esp0((uint32_t)(k_stack_esp));
+
+    // prepare the kernel stack
 
     // push SS
     k_stack_esp = push_to_stack(k_stack_esp, SEGSEL_USER_DS);
@@ -253,13 +315,25 @@ void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program,
     // should never reach here
 }
 
+/** @brief Push a value to the stack specified by esp 
+ *  @param value The value that will be pushed to stack
+ *  @param esp The esp of the stack to push the value
+ *  @return The new value of esp after push
+ */
 void* push_to_stack(void *esp, uint32_t value) {
     void* new_esp = (void*)((uint32_t)esp - 4);
     memcpy(new_esp, &value, 4);
     return new_esp;
 }
 
- void idle_process_init() {
+/** @brief Initialize idle task
+ *
+ *  Idle task is responsible to fork() a new process and exec() init task. This
+ *  is what this function does. 
+ *
+ *  @return Void
+ */
+void idle_process_init() {
     lprintf("Initializing idle process");
 
     idle_thr = tcb_get_entry((void*)asm_get_esp());
@@ -276,7 +350,7 @@ void* push_to_stack(void *esp, uint32_t value) {
         // create new page table
         uint32_t new_pd = create_pd();
         if(new_pd == ERROR_MALLOC_LIB) {
-            panic("create_pd failed");
+            panic("create_pd() in idle_process_init() failed");
         }
         tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
         this_thr->pcb->page_table_base = new_pd;
@@ -287,7 +361,7 @@ void* push_to_stack(void *esp, uint32_t value) {
         int rv;
         if ((rv = loadTask(my_execname, 1, (const char**)argv, &usr_esp, 
                                                             &my_program)) < 0) {
-            panic("load init failed");
+            panic("load init task failed");
         }
 
         int need_unreserve_frames = 1;
@@ -307,5 +381,3 @@ void* push_to_stack(void *esp, uint32_t value) {
         return;
     }
  }
-
-/*@}*/

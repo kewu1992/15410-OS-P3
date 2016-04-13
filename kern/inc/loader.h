@@ -1,10 +1,13 @@
-/* The 15-410 kernel project
+/** @file loader.h
+ *  @brief Structure definitions and function prototypes for the user process 
+ *         loader.
  *
- *     loader.h
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
  *
- * Structure definitions, #defines, and function prototypes
- * for the user process loader.
+ *  @bug No known bugs.
  */
+
 
 #ifndef _LOADER_H
 #define _LOADER_H
@@ -13,18 +16,14 @@
      
 uint32_t get_init_eflags();
 
-/* --- Prototypes --- */
-
 int getbytes( const char *filename, int offset, int size, char *buf );
-
-/*
- * Declare your loader prototypes here.
- */
 
 void loadFirstTask(const char *filename);
 
-int loadTask(const char *filename, int argc, const char **argv, void** usr_esp, void** my_program);
+int loadTask(const char *filename, int argc, const char **argv, void** usr_esp, 
+                                                            void** my_program);
 
-void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, int is_idle);
+void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, 
+                                                                  int is_idle);
 
 #endif /* _LOADER_H */
