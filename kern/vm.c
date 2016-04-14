@@ -491,8 +491,10 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code)
 
 
 
-/** @brief Create a new page directory along with page tables for 16 MB 
- *  kernel memory space, i.e., 0x0 to 0xffffff
+/** @brief Create an initial page directory along with page tables 
+ *  for 16 MB kernel memory space, i.e., 0x0 to 0xffffff. 
+ *  
+ *  This function will be invoked only once when init_vm()
  *
  *  @return The new page directory base address
  */
@@ -501,7 +503,7 @@ static uint32_t init_pd() {
     // Cover kernel 16 MB space
     pd_t *pd = smemalign(PAGE_SIZE, PAGE_SIZE);
     if(pd == NULL) {
-        lprintf("smemalign failed");
+        lprintf("smemalign() failed when init_pd()");
         return ERROR_MALLOC_LIB;
     }
     // Clear
@@ -514,7 +516,7 @@ static uint32_t init_pd() {
     for(i = 0; i < NUM_PT_KERNEL; i++) {
         void *new_pt = smemalign(PAGE_SIZE, PAGE_SIZE);
         if(new_pt == NULL) {
-            lprintf("smemalign failed");
+            lprintf("smemalign() failed when init_pd()");
             return ERROR_MALLOC_LIB;
         }
         // Clear
@@ -569,7 +571,7 @@ int init_vm() {
     // Allocate a system-wide all-zero frame to do ZFOD later
     void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
     if(new_f == NULL) {
-        lprintf("smemalign failed");
+        lprintf("smemalign() failed when init_vm()");
         return ERROR_MALLOC_LIB;
     }
     // Clear

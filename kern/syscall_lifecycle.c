@@ -143,7 +143,6 @@ int exec_syscall_handler(char* execname, char **argvec) {
     // first check the number of threads for this task
     if (this_thr->pcb->cur_thr_num > 1) {
         //the invoking task contains more than one thread, reject exec()
-        printf("exec() failed because more than one thread\n");
         return EMORETHR;
     }
 
@@ -397,22 +396,18 @@ int syscall_vanish_init() {
     ht_pid_pcb.size = PID_PCB_HASH_SIZE;
     ht_pid_pcb.func = ht_pid_pcb_hashfunc;
     if(hashtable_init(&ht_pid_pcb) < 0) {
-        lprintf("hashtable_init failed");
         return -1;
     }
 
     if(mutex_init(&ht_pid_pcb_lock) < 0) {
-        lprintf("mutex init failed");
         return -1;
     }
 
     if(simple_queue_init(&zombie_list) < 0) {
-        lprintf("simple_queue_init failed");
         return -1;
     }
 
     if (mutex_init(&zombie_list_lock) < 0) {
-        lprintf("mutex init failed");
         return -1;
     }
 

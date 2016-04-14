@@ -373,7 +373,7 @@ void idle_process_init() {
         // reset init_pcb (who-to-reap-orphan-process) as the second pcb 
         set_init_pcb(this_thr->pcb);
 
-        lprintf("ready to load init process");
+        lprintf("Ready to load init process");
         // load kernel stack, jump to new program
         load_kernel_stack(this_thr->k_stack_esp, usr_esp, my_program, 0);
     } else {

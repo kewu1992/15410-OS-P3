@@ -69,12 +69,12 @@ int init_pm() {
         USER_MEM_START/PAGE_SIZE;
 
     if(init_seg_tree(num_free_frames) < 0) {
-        lprintf("init_seg_tree failed");
+        lprintf("init_seg_tree() failed when init_pm()");
         return -1;
     }
 
     if (mutex_init(&lock) < 0) {
-        lprintf("mutex_init failed");
+        lprintf("mutex_init() failed when init_pm()");
         return -1;
     }
 

@@ -222,7 +222,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
         
             if (this_thr->pcb->cur_thr_num > 1) {
                 //the invoking task contains more than one thread,reject fork()
-                printf("fork() failed because more than one thread\n");
                 this_thr->result = EMORETHR;
                 return this_thr;
             }
@@ -231,8 +230,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             new_thr = internal_thread_fork(this_thr);
 
             if (new_thr == NULL) {
-                // thread_fork error
-                printf("internal_thread_fork() failed when fork()\n");
+                // internal_thread_fork() error (out of memory)
                 this_thr->result = ENOMEM;
                 return this_thr;
             }
@@ -243,7 +241,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if (new_page_table_base == ERROR_MALLOC_LIB ||
                 new_page_table_base == ERROR_NOT_ENOUGH_MEM) {
 
-                printf("clone_pd() failed when fork()\n");
+                // clone_pd() error (out of memory, either physical frames or
+                // kernel memory)
                 tcb_free_thread(new_thr);
                 this_thr->result = ENOMEM;
                 return this_thr;
@@ -253,7 +252,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if(this_thr->swexn_struct != NULL) {
                 new_thr->swexn_struct = malloc(sizeof(swexn_t));
                 if(new_thr->swexn_struct == NULL) {
-                    printf("malloc failed() when fork()\n");
                     int need_unreserve_frames = 1;
                     free_entire_space(new_page_table_base, 
                             need_unreserve_frames);
@@ -268,7 +266,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             // create new process
             if (tcb_create_process_only(new_thr, this_thr, 
                                                 new_page_table_base) == NULL) {
-                printf("tcb_create_process_only() failed when fork()\n");
+                // create new process failed, out of memory
                 free(new_thr->swexn_struct);
                 int need_unreserve_frames = 1;
                 free_entire_space(new_page_table_base, need_unreserve_frames);
@@ -303,8 +301,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 new_thr->result = 0;
                 atomic_add(&this_thr->pcb->cur_thr_num, 1);
             } else {
-                // thread fork error
-                printf("internal_thread_fork() failed when thread_fork()\n");
+                // internal_thread_fork() error (out of memory)
                 this_thr->result = ENOMEM;
                 return this_thr;
             }
@@ -369,7 +366,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 // the thread hasn't blocked, set state to tell it do not block
                 new_thr->state = MADE_RUNNABLE;
             } else {
-                panic("strange state in scheduler_make_runnable()");
+                panic("strange state in context_switch(OP_MAKE_RUNNABLE, 0)");
             }
 
             return this_thr;

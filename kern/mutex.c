@@ -182,7 +182,7 @@ void mutex_unlock(mutex_t *mp) {
         panic("mutex %p has already been destroied!", mp);
     }
 
-    while (mp->lock_holder == -1) {
+    if (mp->lock_holder == -1) {
         panic("try to unlock an unlocked mutex %p", mp);
     }
 

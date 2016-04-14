@@ -75,7 +75,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
 
     pcb_t *process = malloc(sizeof(pcb_t));
     if (process == NULL) {
-        printf("malloc() failed in tcb_create_process_only()\n");
+        // out of memory
         return NULL;
     }
     process->pid = thread->tid;
@@ -87,14 +87,14 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
 
     // Put pid to pcb mapping in hashtable
     if (ht_put_task(process->pid, process) < 0) {
-        printf("ht_put_task() failed in tcb_create_process_only()\n");
+        // out of memory
         free(process);
         return NULL;
     }
 
     process->exit_status = malloc(sizeof(exit_status_t));
     if (process->exit_status == NULL) {
-        printf("malloc() failed in tcb_create_process_only()\n");
+        // out of memory
         ht_remove_task(process->pid);
         free(process);
         return NULL;
@@ -106,7 +106,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
 
     process->exit_status_node = malloc(sizeof(simple_node_t));
     if (process->exit_status_node == NULL) {
-        printf("malloc() failed in tcb_create_process_only()\n");
+        // out of memory
         free(process->exit_status);
         ht_remove_task(process->pid);
         free(process);
@@ -118,7 +118,6 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
     process->cur_thr_num = 1;
     
     if(simple_queue_init(&process->child_exit_status_list) < 0) {
-        printf("simple_queue_init() failed in tcb_create_process_only()\n");
         free(process->exit_status);
         free(process->exit_status_node);
         ht_remove_task(process->pid);
@@ -129,7 +128,6 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
     // Initialize task wait struct
     task_wait_t *task_wait = &process->task_wait_struct;
     if(simple_queue_init(&task_wait->wait_queue) < 0) {
-        printf("simple_queue_init() failed in tcb_create_process_only()\n");
         simple_queue_destroy(&process->child_exit_status_list);
         free(process->exit_status);
         free(process->exit_status_node);
@@ -138,7 +136,6 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
         return NULL;
     }
     if(mutex_init(&task_wait->lock) < 0) {
-        printf("mutex_init() failed in tcb_create_process_only()\n");
         simple_queue_destroy(&task_wait->wait_queue);
         simple_queue_destroy(&process->child_exit_status_list);
         free(process->exit_status);
@@ -156,7 +153,6 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
     int i;
     for(i = 0; i < NUM_PT_LOCKS_PER_PD; i++) {
         if(mutex_init(&process->pt_locks[i]) < 0) {
-            printf("mutex_init() failed in tcb_create_process_only()\n");
             simple_queue_destroy(&task_wait->wait_queue);
             simple_queue_destroy(&process->child_exit_status_list);
             free(process->exit_status);
