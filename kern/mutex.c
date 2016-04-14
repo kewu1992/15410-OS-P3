@@ -73,22 +73,11 @@ void mutex_destroy(mutex_t *mp) {
     }
 
     
-    while (mp->lock_holder != -1) {
-        // illegal, mutex is locked
-        printf("Destroy mutex %p failed, mutex is locked, "
-                "will try again...\n", mp);
-        spinlock_unlock(&mp->inner_lock);
-        context_switch(OP_CONTEXT_SWITCH, -1);
-        spinlock_lock(&mp->inner_lock);
-    }
-
-    while (simple_queue_destroy(&mp->deque) < 0){
-        // illegal, some threads are blocked waiting on it
-        printf("Destroy mutex %p failed, some threads are blocking on it, "
-                "will try again later...\n", mp);
-        spinlock_unlock(&mp->inner_lock);
-        context_switch(OP_CONTEXT_SWITCH, -1);
-        spinlock_lock(&mp->inner_lock);
+    if  (mp->lock_holder != -1 || 
+        simple_queue_destroy(&mp->deque) < 0) {
+        // illegal, mutex is locked or some threads are waiting for the mutex
+        // this is impossible in our implementation of kernel
+        panic("Destroy mutex %p failed", mp);
     }
 
     mp->lock_holder = -2;
@@ -132,6 +121,7 @@ void mutex_lock(mutex_t *mp) {
         spinlock_unlock(&mp->inner_lock);
 
         // while this thread doesn't get the mutex, block itself
+        // in our implementation, this while loop should only loop once
         while(mp->lock_holder != thr->tid) {
             context_switch(OP_BLOCK, 0);
         }
