@@ -42,18 +42,20 @@ typedef struct {
     int status;
 } exit_status_t;
 
-/* @brief Data structure for wait() syscall. Each task (pcb) has one if 
+/** @brief Data structure for wait() syscall. Each task (pcb) has one if 
  *        this struct */
 typedef struct {
     /** @brief The number of alive child tasks and zombie child tasks */
     int num_alive, num_zombie;
     /** @brief A queue for threads that invoke wait() to block on */
     simple_queue_t wait_queue;
-
+    /** @brief Pcb level Lock */
     mutex_t lock;
 } task_wait_t;
 
+/** @brief Process control block */
 typedef struct pcb_t {
+    /** @brief pid */
     int pid;
     uint32_t page_table_base;
     /** @brief Parent task's pid */
@@ -70,7 +72,7 @@ typedef struct pcb_t {
     /** @brief Current number of alive threads in the task, determine if 
       *        report task exit status and free task resources */
     int cur_thr_num;
-
+    /** @brief Data structure for wait() syscall */
     task_wait_t task_wait_struct;
 
     /** @brief The locks for page table */
@@ -84,19 +86,25 @@ typedef void (*swexn_handler_t)(void *arg, ureg_t *ureg);
 
 /** @brief The parameters for registered swexn handler */
 typedef struct swexn_t {
+    /** @brief Swexn handler stack */
     void *esp3;
+    /** @brief Swexn handler address */
     swexn_handler_t eip;
+    /** @brief Argument to pass to swexn handler */
     void *arg;
 } swexn_t;
 
+/** @brief Thread control block */
 typedef struct tcb_t {
+    /** @brief Kernel stack position for this thread */
     void *k_stack_esp;
+    /** @brief Thread id */
     int tid;
     pcb_t *pcb;
     /** @brief This will be used to store result of system call */
     int result;
+    /** @brief The current state of thread */
     thread_state_t state;
-    
     /** @brief The parameters for registered swexn handler */
     swexn_t *swexn_struct;
 } tcb_t;

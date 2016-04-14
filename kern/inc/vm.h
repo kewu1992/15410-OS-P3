@@ -23,13 +23,13 @@
 #include <mem_errors.h>
 
 
-/* @brief Page alignment mask */
+/** @brief Page alignment mask */
 #define PAGE_ALIGN_MASK ((unsigned int) ~((unsigned int) (PAGE_SIZE-1)))
 
-/* @brief Page directory entry or page table entry size */
+/** @brief Page directory entry or page table entry size */
 #define ENTRY_SIZE 4
 
-/* @brief Number of page tables needed for kernel space */
+/** @brief Number of page tables needed for kernel space */
 #define NUM_PT_KERNEL 4
 
 /* Bit index in page directory entry or page table entry */
@@ -106,19 +106,21 @@
   */
 #define NUM_PT_LOCKS_PER_PD (PAGE_SIZE/ENTRY_SIZE/NUM_PT_PER_LOCK)
 
-/* @brief Page table entry type */
+/** @brief Page table entry type */
 typedef uint32_t pte_t;
 
-/* @brief Page directory entry type */
+/** @brief Page directory entry type */
 typedef uint32_t pde_t;
 
-/* @brief Page table type */
+/** @brief Page table type */
 typedef struct {
+    /** @brief Page table entry */
     pte_t pte[PAGE_SIZE/ENTRY_SIZE];
 } pt_t;
 
 /* @brief Page directory type */
 typedef struct {
+    /** @brief Page directory entry */
     pde_t pde[PAGE_SIZE/ENTRY_SIZE];
 } pd_t;
 
