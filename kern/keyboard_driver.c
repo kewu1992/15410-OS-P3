@@ -4,15 +4,11 @@
  *  This file contains keyboard device driver and driver initialization
  *  function. The device driver can be divided into two parts. The bottom part
  *  is interrupt handler which handle keyboard interrupt, get scancode from I/O
- *  port and store scancode in a buffer. The top part is readchar() which get 
+ *  port and store scancode in a buffer. It will also check if there is any 
+ *  thread that is blocked by readline() and wake up the blocked thread if the 
+ *  readline() syscall can complete. The top part is readchar() which get 
  *  scancode from buffer, process it by invoking process_scancode() and return
- *  the input character based on augmented character. Note that becuase
- *  interrupt handler should finish as soon as possible, it only do the minimal
- *  task it must do (in this case, read scancode and put it to buffer) and leave
- *  the rest of work outside the interrupt handler (in this case, process 
- *  scancode). Besides, because two parts of drivers will access the same data
- *  structure (buffer), readchar() will disable all interrupts when it access 
- *  buffer to avoid interrupt-related concurrency problem.
+ *  the input character based on augmented character. 
  *
  *  @author Ke Wu <kewu@andrew.cmu.edu>
  *  @bug No known bugs.
@@ -55,7 +51,18 @@ void init_keyboard_driver() {
 /** @brief Interrupt handler for keyboard interrupt
  *  
  *  The bottom part of kayboard driver. Read scancode from I/O port and store
- *  it in buffer.
+ *  it in buffer. If there is any thread blocked on readline(), this function 
+ *  will also process scancode, put the input characters into buffer of 
+ *  readline() and wake up blocked thread if readline() completes. 
+ *
+ *  This interrupt handler should use interrupt gate. Imagine that if trap gate
+ *  is used and a timer interrupt comes in while this function is manipulating
+ *  variables and buffer of readline() in resume_reading_thr(). The timer 
+ *  interrupt causes a context switch and a thread that in 
+ *  readline_syscall_handler() continue running and also manipulate variables 
+ *  and buffer of readline(). In this case, the variables and
+ *  buffer of readline() might be in an inconsistent state and some bad things
+ *  will happen. 
  *
  *  @return Void.
  */
@@ -71,7 +78,7 @@ void keyboard_interrupt_handler(){
     void* thr = 0;
     if (has_read_waiting_thr()) {
         // some threads are waiting for input, try to process scancode and
-        // fill waiting thread's buffer
+        // fill buffer of readline()
         int ch = -1;
         
         while (ch == -1 && front != rear) {
@@ -84,13 +91,15 @@ void keyboard_interrupt_handler(){
                 ch = (int)KH_GETCHAR(augchar);
         } 
 
+        // there is an available character, put it to the buffer of readline()
         if (ch != -1)
             thr = resume_reading_thr((char)ch);
     }
 
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
 
-    // if thr != NULL, it means one thread should be waked up
+    // if thr != NULL, it means readline() completes and the blocked thread 
+    // should be waked up
     if (thr) {
         enable_interrupts();
         context_switch(OP_RESUME, (uint32_t)thr);

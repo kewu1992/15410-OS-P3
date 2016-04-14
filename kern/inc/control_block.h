@@ -1,3 +1,14 @@
+/** @file control_block.h
+ *  @brief This file contains structure definitions for thread control block 
+ *         (tcb) and process control block (pcb) and function prototypes for 
+ *         control_block.c.
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs.
+ */
+
 #ifndef _CONTROL_BLOCK_H_
 #define _CONTROL_BLOCK_H_
 
@@ -10,9 +21,12 @@
 /** @brief The lowest 13 bits of kernel memory are within the same k-stack */
 #define K_STACK_BITS    13
 
-/** @brief Kernel stack size for each thread is 8192 */
+/** @brief Kernel stack size for each thread is 8192 bytes */
 #define K_STACK_SIZE    (1<<K_STACK_BITS) 
 
+/** @brief The state of a thread can be normal (running or runnable), blocked
+ *         (due to OP_BLOCK), MADE_RUNNABLE (due to OP_MAKE_RUNNABLE) or 
+ *          WAKEUP (due to OP_RESUME)  */
 typedef enum {
     NORMAL,
     BLOCKED,
@@ -28,10 +42,14 @@ typedef struct {
     int status;
 } exit_status_t;
 
-/* @brief Data structure for wait() syscall */
+/* @brief Data structure for wait() syscall. Each task (pcb) has one if 
+ *        this struct */
 typedef struct {
+    /** @brief The number of alive child tasks and zombie child tasks */
     int num_alive, num_zombie;
+    /** @brief A queue for threads that invoke wait() to block on */
     simple_queue_t wait_queue;
+
     mutex_t lock;
 } task_wait_t;
 
@@ -40,12 +58,13 @@ typedef struct pcb_t {
     uint32_t page_table_base;
     /** @brief Parent task's pid */
     int ppid;
-    /** @brief Children task exit status list */
+    /** @brief Child tasks exit status list. When a child task dies, it will put
+     *         its exit_status_node to the parent's child_exit_status_list */
     simple_queue_t child_exit_status_list;
     /** @brief Exit status of the task */
     exit_status_t *exit_status;
     /** @brief Exit status node that will be inserted to parent task's
-     *         child_exit_status_list */
+     *         child_exit_status_list when the task dies */
     simple_node_t *exit_status_node;
 
     /** @brief Current number of alive threads in the task, determine if 
@@ -54,6 +73,7 @@ typedef struct pcb_t {
 
     task_wait_t task_wait_struct;
 
+    /** @brief The locks for page table */
     mutex_t pt_locks[NUM_PT_LOCKS_PER_PD];
 
 } pcb_t;
@@ -73,6 +93,7 @@ typedef struct tcb_t {
     void *k_stack_esp;
     int tid;
     pcb_t *pcb;
+    /** @brief This will be used to store result of system call */
     int result;
     thread_state_t state;
     
@@ -83,7 +104,8 @@ typedef struct tcb_t {
 
 int tcb_init();
 
-pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_table_base);
+pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, 
+                                                  uint32_t new_page_table_base);
 
 tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state);
 

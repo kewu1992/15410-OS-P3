@@ -1,3 +1,28 @@
+/** @file control_block.c
+ *  @brief This file contains functions related to thread control block (tcb)
+ *         and process control block (pcb).
+ *
+ *  The kernel will allocate a tcb struct and a kernel stack for each thread 
+ *  when it is created. When each thread is running in kernel mode, it run
+ *  on its kernel stack. The size of each kernel stack is defined as 
+ *  K_STACK_SIZE. The start address of each kernel stack algins to K_STACK_SIZE.
+ *  To quickly find its tcb struct for each thread, an array tcb_table is used.
+ *  The size of the array is KERNEL_MEM_SIZE/K_STACK_SIZE. So each kernel stack
+ *  is corresponding to an unique index in the array. The elements in the array
+ *  are tcb for all threads created by kernel. So a thread can get its tcb
+ *  easily by calculating its index (a thread can get its kernel stack address
+ *  by using the current %esp value) in the array and get the tcb from array.
+ *
+ *  All threads belong to the same task (process) share a same pcb struct. 
+ *  In each tcb, there is a pointer points to the pcb. Pcb is used to store
+ *  the task-level resources, such as page table address, parent task's pid.  
+ *
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug No known bugs.
+ */
+
 #include <control_block.h>
 #include <malloc.h>
 #include <malloc_internal.h>
@@ -10,15 +35,15 @@
 #include <syscall_inter.h>
 #include <stdio.h>
 
-/** @brief Get index of tcb table based on kernel stack address */
+/** @brief Get the index in tcb_table array based on kernel stack address */
 #define GET_K_STACK_INDEX(x)    (((unsigned int)(x)) >> K_STACK_BITS)
 
-
+/** @brief The limit that a kernel stack can grow. The stack is considered
+ *         overflow if it exceeds this limit and should be killed */
 #define STACK_OVERFLOW_LIMIT    0x1C00
 
 /** @brief This tcb table contains thread control block data structure for
- *         all threads created by kernel.
- */
+ *         all threads created by kernel. */
 static tcb_t **tcb_table;
 
 /** @brief Counter that will be used for assigning tid and pid */
@@ -37,14 +62,16 @@ int tcb_init() {
 
 /** @brief Create a process without creating a thread
  *
- *  The current cr3 will be used as the page table base of the new process
- *
- *  @param thread The (first) thread for created process
+ *  @param thread The (first) thread for the newly created process
+ *  @param pthr The partent thread(process) that create this process
+ *  @param new_page_table_base The page table base that will be used for the 
+ *                             new process
  *
  *  @return Process control block data structure of the newly created process, 
- *          return NULL on error
+ *          return NULL on error (because of out of memory)
  */
-pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_table_base) {
+pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, 
+                                                uint32_t new_page_table_base) {
 
     pcb_t *process = malloc(sizeof(pcb_t));
     if (process == NULL) {
@@ -129,7 +156,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
     int i;
     for(i = 0; i < NUM_PT_LOCKS_PER_PD; i++) {
         if(mutex_init(&process->pt_locks[i]) < 0) {
-            lprintf("mutex init failed");
+            printf("mutex_init() failed in tcb_create_process_only()\n");
             simple_queue_destroy(&task_wait->wait_queue);
             simple_queue_destroy(&process->child_exit_status_list);
             free(process->exit_status);
@@ -157,6 +184,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, uint32_t new_page_tab
  *  A kernel stack(K_STACK_SIZE) will be allocated for the new thread.
  *
  *  @param process The process that the created thread belongs to
+ *  @param state The initial state of the newly created thread
  *
  *  @return Thread control block data structure of the newly created thread, 
  *          return NULL on error (because of out of memory)
@@ -188,10 +216,9 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
 
 /** @brief Create a process with a thread
  *
- *  The current cr3 will be used as the page table base of the new process.
- *  A kernel stack(K_STACK_SIZE) will be allocated for the new thread.
- *
  *  @param state The state for created thread
+ *  @param new_page_table_base The page table base that will be used for the 
+ *                             new process
  *
  *  @return Thread control block data structure of the newly created thread, 
  *          return NULL on error
@@ -213,19 +240,16 @@ tcb_t* tcb_create_process(thread_state_t state, uint32_t new_page_table_base) {
 
 /** @brief Release resources used by a thread
  *
- * @param thread The thread to release resources
+ *  @param thread The thread to release resources
  *
- * @return Void
- *
+ *  @return Void
  */
 void tcb_free_thread(tcb_t *thr) {
 
-    lprintf("free tcb and stack for thr %d", thr->tid);
     // Free stack
     void *stack_esp = thr->k_stack_esp;
     void *stack_low = tcb_get_low_addr(stack_esp);
     if(tcb_get_entry(stack_esp) == NULL) {
-        lprintf("The stack to free is NULL");
         panic("The stack to free is NULL");
     }
     tcb_table[GET_K_STACK_INDEX(stack_esp)] = NULL;
@@ -241,14 +265,22 @@ void tcb_free_thread(tcb_t *thr) {
     free(thr);
 }
 
+/** @brief Release resources used by a thread
+ *
+ *  Unlike tcb_free_thread(), this function is not thread-safe (it calls 
+ *  _free() and _sfree()). It is the caller's responsibility to make sure thread
+ *  safe.
+ *
+ *  @param thread The thread to release resources
+ *
+ *  @return Void
+ */
 void tcb_vanish_thread(tcb_t *thr) {
 
-    lprintf("free tcb and stack for thr %d", thr->tid);
     // Free stack
     void *stack_esp = thr->k_stack_esp;
     void *stack_low = tcb_get_low_addr(stack_esp);
     if(tcb_get_entry(stack_esp) == NULL) {
-        lprintf("The stack to free is NULL");
         panic("The stack to free is NULL");
     }
     tcb_table[GET_K_STACK_INDEX(stack_esp)] = NULL;
@@ -279,14 +311,20 @@ void tcb_free_process(pcb_t *process) {
     free(process);
 }
 
-
-void tcb_set_entry(void *addr, tcb_t *thr) {
+/** @brief set the tcb entry in tcb_table for a thread
+ *
+ *  @param addr An address of kernel stack of the thread
+ *  @param thr The tcb struct to set
+ *
+ *  @return Void
+ */
+static void tcb_set_entry(void *addr, tcb_t *thr) {
     tcb_table[GET_K_STACK_INDEX(addr)] = thr;
 }
 
-/** @brief Get tcb entry of a thread given its kernel stack address
+/** @brief Get the tcb entry of a thread given its kernel stack address
  *
- *  @param addr Any kernel stack address of the thread
+ *  @param addr An address of kernel stack of the thread
  *
  *  @return Thread control block data structure of the thread
  */
@@ -296,7 +334,7 @@ tcb_t* tcb_get_entry(void *addr) {
 
 /** @brief Get the highest kernel stack address of a thread 
  *
- *  @param addr Any kernel stack address of the thread
+ *  @param addr An address of kernel stack of the thread
  *
  *  @return The highest kernel stack address of the thread
  */
@@ -306,7 +344,7 @@ void* tcb_get_high_addr(void *addr) {
 
 /** @brief Get the lowest kernel stack address of a thread 
  *
- *  @param addr Any kernel stack address of the thread
+ *  @param addr An address of kernel stack of the thread
  *
  *  @return The lowest kernel stack address of the thread
  */
@@ -314,7 +352,17 @@ void* tcb_get_low_addr(void *addr) {
     return (void*)(GET_K_STACK_INDEX(addr) * K_STACK_SIZE);
 }
 
-
-int tcb_is_stack_overflow(void *addr) {
-    return ((tcb_get_high_addr(addr) - addr) > STACK_OVERFLOW_LIMIT);
+/** @brief Detect if a thread is stack overflow. 
+ *
+ *  Note that the thread might not really stack overflow. It just exceeds the
+ *  stack growth limit. But the kernel will think this is a dangerous sign and
+ *  will kill the thread as soon as possible before it really stack overflow and
+ *  overwrite data of other thread.
+ *
+ *  @param esp The current esp of a thread stack
+ *
+ *  @return Return 1 if it is considered as stack overflow, return 0 otherwise. 
+ */
+int tcb_is_stack_overflow(void *esp) {
+    return ((tcb_get_high_addr(esp) - esp) > STACK_OVERFLOW_LIMIT);
 }

@@ -1,3 +1,14 @@
+/** @file syscall_consoleio.c
+ *  @brief System calls related to console I/O.
+ *
+ *  This file contains implementations of system calls that are related to 
+ *  console I/O.
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug No known bugs.
+ */
+
 #include <console.h>
 #include <simics.h>
 #include <mutex.h>
@@ -8,28 +19,49 @@
 #include <vm.h>
 #include <syscall_errors.h>
 
-/** @brief At most half of the kernel stack to be used as buffer of readline() */
+/** @brief At most half of the kernel stack can be used as buffer for 
+ *         readline() */
 #define MAX_READLINE_BUF (K_STACK_SIZE>>1)
 
+/** @brief For print() syscall.
+*          The mutex to prevent mulitple print() from interleaving */
 static mutex_t print_lock;
 
+/** @brief For readline() syscall.
+ *         The mutex to prevent mulitple readline() from interleaving */
 static mutex_t read_lock;
 
+/** @brief For readline() syscall.
+ *         The thread that is blocked on readline() and waiting for input. 
+ *         If there is no thread waiting for input, this variable should be 
+ *         NULL. */
 static tcb_t* read_waiting_thr;
 
+/** @brief For readline() syscall.
+ *         The number of bytes that have been read by one readline() syscall */
 static int reading_count;
 
+/** @brief For readline() syscall.
+ *         The maximum number of bytes that cen be read by one readline() 
+ *         syscall, which equals 'len' argument of readline() syscall */
 static int reading_length;
 
+/** @brief For readline() syscall.
+ *         The buffer to store bytes read by readline(). This buffer using
+ *         kernel stack space */
 static char *reading_buf;
 
-// lock time is short and need to avoid keyboard interrupt durring operation
+/** @brief For readline() syscall.
+ *         lock to avoid keyboard interrupt durring operation */
 static spinlock_t reading_lock;
 
+
+/** @brief Initialize data structure for print() syscall */
 int syscall_print_init() {
     return mutex_init(&print_lock);
 }
 
+/** @brief Initialize data structure for readline() syscall */
 int syscall_read_init() {
     read_waiting_thr = NULL;
 
@@ -72,6 +104,7 @@ int print_syscall_handler(int len, char *buf, int is_kernel_call) {
         // Finish argument check
     }
 
+    // using mutex lock to avoid multiple print() interleaving
     mutex_lock(&print_lock);
     putbytes((const char*)buf, len);
     mutex_unlock(&print_lock);
@@ -120,10 +153,12 @@ int readline_syscall_handler(int len, char *buf) {
         return EINVAL;
     // Finish argument check
 
+    // using mutex lock to avoid multiple readline() interleaving
     mutex_lock(&read_lock);
 
     int rv = 0;
 
+    // kernel stack space is used to store bytes read by readline().
     char kernel_buf[MAX_READLINE_BUF];
 
     reading_count = 0;
@@ -131,14 +166,19 @@ int readline_syscall_handler(int len, char *buf) {
     reading_buf = kernel_buf;
     
     while (reading_count < reading_length) {
+        // spinlock is used to disable keyboard interrupt when manipulate data
+        // structures of keyboard driver and readline() syscall. 
         spinlock_lock(&reading_lock);
         int ch = readchar();
         if (ch == -1) {
+            // there is no data, block this thread. Keyboard interrupt handler
+            // will put data to buffer when input comes in. It will 
+            // wake up this thread when this readline() syscall completes.
             read_waiting_thr = tcb_get_entry((void*)asm_get_esp());
             
             spinlock_unlock(&reading_lock);
 
-            context_switch(OP_BLOCK, 0); // no input available, block itself
+            context_switch(OP_BLOCK, 0);
 
             break;
         } else {
@@ -156,6 +196,7 @@ int readline_syscall_handler(int len, char *buf) {
         }
     }
     
+    // copy data from kernel buffer to user buffer
     memcpy(buf, reading_buf, reading_count);
     rv = reading_count;
 
@@ -164,9 +205,17 @@ int readline_syscall_handler(int len, char *buf) {
     return rv;
 }
 
-// should only be called by keyboard interrupt, so this function call 
-// will not be interrupted
+/** @brief Put input byte to the buffer of readline() and wake up blocked thread
+ *         if readline() completes
+ *
+ *  This function should only be called by keyboard interrupt, so this function
+ *  call will not be interrupted. It can manipulate data structure of readline()
+ *  safely.
+ * 
+ *  @return Return the blocked thread that should be waked up if readline() 
+ *          completes, return NULL otherwise */
 void* resume_reading_thr(char ch) {
+    // echo input consumed by readline() to screen
     if (!(ch == '\b' && reading_count == 0))
         putbyte(ch);
 
@@ -176,6 +225,7 @@ void* resume_reading_thr(char ch) {
         reading_buf[reading_count++] = ch;
     }
 
+    // check if readline() completes
     if (reading_count == reading_length || ch == '\n') {
         tcb_t* rv = read_waiting_thr;
         read_waiting_thr = NULL;
@@ -185,12 +235,24 @@ void* resume_reading_thr(char ch) {
     return NULL;
 }
 
-// should only be called by keyboard interrupt, so this function call 
-// will not be interrupted
+/** @brief Check if there is any thread blocked on readline(), waiting for input
+ *
+ *  This function should only be called by keyboard interrupt, so this function
+ *  call will not be interrupted. It can read value of read_waiting_thr safely.
+ * 
+ *  @return Return 1 if there is thread waiting, return zero otherwise */
 int has_read_waiting_thr() {
     return (read_waiting_thr != NULL);
 }
 
+
+/** @brief Set terminal color syscall handler
+ *
+ * @param color The value of color to set
+ *
+ * @return 0 on success; -1 on error
+ *
+ */
 int set_term_color_syscall_handler(int color) {
 
     // Wait while other threads are printing stuff
@@ -203,6 +265,14 @@ int set_term_color_syscall_handler(int color) {
 
 }
 
+/** @brief Set cursor postion syscall handler
+ *
+ * @param row The value of row to set
+ * @param col The value of col to set
+ *
+ * @return 0 on success; -1 on error
+ *
+ */
 int set_cursor_pos_syscall_handler(int row, int col) {
 
     // Wait while other threads are printing stuff
@@ -229,8 +299,8 @@ int get_cursor_pos_syscall_handler(int *row, int *col) {
     int is_check_null = 0;
     int max_len = sizeof(int);
     int need_writable = 1;
-    if(check_mem_validness((char *)row, max_len, is_check_null, need_writable) < 0 ||
-       check_mem_validness((char *)col, max_len, is_check_null, need_writable) < 0) {
+    if(check_mem_validness((char *)row,max_len,is_check_null,need_writable)<0 ||
+       check_mem_validness((char *)col,max_len,is_check_null,need_writable)<0) {
         return -1;
     }
 
