@@ -99,7 +99,7 @@ void keyboard_interrupt_handler(){
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
 
     // if thr != NULL, it means readline() completes and the blocked thread 
-    // should be waked up
+    // should be wakened up
     if (thr) {
         enable_interrupts();
         context_switch(OP_RESUME, (uint32_t)thr);

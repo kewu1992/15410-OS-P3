@@ -321,11 +321,11 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             // the next thread successfully
             spinlock_lock(&spinlock);
             if (this_thr->state == WAKEUP || this_thr->state == MADE_RUNNABLE) {
-                // already be waked up or made runnable, should not block
+                // already be wakened up or made runnable, should not block
                 this_thr->state = NORMAL;
                 return this_thr;
             } else {
-                // decide to block itself, can not be waked up (resume) or made
+                // decide to block itself, can not be wakened up (resume) or made
                 // runnable by other thread unitl context switch to the next 
                 // thread successfully
                 if (this_thr->state == NORMAL) {

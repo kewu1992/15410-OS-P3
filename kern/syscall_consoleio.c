@@ -212,7 +212,7 @@ int readline_syscall_handler(int len, char *buf) {
  *  call will not be interrupted. It can manipulate data structure of readline()
  *  safely.
  * 
- *  @return Return the blocked thread that should be waked up if readline() 
+ *  @return Return the blocked thread that should be wakened up if readline() 
  *          completes, return NULL otherwise */
 void* resume_reading_thr(char ch) {
     // echo input consumed by readline() to screen

@@ -4,9 +4,14 @@
  *  This file contains timer interrupt handler and driver initialization 
  *  function.
  *
- *
  *  @author Ke Wu <kewu@andrew.cmu.edu>
- *  @bug No known bugs.
+ *  @bug Kernel doesn't try to recovery from the error when a thread is 
+ *       stack overflow. It is not easy to do so. The kernel can not just kill
+ *       the thread immediately, because the thread may manipulating some 
+ *       kernel data structure when it is interrupted. So our kernel will just
+ *       panic() and let the developer to handle with this error. To be fair, 
+ *       in our implementation of the kernel, it is very unlikely that a thread
+ *       will stack overflow. When it happens, it may indicate some bugs.
  */
 
 #include <interrupt_defines.h>
@@ -49,6 +54,12 @@ void init_timer_driver(void* (*tickback)(unsigned int)) {
  *
  *  The function is called when a timer interrupt comes in. it will update 
  *  numTicks, invoke callback function and tell PIC the interrupt is processed.
+ *  If there is thread that should wake up from sleep(), timer interrupt handler
+ *  will resume to that pariticular thread. Otherwise, a normal context switch 
+ *  will happen and the scheduler will choose the next thread to run. 
+ *
+ *  This function will also check if the interruped thread is stack overflow. 
+ *  When it does, kernel will panic. 
  *         
  *  @return Void.
  */
@@ -59,15 +70,21 @@ void timer_interrupt_handler() {
 
     enable_interrupts();
 
-    if (next_thr == NULL)  {
-        if (tcb_is_stack_overflow((void*)asm_get_esp())) {
-            panic("thread's kernel stack overflow!");
-        }
+    if (tcb_is_stack_overflow((void*)asm_get_esp())) {
+        panic("thread's kernel stack overflow!");
+    }
+
+    if (next_thr == NULL) {
+        // no thread should be wakened up, just call normal context switch 
         context_switch(OP_CONTEXT_SWITCH, -1);
-    } else
+    } else {
+        // there is a thread that should wake up from sleep(), resume to
+        // that thread directly
         context_switch(OP_RESUME, (uint32_t)next_thr);
+    }
 }
 
+/** @brief Get the current ticks */
 unsigned int timer_get_ticks() {
     return numTicks;
 }
