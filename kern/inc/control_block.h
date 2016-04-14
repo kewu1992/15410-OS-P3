@@ -42,7 +42,7 @@ typedef struct {
     int status;
 } exit_status_t;
 
-/* @brief Data structure for wait() syscall. Each task (pcb) has one if 
+/** @brief Data structure for wait() syscall. Each task (pcb) has one if 
  *        this struct */
 typedef struct {
     /** @brief The number of alive child tasks and zombie child tasks */
@@ -53,6 +53,7 @@ typedef struct {
     mutex_t lock;
 } task_wait_t;
 
+/** @brief Process control block */
 typedef struct pcb_t {
     /** @brief pid */
     int pid;
@@ -93,6 +94,7 @@ typedef struct swexn_t {
     void *arg;
 } swexn_t;
 
+/** @brief Thread control block */
 typedef struct tcb_t {
     /** @brief Kernel stack position for this thread */
     void *k_stack_esp;
