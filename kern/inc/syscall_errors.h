@@ -18,7 +18,7 @@
 #define ENOEXEC         (-8)          
 /** @brief No child processes */
 #define ECHILD          (-10)         
-/* @brief Out of memory */
+/** @brief Out of memory */
 #define ENOMEM          (-12)         
 /** @brief Bad address (invalid memory address) */
 #define EFAULT          (-14)         

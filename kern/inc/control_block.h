@@ -57,11 +57,12 @@ typedef struct {
 typedef struct pcb_t {
     /** @brief pid */
     int pid;
+    /** @brief The page table base of the task */
     uint32_t page_table_base;
     /** @brief Parent task's pid */
     int ppid;
-    /** @brief Child tasks exit status list. When a child task dies, it will put
-     *         its exit_status_node to the parent's child_exit_status_list */
+    /** @brief Child tasks exit status list. When a child task dies, it will
+     *  put its exit_status_node to the parent's child_exit_status_list */
     simple_queue_t child_exit_status_list;
     /** @brief Exit status of the task */
     exit_status_t *exit_status;
@@ -113,7 +114,7 @@ typedef struct tcb_t {
 int tcb_init();
 
 pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, 
-                                                  uint32_t new_page_table_base);
+                                            uint32_t new_page_table_base);
 
 tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state);
 

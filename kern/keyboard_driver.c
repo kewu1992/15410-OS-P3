@@ -34,7 +34,9 @@ static uint8_t keybuf[KEY_BUF_SIZE];
  *         that a buffer slot is wasted so that we can distinguish between 
  *         buffer empty and buffer full.
  */
-static short front, rear;
+static short front;
+/** @brief The rear pointer */
+static short rear;
 
 /** @brief Initialize keyboard device driver
  *  
