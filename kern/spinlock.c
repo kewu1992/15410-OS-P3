@@ -25,11 +25,21 @@
 #include <asm.h>
 #include <asm_atomic.h>
 
+/** @brief Init spin lock
+ *  
+ *  @param lock The lock to init
+ *  @return 0
+ */
 int spinlock_init(spinlock_t* lock) {
     *lock = 1;
     return 0;
 }
 
+/** @brief Lock a spinlock
+ *  
+ *  @param lock The lock to lock
+ *  @return void
+ */
 void spinlock_lock(spinlock_t* lock) {
     disable_interrupts();
 
@@ -37,11 +47,21 @@ void spinlock_lock(spinlock_t* lock) {
        continue;
 }
 
+/** @brief Unlock a spinlock
+ *  
+ *  @param lock The lock to unlock
+ *  @return void
+ */
 void spinlock_unlock(spinlock_t* lock) {
     asm_xchg(lock, 1);
     enable_interrupts();
 }
 
+/** @brief Destroy a spinlock
+ *  
+ *  @param lock The lock to destroy
+ *  @return void
+ */
 void spinlock_destroy(spinlock_t* lock) {
     asm_xchg(lock, 0);
 }
