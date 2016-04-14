@@ -82,7 +82,7 @@ int syscall_read_init() {
  *  thread should not continue until all characters have been printed to the 
  *  console. Output of two concurrent print()s should not be intermixed.
  *
- *  @param base The starting address of bytes to be printed
+ *  @param buf The starting address of bytes to be printed
  *  @param len The length of bytes to be printed
  *  @param is_kernel_call Flag showing if the caller is the kernel rather
  *  than the user.

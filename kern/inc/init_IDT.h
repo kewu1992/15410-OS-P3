@@ -1,4 +1,4 @@
-/** @file init_idt.h
+/** @file init_IDT.h
  *  @brief Function prototypes of init_IDT.c
  *
  *  @author Ke Wu (kewu)

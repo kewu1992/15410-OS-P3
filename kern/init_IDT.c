@@ -142,11 +142,11 @@ static void fill_option(void* base, int DPL, int gate_type) {
  *
  *  @return Void.
  */
-static void install_IDT_entry(int index, void *hanlder, uint16_t segsel, 
+static void install_IDT_entry(int index, void *handler, uint16_t segsel, 
                                                       int DPL, int gate_type) {
     void* idt_entry = 
         (void*)((char*)idt_base() + index * IDT_ENTRY_SIZE);
-    fill_handler(idt_entry, hanlder);
+    fill_handler(idt_entry, handler);
     fill_segsel(idt_entry, segsel);
     fill_option(idt_entry, DPL, gate_type);
 }

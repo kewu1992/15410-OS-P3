@@ -1,4 +1,4 @@
-/** @file malloc_wrapper.c
+/** @file malloc_wrappers.c
  *  @brief This file contains the wrapper for malloc library to provide a
  *  thread-safe version of malloc library.
  *
