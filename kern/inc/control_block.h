@@ -103,6 +103,7 @@ typedef struct tcb_t {
     void *k_stack_esp;
     /** @brief Thread id */
     int tid;
+    /** @brief thread's task's pcb */
     pcb_t *pcb;
     /** @brief This will be used to store result of system call */
     int result;
