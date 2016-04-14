@@ -217,8 +217,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if (this_thr != idle_thr)
                 scheduler_make_runnable(this_thr);
             return new_thr;
+        
         case OP_FORK:    // fork and context switch to new thread
-            
+        
             if (this_thr->pcb->cur_thr_num > 1) {
                 //the invoking task contains more than one thread,reject fork()
                 printf("fork() failed because more than one thread\n");
@@ -231,7 +232,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             if (new_thr == NULL) {
                 // thread_fork error
-                printf("internal_thread_fork() failed when fork()");
+                printf("internal_thread_fork() failed when fork()\n");
                 this_thr->result = ENOMEM;
                 return this_thr;
             }
@@ -242,7 +243,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if (new_page_table_base == ERROR_MALLOC_LIB ||
                 new_page_table_base == ERROR_NOT_ENOUGH_MEM) {
 
-                printf("clone_pd() failed when fork()");
+                printf("clone_pd() failed when fork()\n");
                 tcb_free_thread(new_thr);
                 this_thr->result = ENOMEM;
                 return this_thr;
