@@ -11,6 +11,7 @@
 
 #include <priority_queue.h>
 
+/** NULL type */
 #define NULL 0
 
 /** @brief Initialize priority queue data structure

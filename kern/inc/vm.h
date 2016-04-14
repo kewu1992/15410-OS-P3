@@ -118,7 +118,7 @@ typedef struct {
     pte_t pte[PAGE_SIZE/ENTRY_SIZE];
 } pt_t;
 
-/* @brief Page directory type */
+/** @brief Page directory type */
 typedef struct {
     /** @brief Page directory entry */
     pde_t pde[PAGE_SIZE/ENTRY_SIZE];

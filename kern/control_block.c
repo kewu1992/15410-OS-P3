@@ -240,7 +240,7 @@ tcb_t* tcb_create_process(thread_state_t state, uint32_t new_page_table_base) {
 
 /** @brief Release resources used by a thread
  *
- *  @param thread The thread to release resources
+ *  @param thr The thread to release resources
  *
  *  @return Void
  */
@@ -271,7 +271,7 @@ void tcb_free_thread(tcb_t *thr) {
  *  _free() and _sfree()). It is the caller's responsibility to make sure thread
  *  safe.
  *
- *  @param thread The thread to release resources
+ *  @param thr The thread to release resources
  *
  *  @return Void
  */
@@ -296,7 +296,12 @@ void tcb_vanish_thread(tcb_t *thr) {
     _free(thr);
 }
 
-/** @brief Free pcb and all resources that are associated with it */
+/** @brief Free pcb and all resources that are associated with it 
+ *  
+ *  @param process The process to free
+ * 
+ *  @return void
+ */
 void tcb_free_process(pcb_t *process) {
     mutex_destroy(&process->task_wait_struct.lock);
     simple_queue_destroy(&process->task_wait_struct.wait_queue);

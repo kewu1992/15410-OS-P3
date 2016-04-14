@@ -114,12 +114,12 @@ void scrollup() {
 /** @brief Prints character ch at the current location
  *         of the cursor.
  *
- *  If the character is a newline ('\n'), the cursor is moved
+ *  If the character is a newline (\n), the cursor is moved
  *  to the beginning of the next line (scrolling if necessary).
- *  If the character is a carriage return ('\r'), the cursor is
+ *  If the character is a carriage return (\r), the cursor is
  *  immediately reset to the beginning of the current line,
  *  causing any future output to overwrite any existing output
- *  on the line.  If backspace ('\b') is encountered, the previous
+ *  on the line.  If backspace (\b) is encountered, the previous
  *  character is erased.  See the main console.c description found
  *  on the handout web page for more backspace behavior.
  *

@@ -66,6 +66,16 @@ void asm_ret_swexn_handler(swexn_handler_t eip, uint32_t cs, uint32_t eflags,
   *  @return No return
   */
 void asm_ret_newureg(ureg_t *newureg);
+
+/** @brief Generic exception handler
+ *
+ * Whatever exception happens, this exception handler executes first
+ * after registers are pushed on the stack.
+ *
+ * @param exception_type The type of exception
+ *
+ * @return void
+ */
 void expcetion_handler(int exception_type);
 
 #endif
