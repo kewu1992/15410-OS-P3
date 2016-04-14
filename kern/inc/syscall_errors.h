@@ -1,3 +1,11 @@
+/** @file syscall_errors.h
+ *
+ *  @brief This file contains the macro definitions for syscall errors
+ *
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs.
+ */
 #ifndef _SYSCALL_ERRORS_H_
 #define _SYSCALL_ERRORS_H_
 

@@ -1,3 +1,12 @@
+/** @file syscall_errors.h
+ *
+ *  @brief This file contains definitions for syscall internals
+ *
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs.
+ */
+
 #ifndef _SYSCALL_INTER_H_
 #define _SYSCALL_INTER_H_
 

@@ -1,3 +1,12 @@
+/** @file syscall_memory.c
+ *  @brief Contains the implementation of memory syscalls
+ *
+ *  @author Jian Wang
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug None known
+ */
+
+
 #include <simics.h>
 #include <vm.h>
 #include <syscall_errors.h>

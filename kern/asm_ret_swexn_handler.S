@@ -1,3 +1,11 @@
+/** @file asm_ret_swexn_handler.S
+ *
+ *  @brief Return to user mode and run swexn handler
+ *
+ *  @author Jian Wang (jianwan3)
+ *
+ *  @bug No known bugs.
+ */
 
 .global asm_ret_swexn_handler
 

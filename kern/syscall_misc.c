@@ -4,12 +4,33 @@
 #include <string.h>
 #include <vm.h>
 
+/** @brief Halt by calling simics command 
+  *
+  * @return No return
+  */
 extern void sim_halt(void);
+
+/** @brief Halt 
+  *
+  * Disable interrupt and execute halt instruction
+  *
+  * @return No return
+  */
 extern void asm_hlt(void);
 
+/** @brief The "." file that contains a list of the files that readfile()
+  * can access.
+  */
 static char *dot_file;
+
+/** @brief Length of dot file */
 static int dot_file_length;
 
+/** @brief Halt syscall handler 
+  *
+  * @return No return
+  *
+  */
 void halt_syscall_handler() {
     sim_halt();
 
@@ -17,6 +38,11 @@ void halt_syscall_handler() {
     asm_hlt();
 }
 
+/** @brief Init readfile syscall and construct "." file
+  * 
+  * @return 0 on success; -1 on error
+  *
+  */
 int syscall_readfile_init() {
     dot_file_length = 1;
     int i;
@@ -30,7 +56,8 @@ int syscall_readfile_init() {
 
     int count = 0;
     for (i = 0; i < exec2obj_userapp_count; i++) {
-        memcpy(dot_file + count, exec2obj_userapp_TOC[i].execname, strlen(exec2obj_userapp_TOC[i].execname));
+        memcpy(dot_file + count, exec2obj_userapp_TOC[i].execname, 
+                strlen(exec2obj_userapp_TOC[i].execname));
         count += strlen(exec2obj_userapp_TOC[i].execname);
         dot_file[count] = '\0';
         count++;
@@ -40,7 +67,19 @@ int syscall_readfile_init() {
     return 0;
 }
 
-int readfile_syscall_handler(char* filename, char *buf, int count, int offset) {
+/** @brief Readfile syscall handler
+  *
+  * @param filename The RAM disk file to read
+  * @param buf The buffer to fill in  
+  * @param count Number of bytes to fill in  
+  * @param offset The offset from the beginning of the RAM disk file  
+  *
+  * @return number of bytes stored into the buffer is returned on success; 
+  * -1 on error
+  *
+  */
+int readfile_syscall_handler(char* filename, char *buf, int count, int offset)
+{
 
     if (count < 0 || offset < 0)
         return -1;
