@@ -7,7 +7,7 @@
  *  are mapped differently for different tasks. Except the page directory,
  *  tasks share the same kernel page tables, which are marked as global.
  *  ZFOD is used for pages requested by new_pages() syscall and initial
- *  thread stack.
+ *  thread stack requested by kernel.
  *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu (kewu)

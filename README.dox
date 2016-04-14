@@ -5,30 +5,69 @@
 @author Ke Wu (kewu)
 @author Jian Wang (jianwan3)
 
+
 1. Lock
 
 
 2. Vanish
-When a thread vanishes, it adds itself to a list
-Things a thread can free itself
-Things a thread needs other thread to free: kernel stack, tcb,
-
+Exit status reporting for vanishing task
 When the thread to vanish is the last one in a task, it needs to report its
 exit status to its parent task. The thread will first check if its parent 
 task is alive, which is accomplished by consulting a hashtable that maps a pid
 to a pcb. If pcb corresponding to the pid exists in the hashtable, then the 
 parent task is alive and the vanisning task can put its exit status to parent 
-task's child_exit_status_list.
+task's child_exit_status_list; else, the vanishing task will put its exit 
+status to the init task's child_exit_status_list. There's a race condition 
+between the last thread checking parent task's aliveness and parent task's
+vanishing itself, if timing is proper, a child task's exit status can not be
+collected. Fortunately, the problem is solved by properly acquiring and 
+releasing locks: when a task vanishes, it first grabs the hashtable's lock,
+then the parent task's pcb lock , then release the hashtable lock so that 
+other tasks can use it, then add its exit status to the child_exit_status_list
+in the parent's pcb, and finally release parent task's pcb lock. On the other
+hand, a vanishing task to delete its entry in the hashtable to mark its death
+so that its children will report exit status to init task in the future will
+try to get the hashtable lock first, then get its own pcb lock, delete the
+entry in the hashtable, then release its pcb lock and hash table lock. The
+effect of this approach is that, 1. a task can't delete its entry in the
+hashtable while its children is reporting exit status to it (because its 
+chilren is holding its pcb lock and it can't delete its entry in hashtable
+without its own pcb lock). 2. a vanishing task who successfully put its 
+exit status to its parent's child_exit_status_list is guaranteed to be
+noticed by parent task because parent.
 
-
-Use a hashtable to map task pid to its pcb, as well as to indicate if the task
-is alive (if not, hashtable will return NULL).
+Resource freeing for vanishing task
+A vanishing thread has tcb and kernel stack to free, and if it's the
+last thread in a task, it also needs to free resources in pcb like page 
+directory and pcb itself. The approach we use is that a thread frees as much 
+as it can itself. That said, when a thread vanishes and is the last thread
+in a task, it first sets pcb to that of the init task (because it won't go 
+back to user space and kernel memory is shared across tasks so there's no side 
+effect) and safely frees its own pcb and address space. However, since a 
+vanishing thread cannot free its own kernel stack space (because it's using) 
+and its tcb (because timer interrupt may happen during vanishing and tcb is 
+needed during context switch), so that it puts itself in the system-wide zombie
+list, and the next thread to run can check the zombie list before it returns
+to previous execution and reap it. There're some subtleties for this approach. 
+1. After a vanishing thread puts itself to the system-wide thread zombie list 
+and proceeds to blocking but hasn't fully blocked, timer interrupt may happen 
+and the the next thread starts to run and removes one zombie thread that happens
+to be not the vanisning thread we are talking about, then there's a chance that
+the not fully blocked vanisning thread starts to run again and is likely to
+reap itself when checking the zombie list. 2 The other issue is that even if
+reaping thread isn't the thread to reap, because freeing resouces needs the 
+malloc library lock, it's entirely possible that the reaping thread may be in
+some critical section with the malloc library lock in its previous term, and
+in this case, it should not proceed to free but also it's hard to revert
+in deep function stacks. To solve these 2 issues, we devised a "try lock" 
+scheme that only after a thread gets all the locks it needs and it's not the
+thread to reap does it proceeds to reaping.
 
 
 3. Memory Management
 The virtual memory system uses paging and ZFOD (Zero-fill on demand) with a 
-physical frame allocator that supports allocating and freeing a single frame.
-
+physical frame allocator that supports allocating and freeing single page size 
+frames.
 
 Use of page table entry's "For programmer's use" bits
 There are 3 bits in page table entry that are "For programmer's use", so that
@@ -73,6 +112,36 @@ ZFOD is used and a large portion of the pages pointed to the system-wide
 all-zero frame. Besides, segment tree's O(log(n)) allocation and deallocation 
 time complexity makes each thread's time in critical section tolerable when a 
 frame is really needed.
+
+4 Miscellaneous
+Atomic counter
+There are many critical sections that involve only incrementing or 
+decrementing a counter, to avoid using too much spinlock (which disables 
+interrupt temporarily) and mutex (which may involve context switch to previous
+lock holder), we devised an approach that uses the cmpxchg (CAS) machine 
+instruction to implement atomic arithmetics.
+
+Using stack space instead of heap space
+
+Can't use malloc.
+
+In our design, we tried to avoid using malloc to get space from heap as less
+often as possible because using malloc means a possible chance of context 
+switch back to the lock holder and if there are a lot of places using malloc,
+then the frequent context switches will outweigh the real work time. For such
+reason, we replaced the usage of malloc in some hot places like node allocation
+in queue with stack place. The intuition behind this approach is that in many
+cases, the stack space of a node won't be freed before the node is actually 
+dequeued.
+
+Tcb locating
+We have divided the entire kernel space into an imagined array, with each 
+element of size K_STACK_SIZE (For 16 MB kernel space and K_STACK_SIZE = 8192, 
+the array has 2048 elements). When allocating a new thread, kernel stack is 
+allocated by calling smemalign(K_STACK_SIZE, K_STACK_SIZE) so that the %esp of
+a thread that's executing normally in kernel mode is guaranteed to fall within 
+a slot in the array. With the thread's %esp, we can get the tcb of the thread
+in constant time by looking up the table array.
 
 */
 
