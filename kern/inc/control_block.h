@@ -45,8 +45,10 @@ typedef struct {
 /** @brief Data structure for wait() syscall. Each task (pcb) has one if 
  *        this struct */
 typedef struct {
-    /** @brief The number of alive child tasks and zombie child tasks */
-    int num_alive, num_zombie;
+    /** @brief The number of alive child tasks */
+    int num_alive;
+    /** @brief The number of zombie child tasks */
+    int num_zombie;
     /** @brief A queue for threads that invoke wait() to block on */
     simple_queue_t wait_queue;
     /** @brief Pcb level Lock */

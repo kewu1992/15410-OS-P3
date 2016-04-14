@@ -24,7 +24,9 @@
 /** @brief For sleep() syscall.
  *         The data field for node of sleep priority queue */
 typedef struct {
+    /** @brief Num of ticks */
     unsigned int ticks;
+    /** @brief Thread tcb */
     tcb_t *thr;
 } sleep_queue_data_t;
 

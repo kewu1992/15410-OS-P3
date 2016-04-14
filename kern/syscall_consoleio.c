@@ -135,7 +135,7 @@ int print_syscall_handler(int len, char *buf, int is_kernel_call) {
  *  remain available for other calls to readline() and/or getchar(). 
  *
  *  @param len The maximum length of buffer
- *  @param len The buffer to store input data.
+ *  @param buf The buffer to store input data.
  *
  *  @return On success, returns the number of bytes copied into the buffer. 
  *          On error, returning an integer error code less than zero.
