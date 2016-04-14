@@ -15,7 +15,7 @@
  *  This function using instruction cmpxchg (CAS) to implement atomic addition
  *
  *  @param num Pointer points to the integer to execute atomic addition
- *  @parak val Value that will be added to *num atomically
+ *  @param val Value that will be added to *num atomically
  *
  *  @return The value of num after addition
  */

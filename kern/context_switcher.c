@@ -2,44 +2,46 @@
  *  @brief This file contains implementation of a context switcher 
  *
  *  There are multiple operations that are supported by context_switcher:
- *  op  arg             meaning
- *  0   -1              Normal context switch driven by timer interupt. The 
- *                      invoking thread will be put to the tail of the queue of 
- *                      scheduler, scheduler will choose the next thread (which
- *                      is the head of the queue of scheduler) to run.
+ *  op                  arg meaning
+ *  OP_CONTEXT_SWITCH   -1  Normal context switch driven by timer interupt. 
+ *                          The invoking thread will be put to the tail of the
+ *                          queue of scheduler, scheduler will choose the next
+ *                          thread (which is the head of the queue of 
+ *                          scheduler) to run.
  *
- *  1   0               Fork and context switch to the new process. Old thread
- *                      will be put to the queue of scheduler.
+ *  OP_FORK             0   Fork and context switch to the new process. Old 
+ *                          thread will be put to the queue of scheduler.
  *
- *  2   0               Thread_fork and context switch to the new thread. Old 
- *                      thread will be put to the queue of scheduler.
+ *  OP_THREAD_FORK      0   Thread_fork and context switch to the new thread.
+ *                          Old thread will be put to the queue of scheduler.
  *
- *  3   0               Block the calling thread and let scheduler to choose
- *                      the next thread to run. The 'block' is done by simply
- *                      don't put the calling thread to the queue of scheduler.
- *                      Note that if a thread calls context_switch(OP_BLOCK), 
- *                      its tcb must be stored in another queue which belongs to 
- *                      the object that the thread is blocked on (e.g queue of 
- *                      mutex, queue of sleep, queue of deschedule).
+ *  OP_BLOCK            0   Block the calling thread and let scheduler to 
+ *                          choose the next thread to run. The 'block' is done
+ *                          by simply don't put the calling thread to the 
+ *                          queue of scheduler. Note that if a thread calls 
+ *                          context_switch(OP_BLOCK), its tcb must be stored 
+ *                          in another queue which belongs to the object that 
+ *                          the thread is blocked on (e.g queue of mutex, 
+ *                          queue of sleep, queue of deschedule).
  *
- *  4   tcb_t*          Make runable a blocked thread identified by its tcb. 
- *                      Notice that this is not really a context switch. It will
- *                      just put the tcb of the thread that will be made 
- *                      runnable to the queue of scheduler without any context
- *                      switching.
+ *  OP_MAKE_RUNNABLE tcb_t* Make runable a blocked thread identified by its 
+ *                          tcb.  Notice that this is not really a context 
+ *                          switch. It will just put the tcb of the thread 
+ *                          that will be made runnable to the queue of 
+ *                          scheduler without any context switching.
  *
- *  5   tcb_t*          Resume (wake up) a blocked thread (make runnable and
- *                      context switch to that thread immediately).  
+ *  OP_RESUME        tcb_t* Resume (wake up) a blocked thread (make runnable 
+ *                          and context switch to that thread immediately).  
  *
- *  6   -1 or 0-N       yield to -1 or a given tid.
+ *  OP_YIELD     -1 or 0-N  Yield to -1 or a given tid.
  *
  *
  *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu (kewu)
  *
- *  @bug context_switch(OP_YIELD, tid) needs to search the queue of scheduler to
- *       find if the thread is in the queue. We realize this is an O(n) 
+ *  @bug context_switch(OP_YIELD, tid) needs to search the queue of scheduler 
+ *       to find if the thread is in the queue. We realize this is an O(n) 
  *       operation and it violates the requirement in the handout that any 
  *       operation of scheduler should be done in constant time. But we don't
  *       have time to fix this issue. 
@@ -81,9 +83,9 @@ extern tcb_t* idle_thr;
 
 /** @brief Context switch from a thread to another thread. 
  *
- *  @param op The operation for context_switch()
- *  @param arg The argument for context_switch(). With different operation, this 
- *             argument has different meannings.
+ *  @param op   The operation for context_switch()
+ *  @param arg  The argument for context_switch(). With different operation, 
+ *              this argument has different meannings.
  *
  *  @return void
  */
@@ -329,7 +331,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 if (this_thr->state == NORMAL) {
                     this_thr->state = BLOCKED;
                 } else  {
-                    panic("strange state in context_switch(3,0): %d", 
+                    panic("strange state in context_switch(OP_BLOCK,0): %d", 
                                                             this_thr->state);
                 }
 
@@ -386,7 +388,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                  // the thread hasn't blocked, set state to tell it do not block
                 new_thr->state = WAKEUP;
             else {
-                panic("strange state in context_switch(5,thr)");
+                panic("strange state in context_switch(OP_RESUME,thr)");
             }
 
             return new_thr;
@@ -406,7 +408,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
  *  @param this_thr The thread that will be forked
  *
  *  @return On success a new thread that is the result of thread_fork() 
- *          of this_thr. On error return NULL (because of out of memory)         
+ *          of this_thr. On error return NULL (because of out of memory)       
  */
 tcb_t* internal_thread_fork(tcb_t* this_thr) {
     tcb_t* new_thr = tcb_create_thread_only(this_thr->pcb, NORMAL);

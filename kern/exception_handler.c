@@ -225,6 +225,7 @@ static void exception_interpret(int exception_type, uint32_t fault_va,
     }
 
 }
+
 /** @brief Generic exception handler
  *
  * Whatever exception happens, this exception handler executes first
@@ -235,8 +236,6 @@ static void exception_interpret(int exception_type, uint32_t fault_va,
  * @return void
  */
 void exception_handler(int exception_type) {
-
-    //lprintf("exception handler called");
 
     // Get ureg value when exception happened
     ureg_t ureg;
@@ -266,7 +265,6 @@ void exception_handler(int exception_type) {
     // Check if current thread has an exception handler installed
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     if(this_thr == NULL) {
-        lprintf("tcb is NULL");
         panic("tcb is NULL");
     }
 
