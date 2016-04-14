@@ -32,10 +32,56 @@ when a thread will enqueue. Instead, the stack space of blocked threads is used
 to construct node for queue. Because the stack of the procedure call will not 
 be destroied until the blocked thread get the mutex, so it is safe.
 
-2. fork and thread_fork 
+2. Running thread, runnable thread and blocked thread
+A thread is either running, runnable or blocked on some objects. A running 
+thread is the thread that currently has the processor. A runnable thread is 
+a thread that stored in the queue of scheduler. A blocked thread is a thread
+that stored in the queue of the object that it is blocked on. Possible objects
+to block a thread includng mutex, sleep(), deschedule(), wait(), vanish(), etc. 
+Each object has its own queue. 
+
+Note that runninng, runnable and blocked are not the same as states of a thread
+defined in tcb. This is just a high level description. 
+
+All activities of threads can be described as "moving threads between queues"
+- Context switch means put the thread before context switch to the queue of 
+scheduler and remove the thread after context switch from the queue of scheduler
+- Block a thread is just put a thread to the queue of the object it blocked on.
+- Make runnable a thread is remove it from the queue of the object it blocked on 
+and put it to the queue of scheduler.
+- Resume (wake up) a thread is remove it from the queue of the object it blocked 
+on and put the thread that execuing resume to the queue of scheduler. Note that
+in this way, we can always switches to the waiting thread instead of resuming 
+the interrupted thread when the waiting event completes.
+
+Based on the description discussed above, many system calls such as sleep(), 
+deschedule(), make_runnable(), wait(), readline() can be implemented easily. 
+
+3. Preemption of kernel
+Except for some parts of kernel that are protected by spinlock, most parts of 
+our kernel can be interrupted and context switch to another thread. To do so, 
+we stored/resotred not only generic registers and EFLAGS, but also value of 
+k_esp (the value of esp when the last context switch happens, this is useful if
+context switch is happened during a context switch) and value of %cr2 (this is
+useful if a context switch is happened during an exception)
+
+4. Fork and thread_fork
+These two system calls are very similar. Thread_fork is clone the kernel stack
+of the original thread, fork is thread_fork plus clone page table (roughly..).
+The key question is how to make sure the kernel stack of the original thread is 
+unchanged during clone? We solve this problem by cloning kernel stack of 
+original thread during context switch. Because when context switch, the 
+kernel stack of the original thread is 'sealed' and will be unchanged until
+the next switch back to the original thread. It is a good time to do cloning. 
+In a addition, beacuse all kernel stack is cloned for the new thread, when it 
+returns in the next time context switch it should behave exactly the same as 
+the original thread. 
+
+Note that although fork and thread_fork happens during context switch. They can
+still be interrupted by interrupts and preempted by other threads. 
 
 
-2. Vanish
+5. Vanish
 Exit status reporting for vanishing task
 When the thread to vanish is the last one in a task, it needs to report its
 exit status to its parent task. The thread will first check if its parent 
@@ -90,7 +136,7 @@ scheme that only after a thread gets all the locks it needs and it's not the
 thread to reap does it proceeds to reaping.
 
 
-3. Memory Management
+6. Memory Management
 The virtual memory system uses paging and ZFOD (Zero-fill on demand) with a 
 physical frame allocator that supports allocating and freeing single page size 
 frames.
@@ -139,7 +185,7 @@ all-zero frame. Besides, segment tree's O(log(n)) allocation and deallocation
 time complexity makes each thread's time in critical section tolerable when a 
 frame is really needed.
 
-4 Miscellaneous
+7 Miscellaneous
 Atomic counter
 There are many critical sections that involve only incrementing or 
 decrementing a counter, to avoid using too much spinlock (which disables 
@@ -147,18 +193,8 @@ interrupt temporarily) and mutex (which may involve context switch to previous
 lock holder), we devised an approach that uses the cmpxchg (CAS) machine 
 instruction to implement atomic arithmetics.
 
-Using stack space instead of heap space
-
-Can't use malloc.
-
 In our design, we tried to avoid using malloc to get space from heap as less
-often as possible because using malloc means a possible chance of context 
-switch back to the lock holder and if there are a lot of places using malloc,
-then the frequent context switches will outweigh the real work time. For such
-reason, we replaced the usage of malloc in some hot places like node allocation
-in queue with stack place. The intuition behind this approach is that in many
-cases, the stack space of a node won't be freed before the node is actually 
-dequeued.
+often as possible. 
 
 Tcb locating
 We have divided the entire kernel space into an imagined array, with each 
