@@ -30,7 +30,7 @@ give the lock to the blocked thread and make it runnable. Because we use mutex
 to protect malloc(), we can not rely on malloc() to construct node for queue 
 when a thread will enqueue. Instead, the stack space of blocked threads is used 
 to construct node for queue. Because the stack of the procedure call will not 
-be destroied until the blocked thread get the mutex, so it is safe.
+be destroied until the blocked thread get the mutex, it is safe.
 
 2. Running thread, runnable thread and blocked thread
 A thread is either running, runnable or blocked on some objects. A running 
@@ -194,7 +194,19 @@ lock holder), we devised an approach that uses the cmpxchg (CAS) machine
 instruction to implement atomic arithmetics.
 
 In our design, we tried to avoid using malloc to get space from heap as less
-often as possible. 
+often as possible, especialy when a thread needs to block itself and needs to
+construct a node to enqueue. It because malloc() is not thread-safe and we use
+mutex to protect it. 
+For example, in the queue of scheduler, we use spinlock to protect the queue. 
+If a thread using malloc() to construct a node when it enqueue, it will 
+enable_interrupts() when calling mutex_lock() which will 'unlock' our spinlock 
+that protect the queue of scheduler!
+Another example is mutex itslef. Since we use mutex to protect malloc, we can 
+not rely on malloc() to construct node for the queue of mutex.
+The reason why the stack space is safe to be used for node of queue is that 
+the thread will then be 'blocked' at the queue. So the stack of the procedure
+call will not be destroied unitl the thread is unblocked and dequeue from the
+queue.
 
 Tcb locating
 We have divided the entire kernel space into an imagined array, with each 
