@@ -253,5 +253,24 @@ a thread that's executing normally in kernel mode is guaranteed to fall within
 a slot in the array. With the thread's %esp, we can get the tcb of the thread
 in constant time by looking up the table array.
 
+8. Known bugs
+1) Kernel stack overflow handling:
+We detect if the kernel stack of a thread is overflow in every timer interrupt.
+But our kernel doesn't try to recovery from the error when a thread is 
+stack overflow. It is not easy to do so. The kernel can not just kill
+the thread immediately, because the thread may manipulating some 
+kernel data structure when it is interrupted. So our kernel will just
+panic() and let the developer to handle with this error. To be fair, 
+in our implementation of the kernel, it is very unlikely that a thread
+will stack overflow. When it happens, it may indicate some bugs.
+
+2) O(n) time for yield(tid)
+When a thread invokes the system call yield(tid) where tid is a specific thread, 
+our context switcher needs to search the queue of scheduler to find if the 
+thread is in the queue and remove it from the queue. We realize this is an O(n)
+operation and it violates the requirement in the handout that any operation of 
+scheduler should be done in constant time. But we don't have time to fix this 
+issue. 
+
 */
 
