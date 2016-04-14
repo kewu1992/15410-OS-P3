@@ -7,6 +7,32 @@
 
 
 1. Lock
+We implemented two locks for synchronization in kernel. One is spinlock, another
+is mutex.
+
+Spinlock is implemented using disable_interrupts() and xchg instruction. It can 
+be used in either uni-processor or multi-processor environment. 
+disable_interrupts() guarantees that no interrupt from the same processor will 
+happen when spinlock is locked. Besides, xchg instruction and while loop are 
+used to prevent threads of other processors from accessing the critical section. 
+Because interrupts are disabled and while loop is used, spinlock should not
+be locked in a very long time. Normally, spinlock is supposed to protect a few 
+lines of code (e.g. the implementation of mutex) or very tricky data structure 
+(e.g. queue of scheduler during context switch). Note that in interrupt handler,
+we can only use spinlock. Otherwise a thread may be blocked before interrupt is
+acked!
+
+Mutex is built on the top of spinlock. It doesn't rely on disable_interrupts()
+to make sure exclusive access. If a thread can not get the mutex immediately 
+when it try to lock the mutex, it will be blocked on the mutex and stored in the
+queue of mutex. It will not be scheduled by scheduler until the mutex holder 
+give the lock to the blocked thread and make it runnable. Because we use mutex
+to protect malloc(), we can not rely on malloc() to construct node for queue 
+when a thread will enqueue. Instead, the stack space of blocked threads is used 
+to construct node for queue. Because the stack of the procedure call will not 
+be destroied until the blocked thread get the mutex, so it is safe.
+
+2. fork and thread_fork 
 
 
 2. Vanish
