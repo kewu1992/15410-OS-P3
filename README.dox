@@ -18,9 +18,7 @@ used to prevent threads of other processors from accessing the critical section.
 Because interrupts are disabled and while loop is used, spinlock should not
 be locked in a very long time. Normally, spinlock is supposed to protect a few 
 lines of code (e.g. the implementation of mutex) or very tricky data structure 
-(e.g. queue of scheduler during context switch). Note that in interrupt handler,
-we can only use spinlock. Otherwise a thread may be blocked before interrupt is
-acked!
+(e.g. queue of scheduler during context switch).
 
 Mutex is built on the top of spinlock. It doesn't rely on disable_interrupts()
 to provide exclusive access. If a thread can not get the mutex immediately 
@@ -32,7 +30,49 @@ when a thread will enqueue. Instead, the stack space of blocked threads is used
 to construct node for queue. Because the stack of the procedure call will not 
 be destroied until the blocked thread get the mutex, it is safe.
 
-2. Running, runnable and blocked thread
+Protection scope of spinlock and mutex. You can invoke spinlock_lock() inside a 
+critical section that is protected by mutex to ensure no interrupt will happen 
+in a smaller but more importent critical section. But you can't invoke 
+mutex_lock() in a critical section that is protected by spinlock. Becasue
+mutex_lock() will invoke enable_interrupts() which will 'unlock' the 
+spinlock. Two common mistakes are:  1) call malloc() in scheduler. malloc() is
+protected by mutex while scheduler queue is protcted by spinlock.  2) using 
+mutex in interrupt handler which is using interrupt gate. 
+
+
+2. Preemption of kernel
+Except for some parts of kernel that are protected by spinlock, most parts of 
+our kernel can be interrupted and context switch to another thread. To do so, 
+we stored/resotred not only generic registers and EFLAGS, but also value of 
+k_esp (the value of esp when the last context switch happens, this is useful if
+context switch is happened during a context switch) and value of %cr2 (this is
+useful if a context switch is happened during an exception).
+
+The code that are protected by spinlock including 1) scheduler's queue. It is 
+impossible to protect it with mutex. Because mutex may block the thread that
+can not get the lock, which will result in a context switch and another 
+operation of scheduler's queue;  2) implementation of mutex;  3) timer 
+interupt handler and its related syscall sleep();  4) keyboard interrupt handler
+and its realated functions readline() and putbyte().
+
+There are two reasons that we can't use mutex to protect interrupt handlers 
+and funcitons sharing data with interrupt handlers:
+1) Interrupt gate must be used for interrupt handlers. For example, in keyboard
+handler, if trap gate is used and a timer interrupt comes in while the 
+keyboard interrupt handler is manipulating data of readline() in 
+resume_reading_thr(). The timer interrupt causes a context switch and the next 
+thread might be running in readline_syscall_handler() and about to manipulate 
+data of readline(). In this case, the data of readline() might be in an 
+inconsistent state and some bad things will happen.  
+2) In the functions that sharing data with interrupt handlers 
+(e.g. readline_syscall_handler()), mutex can not be used either. Because 
+interrupt handlers are using interrupt gate which disables all interrupts. 
+If mutex is used, when an interrupt comes in and it calls mutex_lock() to access
+shared data, mutex_lock() will call enable_interrupts() and make interrupt gate
+useless.
+
+
+3. Running, runnable and blocked thread
 A thread is either running, runnable or blocked on some objects. A running 
 thread is the thread that currently has the processor. A runnable thread is 
 a thread that stored in the queue of scheduler. A blocked thread is a thread
@@ -57,13 +97,7 @@ the interrupted thread when the waiting event completes.
 Based on the description discussed above, many system calls such as sleep(), 
 deschedule(), make_runnable(), wait(), readline() can be implemented easily. 
 
-3. Preemption of kernel
-Except for some parts of kernel that are protected by spinlock, most parts of 
-our kernel can be interrupted and context switch to another thread. To do so, 
-we stored/resotred not only generic registers and EFLAGS, but also value of 
-k_esp (the value of esp when the last context switch happens, this is useful if
-context switch is happened during a context switch) and value of %cr2 (this is
-useful if a context switch is happened during an exception)
+
 
 4. Fork and thread_fork
 These two system calls are very similar. Thread_fork is clone the kernel stack
@@ -74,7 +108,7 @@ original thread during context switch. Because when context switch, the
 kernel stack of the original thread is 'sealed' and will be unchanged until
 the next switch back to the original thread. It is a good time to do cloning. 
 In a addition, beacuse the entire kernel stack is cloned for the new thread, 
-when it switches back in the next time of context switch it should behave 
+when the new thread switches back in the next time it should behave 
 exactly the same as the original thread. 
 
 Note that although fork and thread_fork happens during context switch. They can
@@ -199,13 +233,13 @@ construct a node to enqueue. It's because malloc() is not thread-safe and
 we use mutex to protect it. 
 For example, in the queue of scheduler, we use spinlock to protect the queue. 
 If a thread using malloc() to construct a node when it enqueues, it will 
-enable_interrupts() when calling mutex_lock() which will 'unlock' our spinlock 
-that protect the queue of scheduler!
+enable_interrupts() when calling mutex_lock() which will unlock our spinlock 
+that protects the queue of scheduler!
 Another example is mutex itslef. Since we use mutex to protect malloc, we can 
 not rely on malloc() to construct node for the queue of mutex.
 The reason why the stack space is safe to be used for node of queue is that 
 the thread will then be 'blocked' at the queue. So the stack of the procedure
-call will not be destroied unitl the thread is unblocked and dequeue from the
+call will not be destroied unitl the thread is unblocked and dequeued from the
 queue. For constructing the node of scheduler queue, some memory spce is
 reserved during context switch (please refer to asm_context_switch.S for 
 details). 

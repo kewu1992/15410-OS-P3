@@ -60,11 +60,10 @@ void init_keyboard_driver() {
  *  This interrupt handler should use interrupt gate. Imagine that if trap gate
  *  is used and a timer interrupt comes in while this function is manipulating
  *  variables and buffer of readline() in resume_reading_thr(). The timer 
- *  interrupt causes a context switch and a thread that in 
- *  readline_syscall_handler() continue running and also manipulate variables 
- *  and buffer of readline(). In this case, the variables and
- *  buffer of readline() might be in an inconsistent state and some bad things
- *  will happen. 
+ *  interrupt causes a context switch and the next thread is also running at 
+ *  readline_syscall_handler() and about to manipulate variables 
+ *  and buffer of readline(). In this case, the data of readline() might be in 
+ *  an inconsistent state and some bad things will happen. 
  *
  *  @return Void.
  */

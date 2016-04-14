@@ -52,7 +52,10 @@ static int reading_length;
 static char *reading_buf;
 
 /** @brief For readline() syscall.
- *         lock to avoid keyboard interrupt durring operation */
+ *         lock to avoid any interrupt durring operation. Because interrupt 
+ *         handlers are using interrupt gate which disable all interrupts, here
+ *         we can not use mutex for protection. Because in mutex_lock(), it will
+ *         call enable_interrupts() and make interrupt gate useless. */
 static spinlock_t reading_lock;
 
 
