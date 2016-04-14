@@ -3,7 +3,7 @@
  *
  *  There are multiple operations that are supported by context_switcher:
  *  op  arg             meaning
- *  0   -1              Normal context switch driven by timer interupt. the 
+ *  0   -1              Normal context switch driven by timer interupt. The 
  *                      invoking thread will be put to the tail of the queue of 
  *                      scheduler, scheduler will choose the next thread (which
  *                      is the head of the queue of scheduler) to run.
@@ -19,8 +19,8 @@
  *                      don't put the calling thread to the queue of scheduler.
  *                      Note that if a thread calls context_switch(OP_BLOCK), 
  *                      its tcb must be stored in another queue which belongs to 
- *                      the object that the thread is blocking (e.g queue of 
- *                      mutex, queue of sleep, queue of readline).
+ *                      the object that the thread is blocked on (e.g queue of 
+ *                      mutex, queue of sleep, queue of deschedule).
  *
  *  4   tcb_t*          Make runable a blocked thread identified by its tcb. 
  *                      Notice that this is not really a context switch. It will
@@ -59,6 +59,8 @@
 #include <simple_queue.h>
 #include <context_switcher.h>
 
+/** @brief The assembly part (the most important part) of context switch.
+ *         Please refer to asm_context_switch.S for more details. */
 extern void asm_context_switch(int op, uint32_t arg, tcb_t *this_thr);
 
 static tcb_t* internal_thread_fork(tcb_t* this_thr);
@@ -67,8 +69,14 @@ static void* get_last_ebp(void* ebp);
 
 extern mutex_t *get_malloc_lib_lock();
 
+/** @brief Spinlock to be used to protect queue of scheduler. We can not use
+ *         mutex to protext queue of sheduler. Mutex may block the thread that
+ *         can not get the lock, which will result in a context switch and 
+ *         another operation of queue of scheduler... */
 static spinlock_t spinlock;
 
+/** @brief The idle thread(task), this will be scheduled by scheduler when 
+ *         there is no other thread to run */
 extern tcb_t* idle_thr;
 
 /** @brief Context switch from a thread to another thread. 
@@ -82,46 +90,41 @@ extern tcb_t* idle_thr;
 void context_switch(int op, uint32_t arg) {
 
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+
+    // if this_thr == NULL, it means the first task hasn't been loaded
     if (this_thr == NULL)
         return;
-
-    //lprintf("context switch for tid: %d by op %d with cr3:%x (pd:%x)", this_thr->tid, op, (unsigned int)get_cr3(), (unsigned int)this_thr->pcb->page_table_base);
-
-    // lprintf("before esp: %p", (void*)asm_get_esp());
-    // lprintf("before: %p", this_thr);
-    // lprintf("before: %d", this_thr->tid);
 
     asm_context_switch(op, arg, this_thr);
 
     this_thr = tcb_get_entry((void*)asm_get_esp());
 
-    // lprintf("after esp: %p", (void*)asm_get_esp());
-    // lprintf("after: %p", this_thr);
-    // lprintf("after: %d", this_thr->tid);
 
-    if (op == OP_FORK && this_thr->result == 0) {        
-        lprintf("fork process %d with thread %d (pd:%x)", this_thr->pcb->pid, 
-                this_thr->tid, (unsigned int)(this_thr->pcb->page_table_base));
-
+    // for child process of fork(), set cr3 to the new page table base
+    if (op == OP_FORK && this_thr->result == 0)
         set_cr3((uint32_t)(this_thr->pcb->page_table_base));
-    }
 
     // after context switch, restore cr3
     if (this_thr->pcb->page_table_base != get_cr3())
         set_cr3(this_thr->pcb->page_table_base);
 
-    //lprintf("context switch to tid: %d with cr3:%x (pd:%x)", this_thr->tid, (unsigned int)get_cr3(), (unsigned int)this_thr->pcb->page_table_base);
-
-
     // reset esp0
     set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp-1));
 
-    // Check if there's any thread to destroy
+    
+    /* ====== The following code is used to free any zombie thread ======= */
 
-    // Check mutext lib lock holder
+    // for OP_MAKE_RUNNABLE, because it is not really a context switch, it
+    // should not try to free a zombie thread, otherwise stack overflow might
+    // happen 
     if(op == OP_MAKE_RUNNABLE) {
         return; 
     } else {
+        /* Here the thread should only try to get the locks of malloc and zombie
+         * list. If it can't get the locks, it should not block. Because this
+         * code will be executed in *every* context switch, so a thread will 
+         * block when it can't get the locks, self-deadlock might happen 
+         */
         // try to grab the first lock
         if (mutex_try_lock(get_zombie_list_lock()) < 0) {
             return;
@@ -141,8 +144,9 @@ void context_switch(int op, uint32_t arg) {
                     // to free its resource.
                     tcb_t* zombie_thr = (tcb_t*)(node->thr);
                     if(this_thr->tid == zombie_thr->tid || 
-                            //scheduler_is_exist(zombie_thr->tid)) {
-                            zombie_thr->state != BLOCKED) {
+                        // if the state of zombie_thr is not BLOCKED, it means
+                        // the zombie_thr is not really blocked yet
+                        zombie_thr->state != BLOCKED) {
                         // Put it back
                         put_next_zombie(node);
                     } else {
@@ -158,21 +162,25 @@ void context_switch(int op, uint32_t arg) {
     }
 }
 
-/** @brief Get the next thread for context switch
+/** @brief Get the next thread to context switch to
  *  
  *  The next thread might be:
- *      1) Choosen by scheduler (regular context switch or yield -1)
+ *      1) Choosen by scheduler (regular context switch, yield -1 or block)
  *      2) A specific thread because of yield or resume
  *      3) A newly created thread because of fork or thread_fork
- *      4) The original thread to call this function (mostly it is becuase some
- *         errors happen)    
+ *      4) The original thread to call this function (it may because some errors
+ *         happen, or a blocking thread find itself has been made runnable or 
+ *         wakend up by other thraeds, or there is no other thread to context 
+ *         switch to)
+ *      5) idle thread. It is because the last thread is calling OP_BLOCK and 
+ *         there is no runnable thread in the queue of scheduler.    
  *
- *  @param op The option for context_switch()
+ *  @param op The operation for context_switch()
  *  @param arg The argument for context_switch(). With different options, this 
  *             argument has different meannings.
  *  @param this_thr The thread before context switch
  *
- *  @return The next thread for context switch
+ *  @return The next thread to context switch to
  */
 tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
     tcb_t* new_thr;
@@ -208,27 +216,25 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 scheduler_make_runnable(this_thr);
             return new_thr;
         case OP_FORK:    // fork and context switch to new thread
+            
             if (this_thr->pcb->cur_thr_num > 1) {
                 //the invoking task contains more than one thread,reject fork()
-                lprintf("fork() with more than one thread");
-                // MAGIC_BREAK;
-
                 printf("fork() failed because more than one thread\n");
                 this_thr->result = EMORETHR;
                 return this_thr;
             }
+
+            // first execute thread fork
             new_thr = internal_thread_fork(this_thr);
 
             if (new_thr == NULL) {
                 // thread_fork error
-                lprintf("internal_thread_fork() failed");
-                // MAGIC_BREAK;
-
                 printf("internal_thread_fork() failed when fork()");
                 this_thr->result = ENOMEM;
                 return this_thr;
             }
             
+            // allocate resources for new process 
             // clone page table
             uint32_t new_page_table_base = clone_pd();
             if (new_page_table_base == ERROR_MALLOC_LIB ||
@@ -244,7 +250,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             if(this_thr->swexn_struct != NULL) {
                 new_thr->swexn_struct = malloc(sizeof(swexn_t));
                 if(new_thr->swexn_struct == NULL) {
-                    lprintf("malloc failed");
+                    printf("malloc failed() when fork()\n");
                     int need_unreserve_frames = 1;
                     free_entire_space(new_page_table_base, 
                             need_unreserve_frames);
@@ -259,9 +265,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             // create new process
             if (tcb_create_process_only(new_thr, this_thr, 
                                                 new_page_table_base) == NULL) {
-                lprintf("tcb_create_process_only() failed");
-                MAGIC_BREAK;
-
                 printf("tcb_create_process_only() failed when fork()\n");
                 free(new_thr->swexn_struct);
                 int need_unreserve_frames = 1;
@@ -296,14 +299,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->result = new_thr->tid;
                 new_thr->result = 0;
                 atomic_add(&this_thr->pcb->cur_thr_num, 1);
-                lprintf("process %d get a new thread %d", 
-                                            this_thr->pcb->pid, new_thr->tid);
             } else {
                 // thread fork error
-                lprintf("internal_thread_fork() failed");
-                MAGIC_BREAK;
-
-                printf("internal_thread_fork() failed when thread_fork()");
+                printf("internal_thread_fork() failed when thread_fork()\n");
                 this_thr->result = ENOMEM;
                 return this_thr;
             }
@@ -325,29 +323,32 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->state = NORMAL;
                 return this_thr;
             } else {
-                // decide to block itself, can not be wakened up (resume) or made
-                // runnable by other thread unitl context switch to the next 
-                // thread successfully
+                // decide to block itself, can not be wakened up (resume) or 
+                // made runnable by other thread unitl context switch to the 
+                // next thread successfully
                 if (this_thr->state == NORMAL) {
                     this_thr->state = BLOCKED;
                 } else  {
-                    lprintf("strange state in context_switch(3,0): %d", 
+                    panic("strange state in context_switch(3,0): %d", 
                                                             this_thr->state);
-                    MAGIC_BREAK;
                 }
 
                 // let sheduler to choose the next thread to run
                 new_thr = scheduler_block();
                 if (new_thr == NULL) {
                     if (this_thr == idle_thr)
-                        panic("idle thread try to block itself, something goes wrong!");
+                        panic("idle thread try to block itself, something \
+                                                                goes wrong!");
                     else if (idle_thr == NULL)
-                        panic("no other process is running, %d can not be blocked", this_thr->tid);
+                        panic("no other process is running, %d can not \
+                                                    be blocked", this_thr->tid);
                     else
                         return idle_thr;
-                } else
+                } else { 
                     return new_thr;
-            }            
+                }
+            }    
+
         case OP_MAKE_RUNNABLE: // make_runnable a thread
             new_thr = (tcb_t*)arg;
             if (new_thr == NULL)
@@ -357,18 +358,19 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             // the next thread successfully
             spinlock_lock(&spinlock);
             if (new_thr->state == BLOCKED) {
-                // the thread has already blocked, put it to the queue of scheduler
+                // the thread has already blocked, put it to the queue of 
+                // scheduler
                 new_thr->state = NORMAL;
                 scheduler_make_runnable(new_thr);
             } else if (new_thr->state == NORMAL) {
                 // the thread hasn't blocked, set state to tell it do not block
                 new_thr->state = MADE_RUNNABLE;
             } else {
-                lprintf("strange state in scheduler_make_runnable()");
-                MAGIC_BREAK;
+                panic("strange state in scheduler_make_runnable()");
             }
 
             return this_thr;
+
         case OP_RESUME: // resume a thread
             new_thr = (tcb_t*)arg;
             
@@ -381,11 +383,10 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 // the thread has already blocked, context switch to it directly
                 new_thr->state = NORMAL;
             else if (new_thr->state == NORMAL)
-                 // the thread hasn't blocked, set state to tell it not block
+                 // the thread hasn't blocked, set state to tell it do not block
                 new_thr->state = WAKEUP;
             else {
-                lprintf("strange state in context_switch(5,thr)");
-                MAGIC_BREAK;
+                panic("strange state in context_switch(5,thr)");
             }
 
             return new_thr;
@@ -398,7 +399,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
  *  
  *  Create a new thread and copy the entire kernel stack of this thread
  *  (from very top to this_thr->k_stack_esp) to the kernel stack of the 
- *  newly created thread
+ *  newly created thread. Beacuse all kernel stack is cloned for the new 
+ *  thread, when it returns from 
  *
  *  @param this_thr The thread that will be forked
  *
