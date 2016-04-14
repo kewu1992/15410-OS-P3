@@ -23,7 +23,7 @@ we can only use spinlock. Otherwise a thread may be blocked before interrupt is
 acked!
 
 Mutex is built on the top of spinlock. It doesn't rely on disable_interrupts()
-to make sure exclusive access. If a thread can not get the mutex immediately 
+to provide exclusive access. If a thread can not get the mutex immediately 
 when it try to lock the mutex, it will be blocked on the mutex and stored in the
 queue of mutex. It will not be scheduled by scheduler until the mutex holder 
 give the lock to the blocked thread and make it runnable. Because we use mutex
@@ -32,7 +32,7 @@ when a thread will enqueue. Instead, the stack space of blocked threads is used
 to construct node for queue. Because the stack of the procedure call will not 
 be destroied until the blocked thread get the mutex, it is safe.
 
-2. Running thread, runnable thread and blocked thread
+2. Running, runnable and blocked thread
 A thread is either running, runnable or blocked on some objects. A running 
 thread is the thread that currently has the processor. A runnable thread is 
 a thread that stored in the queue of scheduler. A blocked thread is a thread
@@ -49,8 +49,8 @@ scheduler and remove the thread after context switch from the queue of scheduler
 - Block a thread is just put a thread to the queue of the object it blocked on.
 - Make runnable a thread is remove it from the queue of the object it blocked on 
 and put it to the queue of scheduler.
-- Resume (wake up) a thread is remove it from the queue of the object it blocked 
-on and put the thread that execuing resume to the queue of scheduler. Note that
+- Resume (wake up) a waiting thread is remove it from the queue of the object it
+blocked on and put the interrupted thread to the queue of scheduler. Note that
 in this way, we can always switches to the waiting thread instead of resuming 
 the interrupted thread when the waiting event completes.
 
@@ -73,9 +73,9 @@ unchanged during clone? We solve this problem by cloning kernel stack of
 original thread during context switch. Because when context switch, the 
 kernel stack of the original thread is 'sealed' and will be unchanged until
 the next switch back to the original thread. It is a good time to do cloning. 
-In a addition, beacuse all kernel stack is cloned for the new thread, when it 
-returns in the next time context switch it should behave exactly the same as 
-the original thread. 
+In a addition, beacuse the entire kernel stack is cloned for the new thread, 
+when it switches back in the next time of context switch it should behave 
+exactly the same as the original thread. 
 
 Note that although fork and thread_fork happens during context switch. They can
 still be interrupted by interrupts and preempted by other threads. 
@@ -97,15 +97,15 @@ releasing locks: when a task vanishes, it first grabs the hashtable's lock,
 then the parent task's pcb lock , then release the hashtable lock so that 
 other tasks can use it, then add its exit status to the child_exit_status_list
 in the parent's pcb, and finally release parent task's pcb lock. On the other
-hand, a vanishing task to delete its entry in the hashtable to mark its death
-so that its children will report exit status to init task in the future will
-try to get the hashtable lock first, then get its own pcb lock, delete the
-entry in the hashtable, then release its pcb lock and hash table lock. The
-effect of this approach is that, 1. a task can't delete its entry in the
-hashtable while its children is reporting exit status to it (because its 
-chilren is holding its pcb lock and it can't delete its entry in hashtable
-without its own pcb lock). 2. a vanishing task who successfully put its 
-exit status to its parent's child_exit_status_list is guaranteed to be
+hand, a vanishing task will delete its entry in the hashtable to mark its death
+so that its children will report exit status to init task in the future. To do 
+so, the vanishing task will try to get the hashtable lock first, then get 
+its own pcb lock, delete the entry in the hashtable, then release its pcb lock 
+and hash table lock. The effect of this approach is that, 1. a task can't delete
+its entry in the hashtable while its children is reporting exit status to it 
+(because its chilren is holding its pcb lock and it can't delete its entry 
+in hashtable without its own pcb lock). 2. a vanishing task who successfully put
+its exit status to its parent's child_exit_status_list is guaranteed to be
 noticed by parent task because parent.
 
 Resource freeing for vanishing task
@@ -119,21 +119,21 @@ effect) and safely frees its own pcb and address space. However, since a
 vanishing thread cannot free its own kernel stack space (because it's using) 
 and its tcb (because timer interrupt may happen during vanishing and tcb is 
 needed during context switch), so that it puts itself in the system-wide zombie
-list, and the next thread to run can check the zombie list before it returns
-to previous execution and reap it. There're some subtleties for this approach. 
-1. After a vanishing thread puts itself to the system-wide thread zombie list 
-and proceeds to blocking but hasn't fully blocked, timer interrupt may happen 
-and the the next thread starts to run and removes one zombie thread that happens
-to be not the vanisning thread we are talking about, then there's a chance that
-the not fully blocked vanisning thread starts to run again and is likely to
-reap itself when checking the zombie list. 2 The other issue is that even if
-reaping thread isn't the thread to reap, because freeing resouces needs the 
-malloc library lock, it's entirely possible that the reaping thread may be in
-some critical section with the malloc library lock in its previous term, and
-in this case, it should not proceed to free but also it's hard to revert
-in deep function stacks. To solve these 2 issues, we devised a "try lock" 
-scheme that only after a thread gets all the locks it needs and it's not the
-thread to reap does it proceeds to reaping.
+list, and the next thread to run (during context switch) can check the zombie 
+list before it returns to previous execution and reap it. There're some 
+subtleties for this approach. 1. After a vanishing thread puts itself to the 
+system-wide thread zombie list and proceeds to blocking but hasn't fully 
+blocked, timer interrupt may happen and the the next thread starts to run and 
+removes one zombie thread that happens to be not the vanisning thread we are 
+talking about, then there's a chance that the not fully blocked vanisning 
+thread starts to run again and is likely to reap itself when checking the zombie 
+list. 2 The other issue is that even if reaping thread isn't the thread to reap,
+because freeing resouces needs the malloc library lock, it's entirely possible 
+that the reaping thread may be in some critical section with the malloc library 
+lock in its previous term, and in this case, a self-deadlock might happen. 
+To solve these 2 issues, we devised a "try lock" scheme that only after a 
+thread gets all the locks it needs and it's not the thread to reap does it 
+proceeds to reaping.
 
 
 6. Memory Management
@@ -195,10 +195,10 @@ instruction to implement atomic arithmetics.
 
 In our design, we tried to avoid using malloc to get space from heap as less
 often as possible, especialy when a thread needs to block itself and needs to
-construct a node to enqueue. It because malloc() is not thread-safe and we use
-mutex to protect it. 
+construct a node to enqueue. It's because malloc() is not thread-safe and 
+we use mutex to protect it. 
 For example, in the queue of scheduler, we use spinlock to protect the queue. 
-If a thread using malloc() to construct a node when it enqueue, it will 
+If a thread using malloc() to construct a node when it enqueues, it will 
 enable_interrupts() when calling mutex_lock() which will 'unlock' our spinlock 
 that protect the queue of scheduler!
 Another example is mutex itslef. Since we use mutex to protect malloc, we can 
@@ -206,7 +206,9 @@ not rely on malloc() to construct node for the queue of mutex.
 The reason why the stack space is safe to be used for node of queue is that 
 the thread will then be 'blocked' at the queue. So the stack of the procedure
 call will not be destroied unitl the thread is unblocked and dequeue from the
-queue.
+queue. For constructing the node of scheduler queue, some memory spce is
+reserved during context switch (please refer to asm_context_switch.S for 
+details). 
 
 Tcb locating
 We have divided the entire kernel space into an imagined array, with each 
