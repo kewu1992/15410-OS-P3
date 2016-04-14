@@ -1,3 +1,13 @@
+/** @file scheduler.h 
+ *
+ *  @brief Contains public interface for scheduler
+ *
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs
+ */
+
+
 #ifndef _SCHEDULER_H_
 #define _SCHEDULER_H_
 

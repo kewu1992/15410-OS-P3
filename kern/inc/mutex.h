@@ -1,5 +1,10 @@
 /** @file mutex.h
  *  @brief This file defines the interface for mutexes.
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs
  */
 
 #ifndef _MUTEX_H_

@@ -1,3 +1,11 @@
+/** @file asm_ret_newureg.S
+ *
+ *  @brief Adopt register values from newureg struct
+ *
+ *  @author Jian Wang (jianwan3)
+ *
+ *  @bug No known bugs.
+ */
 
 .global asm_ret_newureg
 

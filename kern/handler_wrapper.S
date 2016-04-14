@@ -1,3 +1,13 @@
+/** @file handler_wrapper.S 
+ *
+ *  @brief Contains wrappers for syscall handlers and exception handlers
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs
+ */
+
 #include <idt.h>
 
 .global keyboard_wrapper
@@ -427,7 +437,7 @@ readfile_wrapper:
     iret
     
 
-/********** Exceptions wrapper ****************/
+/* Exception wrappers */
 
 de_wrapper:
     pusha

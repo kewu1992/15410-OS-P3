@@ -79,7 +79,7 @@ void make_runnable_wrapper();
 
 void readfile_wrapper();
 
-// Exceptions
+// Exception wrappers
 void de_wrapper();
 void db_wrapper();
 void nmi_wrapper();

@@ -2,7 +2,12 @@
  *
  *  @brief Contains public interface for physical memory manager.
  *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs
  */
+ 
 #ifndef _PM_H_
 #define _PM_H_
 
