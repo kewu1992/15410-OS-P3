@@ -1,3 +1,14 @@
+/** @file syscall_lifecycle.c
+ *  @brief System calls related to life cycle
+ *
+ *  This file contains implementations of system calls that are related to 
+ *  life cycle.
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug No known bugs.
+ */
+
 #include <context_switcher.h>
 #include <control_block.h>
 #include <asm_helper.h>
@@ -18,9 +29,33 @@
 /** @brief At most half of the kernel stack to be used as buffer of exec() */
 #define MAX_EXEC_BUF (K_STACK_SIZE>>1)
 
+/** @brief At most 128 bytes per argument of exec() */
 #define EXEC_MAX_ARG_SIZE   128
 
+/** @brief The maxinum number of arguments of exec() */
 #define EXEC_MAX_ARGC (MAX_EXEC_BUF/EXEC_MAX_ARG_SIZE-1)
+
+/** @brief The initial size of hash table to stroe pid to pcb map,
+ *         pick a prime number */
+#define PID_PCB_HASH_SIZE 1021
+
+/** @brief The init task, this will be used as parent task to store exit status
+ *         when an orphan task vanish() */
+static pcb_t *init_task;
+
+/** @brief Hashtable to map pid to pcb, dead process doesn't have entry in 
+ *         hashtable. It is useful to detect if partent task dead */
+static hashtable_t ht_pid_pcb;
+
+/** @brief Lock for ht_pid_pcb */
+static mutex_t ht_pid_pcb_lock;
+
+/** @brief A list that stores the zombie thread to be freed  */
+static simple_queue_t zombie_list;
+
+/** @brief The lock for the zombie list */
+static mutex_t zombie_list_lock;
+
 
 /** @brief System call handler for fork()
  *
@@ -108,7 +143,6 @@ int exec_syscall_handler(char* execname, char **argvec) {
     // first check the number of threads for this task
     if (this_thr->pcb->cur_thr_num > 1) {
         //the invoking task contains more than one thread, reject exec()
-
         printf("exec() failed because more than one thread\n");
         return EMORETHR;
     }
@@ -196,8 +230,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
 
     uint32_t old_pd = get_cr3();
 
-    // Create new page table in case when loadTask fails, we can't
-    // recover old address space
+    // Create new page table to load new binary file. If loadTask() fails, 
+    // we can recover to old address space
     uint32_t new_pd = create_pd();
     if(new_pd == ERROR_MALLOC_LIB) {
         return ENOMEM;
@@ -210,7 +244,8 @@ int exec_syscall_handler(char* execname, char **argvec) {
     int rv;
     if ((rv = loadTask(my_execname, argc, (const char**)argv, &usr_esp, 
                     &my_program)) < 0) {
-        // load task failed
+
+        // load task failed, reset to old page table, free new page table
         this_thr->pcb->page_table_base = old_pd;
         set_cr3(old_pd);
 
@@ -220,6 +255,7 @@ int exec_syscall_handler(char* execname, char **argvec) {
         return rv;
     }
 
+    // load task succeed, free old page table
     int need_unreserve_frames = 1;
     free_entire_space(old_pd, need_unreserve_frames);
 
@@ -258,12 +294,6 @@ void set_status_syscall_handler(int status) {
 }
 
 
-
-/*************************** vanish *****************************/
-
-/** @brief The init task */
-static pcb_t *init_task;
-
 /** @brief Record init task's pcb
  *
  * @param init_pcb The init task's pcb
@@ -273,18 +303,6 @@ void set_init_pcb(pcb_t *init_pcb) {
     init_task = init_pcb; 
 }
 
-/** @brief Hashtable to map pid to pcb, dead process doesn't have entry in 
- *  hashtable.
- */
-static hashtable_t ht_pid_pcb;
-/** @brief Lock for ht_pid_pcb */
-static mutex_t ht_pid_pcb_lock;
-
-
-/** @brief The initial size of hash table to stroe pid to pcb map,
-  * pick a prime number 
-  */
-#define PID_PCB_HASH_SIZE 1021
 
 /** @brief The hash function for hash table 
   *
@@ -338,11 +356,6 @@ void ht_remove_task(int pid) {
     mutex_unlock(&ht_pid_pcb_lock);
 }
 
-/** @brief A list that stores the thread to reap */
-static simple_queue_t zombie_list;
-
-/** @brief The lock for the zombie list */
-static mutex_t zombie_list_lock;
 
 /** @brief Get next zombie in the thread zombie list
  *
