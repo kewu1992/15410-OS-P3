@@ -400,7 +400,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
  *  Create a new thread and copy the entire kernel stack of this thread
  *  (from very top to this_thr->k_stack_esp) to the kernel stack of the 
  *  newly created thread. Beacuse all kernel stack is cloned for the new 
- *  thread, when it returns from 
+ *  thread, when it returns from context_switch_get_next() it should behave
+ *  exactly the same as the original thread. 
  *
  *  @param this_thr The thread that will be forked
  *
@@ -428,7 +429,8 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
 
     // modify all %ebp values in the new thread's kernel stack so that all %ebp
     // values point to the new stack instead of the original stack
-    uint32_t diff = (uint32_t)new_thr->k_stack_esp - (uint32_t)this_thr->k_stack_esp;
+    uint32_t diff = 
+              (uint32_t)new_thr->k_stack_esp - (uint32_t)this_thr->k_stack_esp;
     void* ebp = (void*)((uint32_t)new_thr->k_stack_esp + 56);
     *((uint32_t*) ebp) = *((uint32_t*) ebp) + diff;
     ebp = get_last_ebp(ebp);
@@ -438,7 +440,7 @@ tcb_t* internal_thread_fork(tcb_t* this_thr) {
 }
 
 
-/** @brief get old %ebp value based on current %ebp
+/** @brief Get old %ebp value based on current %ebp
  *
  *  @param ebp Value of current %ebp
  *
@@ -449,10 +451,15 @@ void* get_last_ebp(void* ebp) {
     return (void*) last_ebp;
 }
 
+/** @brief Initialize data structure for context switcher
+ *
+ *  @return On success return 0, on error return -1
+ */
 int context_switcher_init() {
     return spinlock_init(&spinlock);
 }
 
+/** @brief Unlock spinlock of context switcher */
 void context_switch_unlock() {
     spinlock_unlock(&spinlock);
 }
