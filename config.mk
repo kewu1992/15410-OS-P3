@@ -16,9 +16,6 @@
 # somehow restricting you from doing something you need to do, contact
 # the course staff--don't just hit it with a hammer and move on.
 #
-# [Once you've read this message, please edit it out of your config.mk]
-# [Once you've read this message, please edit it out of your config.mk]
-# [Once you've read this message, please edit it out of your config.mk]
 ###########################################################################
 
 ###########################################################################
@@ -57,7 +54,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the 410user/progs
 # directory.
 #
-410TESTS = getpid_test1 loader_test1 loader_test2 exec_basic exec_basic_helper exec_nonexist fork_test1 new_pages remove_pages_test1 remove_pages_test2 fork_wait actual_wait sleep_test1 swexn_basic_test swexn_cookie_monster swexn_dispatch swexn_regs mem_permissions make_crash make_crash_helper cho cho2 wait_getpid wild_test1 print_basic yield_desc_mkrun deschedule_hang cho_variant stack_test1 halt_test mem_eat_test readline_basic fork_bomb minclone_mem register_test ack fib swexn_stands_for_swextensible swexn_uninstall_test
+410TESTS = ack actual_wait cat cho cho_variant cho2 chow ck1 coolness deschedule_hang exec_basic exec_basic_helper exec_nonexist fib fork_bomb fork_exit_bomb fork_wait_bomb fork_test1 fork_wait getpid_test1 halt_test knife loader_test1 loader_test2 make_crash make_crash_helper mem_eat_test mem_permissions merchant minclone_mem new_pages peon print_basic readline_basic register_test remove_pages_test1 remove_pages_test2 slaughter sleep_test1 stack_test1 swexn_basic_test swexn_cookie_monster swexn_dispatch swexn_regs swexn_stands_for_swextensible swexn_uninstall_test wait_getpid wild_test1 work yield_desc_mkrun
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -65,7 +62,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = small_program switched_program mutex_test coolness peon merchant io_test param_check sleep_test vanish_check fork_exit_bomb fork_wait_bomb test_fork hello_world test_yield my_wild_test1 my_cho my_yield_desc_mkrun test_readfile test_swexn test_swexn_helper my_new_pages cyclone agility_drill cvar_test join_specific_test thr_exit_join multitest paraguay startle switzerland beady_test racer rwlock_downgrade_read_test bistromath cat mandelbrot juggle excellent largetest my_fork
+STUDENTTESTS = agility_drill beady_test cvar_test cyclone excellent hello_world io_test join_specific_test juggle largetest mandelbrot multitest mutex_test my_cho my_fork my_new_pages my_wild_test1 my_yield_desc_mkrun paraguay param_check racer rwlock_downgrade_read_test sleep_test small_program startle switched_program switzerland test_fork test_readfile test_swexn test_swexn_helper test_yield thr_exit_join vanish_check
 
 
 ###########################################################################
@@ -87,7 +84,7 @@ STUDENTFILES = foo
 ###########################################################################
 # Object files for your thread library
 ###########################################################################
-THREAD_OBJS = malloc.o panic.o asm_xchg.o mutex.o queue.o thr_create_kernel.o thr_lib.o thr_lib_helper.o arraytcb.o cond_var.o asm_get_esp.o hashtable.o sem.o rwlock.o asm_thr_exit.o asm_get_ebp.o
+THREAD_OBJS = arraytcb.o asm_get_ebp.o asm_get_esp.o asm_thr_exit.o asm_xchg.o cond_var.o hashtable.o malloc.o mutex.o panic.o queue.o rwlock.o sem.o thr_create_kernel.o thr_lib_helper.o thr_lib.o
 
 
 # Thread Group Library Support.
@@ -101,7 +98,7 @@ THREAD_OBJS = malloc.o panic.o asm_xchg.o mutex.o queue.o thr_create_kernel.o th
 ###########################################################################
 # Object files for your syscall wrappers
 ###########################################################################
-SYSCALL_OBJS = syscall.o gettid.o fork.o exec.o new_pages.o remove_pages.o print.o halt.o readline.o vanish.o wait.o set_cursor_pos.o set_term_color.o set_status.o sleep.o get_ticks.o yield.o swexn.o deschedule.o make_runnable.o readfile.o get_cursor_pos.o
+SYSCALL_OBJS = deschedule.o exec.o fork.o get_cursor_pos.o get_ticks.o gettid.o halt.o make_runnable.o new_pages.o print.o readfile.o readline.o remove_pages.o set_cursor_pos.o set_status.o set_term_color.o sleep.o swexn.o syscall.o vanish.o wait.o yield.o
 
 
 ###########################################################################
