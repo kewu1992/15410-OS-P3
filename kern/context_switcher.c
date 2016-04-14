@@ -43,8 +43,7 @@
  *  @bug context_switch(OP_YIELD, tid) needs to search the queue of scheduler 
  *       to find if the thread is in the queue. We realize this is an O(n) 
  *       operation and it violates the requirement in the handout that any 
- *       operation of scheduler should be done in constant time. But we don't
- *       have time to fix this issue. 
+ *       operation of scheduler should be done in constant time.
  */
 #include <scheduler.h>
 #include <asm_helper.h>
