@@ -35,7 +35,6 @@
  */
 int new_pages_syscall_handler(void *base, int len) {
     
-    //lprintf("new_pages base: %x", (unsigned)base);
     int ret = new_pages(base, len);
     if (ret == ERROR_BASE_NOT_ALIGNED || ret == ERROR_LEN)
         ret = EINVAL;
@@ -63,7 +62,6 @@ int new_pages_syscall_handler(void *base, int len) {
  */
 int remove_pages_syscall_handler(void *base) {
     
-    //lprintf("remove_pages base: %x", (unsigned)base);
     int ret = remove_pages(base);
     if (ret < 0)
         ret = EINVAL;
