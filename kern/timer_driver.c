@@ -78,8 +78,8 @@ void timer_interrupt_handler() {
         // no thread should be wakened up, just call normal context switch 
         context_switch(OP_CONTEXT_SWITCH, -1);
     } else {
-        // there is a thread that should wake up from sleep(), resume to
-        // that thread directly
+        // there is a thread that should wake up from sleep(), resume
+        // the sleeping thread
         context_switch(OP_RESUME, (uint32_t)next_thr);
     }
 }

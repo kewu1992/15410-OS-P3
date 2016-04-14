@@ -1,3 +1,14 @@
+/** @file syscall_thr_management.c
+ *  @brief System calls related to thread management
+ *
+ *  This file contains implementations of system calls that are related to 
+ *  thread management.
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug No known bugs.
+ */
+
 #include <control_block.h>
 #include <asm_helper.h>
 #include <simics.h>
@@ -10,28 +21,45 @@
 #include <exception_handler.h>
 #include <syscall_errors.h>
 
+/** @brief For sleep() syscall.
+ *         The data field for node of sleep priority queue */
 typedef struct {
     unsigned int ticks;
     tcb_t *thr;
 } sleep_queue_data_t;
 
-
+/** @brief For sleep() syscall.
+ *         The priority queue for sleep(). All threads that are blocked on
+ *         sleep() will be stored in this queue. They are ordered by their
+ *         time to wake up. The thread that should be wakened up in the 
+ *         clostest future is at the head of the priority queue */
 static pri_queue sleep_queue;
 
+/** @brief For sleep() syscall.
+ *         A spinlock to avoid timer interrupt when manipulating data structure
+ *         of sleep() */
 static spinlock_t sleep_lock;
 
+/** @brief For deschedule() and make_runnable() syscalls.
+ *         All threads that are blocked because of deschedule() will be stored 
+ *         in this queue. make_runnable() will try to find the thread to be 
+ *         made runable in this queue */
 static simple_queue_t deschedule_queue;
 
+/** @brief For deschedule() and make_runnable() syscalls.
+ *         Mutex lock to protect deschedule_queue */
 static mutex_t deschedule_mutex;
 
 static int sleep_queue_compare(void* this, void* that);
 
+/** @brief Initialize data structure for sleep() syscall */
 int syscall_sleep_init() {
     int error = pri_queue_init(&sleep_queue, sleep_queue_compare);
     error |= spinlock_init(&sleep_lock);
     return error ? -1 : 0;
 }
 
+/** @brief Initialize data structure for deschedule() syscall */
 int syscall_deschedule_init() {
     int error = simple_queue_init(&deschedule_queue);
     error |= mutex_init(&deschedule_mutex);
@@ -75,12 +103,18 @@ int sleep_syscall_handler(int ticks) {
     else if (ticks == 0)
         return 0;
 
+    // lock the spinlock to avoid timer interrupt when manipulating 
+    // priority queue of sleep()
     spinlock_lock(&sleep_lock);
 
     sleep_queue_data_t my_data;
+    // calculate its time to wake up
     my_data.ticks = (unsigned int)ticks + timer_get_ticks();
     my_data.thr = tcb_get_entry((void*)asm_get_esp());
 
+    // here stack space is used for node of queue. Because the stack of this 
+    // function will not be destroied before this thread wake up from sleep()
+    // and return, it is safe
     pri_node_t my_node;
     my_node.data = &my_data;
     pri_queue_enqueue(&sleep_queue, &my_node);
@@ -92,8 +126,16 @@ int sleep_syscall_handler(int ticks) {
     return 0;
 }
 
-
-int sleep_queue_compare(void* this, void* that) {
+/** @brief Comparision function for priority queue of sleep()
+ *
+ *  This function will compare two operands based on their time to wake up
+ *
+ *  @param this The first operand to compare
+ *  @param that The second operand to compare
+ *
+ *  @return The comparision result
+ */
+static int sleep_queue_compare(void* this, void* that) {
     unsigned int t1 = ((sleep_queue_data_t*)this)->ticks;
     unsigned int t2 = ((sleep_queue_data_t*)that)->ticks;
 
@@ -105,12 +147,20 @@ int sleep_queue_compare(void* this, void* that) {
         return 0;
 }
 
-// shoule be called by timer interrupt
+/** @brief Callback function that will be invoked by timer interrupt handler
+ *
+ *  This function will check if the thread at the head of the priority queue
+ *  of sleep() should be wakened up. This function is invoked by timer interrupt
+ *  handler, so this function call will not be interrupted. It can manipulate 
+ *  priority queue of sleep() safely.
+ *
+ *  @return If the thread at the head of the priority queue should be wakened
+ *          up, return the thread. Otherwise return NULL. 
+ */
 void* timer_callback(unsigned int ticks) {   
     pri_node_t* node = pri_queue_get_first(&sleep_queue);
     if (node && ((sleep_queue_data_t*)node->data)->ticks <= timer_get_ticks()) {
         pri_queue_dequeue(&sleep_queue);
-        // resume to sleeping thread
         return (void*)((sleep_queue_data_t*)node->data)->thr; 
     } else
         return NULL;
@@ -140,9 +190,6 @@ int yield_syscall_handler(int tid) {
     context_switch(OP_YIELD, tid);
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
-
-
-/*************************** swexn *************************/
 
 /** @brief Check validness of values in ureg
  *
@@ -303,6 +350,9 @@ int deschedule_syscall_handler(int *reject) {
         return EFAULT;
     }
 
+    // using mutex to protect deschedule_queue, it also make sure examine the 
+    // value of *reject and block the thread (at here it is done by put the 
+    // thread in the deschedule_queue) is atomic with respect to make runnable()
     mutex_lock(&deschedule_mutex);
     if (*reject) {
         mutex_unlock(&deschedule_mutex);
@@ -340,6 +390,7 @@ int make_runnable_syscall_handler(int tid) {
     mutex_unlock(&deschedule_mutex);
 
     if (node != NULL) {
+        // find the descheduled thread, make it runnable
         context_switch(OP_MAKE_RUNNABLE, (uint32_t)node->thr);
         return 0;
     } else
