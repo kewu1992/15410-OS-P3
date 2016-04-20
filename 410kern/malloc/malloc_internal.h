@@ -24,8 +24,10 @@
 
 #include <types.h>
 #include <lmm/lmm.h>
+#include <smp.h>
 
 extern lmm_t malloc_lmm;
+extern lmm_t core_malloc_lmm[MAX_CPUS];
 
 void *_malloc(size_t size);
 void *_mustmalloc(size_t size);

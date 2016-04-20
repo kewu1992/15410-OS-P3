@@ -38,13 +38,13 @@ void *_realloc(void *buf, size_t new_size)
 	old_size = *--op;
 
 	new_size += sizeof(vm_size_t);
-	if (!(np = lmm_alloc(&malloc_lmm, new_size, 0)))
+	if (!(np = lmm_alloc(&core_malloc_lmm[smp_get_cpu()], new_size, 0)))
 	    return NULL;
 
 	memcpy(np, op, old_size < new_size ? old_size : new_size);
 
-	lmm_free(&malloc_lmm, op, old_size);
-	
+	lmm_free(&core_malloc_lmm[smp_get_cpu()], op, old_size);
+
 	*np++ = new_size;
 	return np;
 }

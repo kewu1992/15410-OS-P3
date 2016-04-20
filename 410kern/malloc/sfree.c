@@ -26,6 +26,6 @@
 
 void _sfree(void *chunk, size_t size)
 {
-	lmm_free(&malloc_lmm, chunk, size);
+	lmm_free(&core_malloc_lmm[smp_get_cpu()], chunk, size);
 }
 

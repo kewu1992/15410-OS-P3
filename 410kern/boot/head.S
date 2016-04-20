@@ -43,6 +43,7 @@ init_idt: /* 0x100100 */
 init_gdt: /* 0x100900 */
     .long 0x00000000
     .long 0x00000000
+    /* Next two lines need to be kept in sync with smp/smp.c */
     .long 0x09300067
     .long 0x00008910
     .long 0x0000ffff
@@ -167,7 +168,7 @@ fmsg:
     .asciz "\n***** Double fault!\n"
 fbytes:
     .asciz "D\ro\ru\rb\rl\re\r \rf\ra\ru\rl\rt\r!\r \r"
-    
+
 pmsg:
     .asciz "Kernel cannot return()!"
 pbytes:

@@ -20,6 +20,7 @@
  */
 
 #include "malloc_internal.h"
+#include <smp/smp.h>
 
 lmm_t malloc_lmm = LMM_INITIALIZER;
-
+lmm_t core_malloc_lmm[MAX_CPUS] = {LMM_INITIALIZER};

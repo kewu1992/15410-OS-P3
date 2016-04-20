@@ -29,7 +29,7 @@ void *_malloc(size_t size)
 
 	size += sizeof(size_t);
 
-	if (!(chunk = lmm_alloc(&malloc_lmm, size, 0)))
+	if (!(chunk = lmm_alloc(&core_malloc_lmm[smp_get_cpu()], size, 0)))
 		return 0;
 
 	*chunk = size;

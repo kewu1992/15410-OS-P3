@@ -24,8 +24,6 @@
 extern uint64_t init_gdt[GDT_SEGS];
 extern char *init_tss;
 
-extern uint64_t tss_desc_create(void *tss, size_t tss_size);
-
 char smp_boot_stack[INIT_STACK_SIZE][MAX_CPUS];
 
 extern uint32_t smp_boot_gdt_base;
@@ -89,10 +87,13 @@ void squidboy(void) {
 	uint64_t gdt[GDT_SEGS];
 	memcpy(gdt, init_gdt, sizeof(init_gdt));
 
-	uint64_t tss_desc;
-	tss_desc = tss_desc_create(tss, init_tss_size);
+	/* N.B. This is NOT to be construed as style guidance!! */
+	/* N.B. This is NOT to be construed as style guidance!! */
+	/* N.B. This is NOT to be construed as style guidance!! */
+	/* Needs to be kept in sync with init_gdt in boot/head.S */
+	gdt[SEGSEL_KERNEL_TSS_IDX] -= 65536 * (34605360ull - (int)tss);
+	/**/
 
-	gdt[SEGSEL_KERNEL_TSS_IDX] = tss_desc;
 	lgdt(gdt, sizeof(gdt)-1);
 
 

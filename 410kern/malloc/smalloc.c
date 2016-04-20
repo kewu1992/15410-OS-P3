@@ -31,7 +31,7 @@ void *_smalloc(size_t size)
 {
 	void *chunk;
 
-	if (!(chunk = lmm_alloc(&malloc_lmm, size, 0)))
+	if (!(chunk = lmm_alloc(&core_malloc_lmm[smp_get_cpu()], size, 0)))
         return NULL;
 
 	return chunk;

@@ -44,7 +44,7 @@ void *_smemalign(size_t alignment, size_t size)
 	 * Allocate a chunk of LMM memory with the specified alignment shift
 	 * and an offset such that the memory block we return will be aligned.
 	 */
-	if (!(chunk = lmm_alloc_aligned(&malloc_lmm, size, 0, shift, 0)))
+	if (!(chunk = lmm_alloc_aligned(&core_malloc_lmm[smp_get_cpu()], size, 0, shift, 0)))
 		return NULL;
 
 	return chunk;

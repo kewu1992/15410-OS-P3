@@ -37,7 +37,7 @@ void *_memalign(size_t alignment, size_t size)
 	 */
 	size += sizeof(size_t);
 
-	if (!(chunk = lmm_alloc_aligned(&malloc_lmm, size, 0, shift,
+	if (!(chunk = lmm_alloc_aligned(&core_malloc_lmm[smp_get_cpu()], size, 0, shift,
 					   (1 << shift) - sizeof(size_t))))
         return NULL;
 

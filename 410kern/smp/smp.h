@@ -17,6 +17,4 @@
 void smp_boot(void (*entry)(int));
 int smp_get_cpu(void);
 
-uint64_t tss_desc_create(void *tss, size_t tss_size);
-
 #endif

@@ -24,6 +24,6 @@
 void _free(void *chunk_ptr)
 {
 	size_t *chunk = (size_t*)chunk_ptr - 1;
-	lmm_free(&malloc_lmm, chunk, *chunk);
+	lmm_free(&core_malloc_lmm[smp_get_cpu()], chunk, *chunk);
 }
 
