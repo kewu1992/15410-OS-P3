@@ -29,6 +29,8 @@
 #include <malloc.h>
 #include <asm_helper.h>
 #include <seg_tree.h>
+#include <smp.h>
+#include <mptable.h>
 
 /** @brief Check if a given node index is a leaf node */
 #define IS_LEAF(x)  (x>=size)
@@ -47,7 +49,7 @@ static int max_num;
 /** @brief The array of segment tree. Because it is a perfect tree, so the 
  *         relationship between parent node and child node can be easily 
  *         calculated by index */
-static uint32_t *seg_tree;
+static uint32_t *seg_tree[MAX_CPUS];
 
 /** @brief The number of leaf nodes */
 static uint32_t size;
@@ -80,6 +82,9 @@ static uint32_t get_next_pow2(uint32_t value) {
  *  @return The value for this node, which will be used for its parent node
  */
 static uint32_t init_recursive(uint32_t index) {
+
+    int cur_cpu = smp_get_cpu();
+
     if (!IS_VALID(index))
         return NAN;
 
@@ -87,22 +92,22 @@ static uint32_t init_recursive(uint32_t index) {
         // for internal node, first initialize its child nodes. 
         // Because at first all physical frames are free, the smallest index of
         // free frame must be the value of its left child node
-        seg_tree[index] = init_recursive(index * 2);
+        seg_tree[cur_cpu][index] = init_recursive(index * 2);
         init_recursive(index * 2 + 1);
-        return seg_tree[index];
+        return seg_tree[cur_cpu][index];
     } else {
         // for leaf node, mark its value as 0xFFFFFFFF, which means all 32 
         // frames are free at begining
         if ((index-size+1) << 5 <= max_num){
-            seg_tree[index] = 0xFFFFFFFF;
+            seg_tree[cur_cpu][index] = 0xFFFFFFFF;
         } else {
             // for leaf node that not all 32 bits are valid physical frames,
             // only mark part of its bits as 1 (free)
-            seg_tree[index] = 0;
+            seg_tree[cur_cpu][index] = 0;
             uint32_t mask = 1;
             int i = 0;
             while (((index-size) << 5)+i < max_num) {
-                seg_tree[index] |= mask;
+                seg_tree[cur_cpu][index] |= mask;
                 i++;
                 mask <<= 1;
             }
@@ -110,7 +115,7 @@ static uint32_t init_recursive(uint32_t index) {
         // If seg_tree[index] equals to zero, it means no free physical frame,
         // so just return NAN, other wise return the free frame with the
         // smallest idnex 
-        return (seg_tree[index] == 0) ? NAN : (index-size)<<5;
+        return (seg_tree[cur_cpu][index] == 0) ? NAN : (index-size)<<5;
     }
 }
 
@@ -122,12 +127,15 @@ static uint32_t init_recursive(uint32_t index) {
  */
 int init_seg_tree(int num) {
 
-    max_num = num;
+    int cur_cpu = smp_get_cpu();
 
-    size = get_next_pow2(max_num) >> 5;
+    if(cur_cpu == 0) {
+        max_num = num;
+        size = get_next_pow2(max_num) >> 5;
+    }
 
-    seg_tree = calloc(2*size, sizeof(uint32_t));
-    if (seg_tree == NULL)
+    seg_tree[cur_cpu] = calloc(2*size, sizeof(uint32_t));
+    if (seg_tree[cur_cpu] == NULL)
         return -1;
     
     init_recursive(1);
@@ -146,25 +154,30 @@ int init_seg_tree(int num) {
  *  @return Void
  */
 static void update_tree(uint32_t index) {
+
+    int cur_cpu = smp_get_cpu();
+
     // updating tree unitl the root
     while (index != 0) {
         uint32_t left, right;
         int left_index = index*2;
         // get value from its child nodes
         if (IS_LEAF(left_index)) {
-            left = (seg_tree[left_index] == 0) ? NAN : 
-                    ((left_index-size) << 5) + asm_bsf(seg_tree[left_index]);
+            left = (seg_tree[cur_cpu][left_index] == 0) ? NAN : 
+                    ((left_index-size) << 5) + 
+                    asm_bsf(seg_tree[cur_cpu][left_index]);
         } else
-            left = seg_tree[left_index];
+            left = seg_tree[cur_cpu][left_index];
         int right_index = left_index+1;
         if (IS_LEAF(right_index)) {
-            right = (seg_tree[right_index] == 0) ? NAN : 
-                    ((right_index-size) << 5) + asm_bsf(seg_tree[right_index]);
+            right = (seg_tree[cur_cpu][right_index] == 0) ? NAN : 
+                    ((right_index-size) << 5) + 
+                    asm_bsf(seg_tree[cur_cpu][right_index]);
         } else
-            right = seg_tree[right_index];
+            right = seg_tree[cur_cpu][right_index];
 
         // update value of this node
-        seg_tree[index] = (left != NAN) ? left : right;
+        seg_tree[cur_cpu][index] = (left != NAN) ? left : right;
         
         // continue update its parent node
         index /= 2;
@@ -177,15 +190,18 @@ static void update_tree(uint32_t index) {
  *          On error, return NAN which means there is no free frame.
  */
 uint32_t get_next() {
+
+    int cur_cpu = smp_get_cpu();
+
     // the free physical frame with the smallest index is the value of root
-    uint32_t rv = seg_tree[1];
+    uint32_t rv = seg_tree[cur_cpu][1];
     if (rv == NAN)
         return NAN;
 
     // mark the corresponding bit as allcoated
     uint32_t index = (rv >> 5) + size;
     int pos = rv % 32;
-    seg_tree[index] &= ~(1<<pos);
+    seg_tree[cur_cpu][index] &= ~(1<<pos);
 
     // update segment tree
     update_tree(index/2);
@@ -200,10 +216,13 @@ uint32_t get_next() {
  *  @return Void
  */
 void put_back(uint32_t frame_index) {
+
+    int cur_cpu = smp_get_cpu();
+
     // mark the corresponding bit as freed
     uint32_t index = (frame_index >> 5) + size;
     int pos = frame_index % 32;
-    seg_tree[index] |= (1<<pos);
+    seg_tree[cur_cpu][index] |= (1<<pos);
 
     // update segment tree
     update_tree(index/2);

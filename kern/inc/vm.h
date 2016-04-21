@@ -125,6 +125,7 @@ typedef struct {
 } pd_t;
 
 int init_vm();
+int init_vm_raw();
 uint32_t create_pd();
 uint32_t clone_pd();
 int new_region(uint32_t va, int size_bytes, int rw_perm, 
@@ -137,6 +138,7 @@ int remove_pages(void *base);
 int check_mem_validness(char *va, int max_bytes, int is_check_null, 
         int need_writable);
 int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code);
+void dist_kernel_mem();
 
 #endif
 

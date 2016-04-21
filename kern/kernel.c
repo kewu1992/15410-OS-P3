@@ -23,7 +23,12 @@
 #include <syscall_inter.h>
 #include <context_switcher.h>
 
+#include <mptable.h>
+#include <smp.h>
+
 static void kernel_init();
+
+extern void ap_kernel_main(int cpu_id);
 
 /** @brief Kernel entrypoint.
  *  
@@ -33,10 +38,20 @@ static void kernel_init();
  */
 int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
 {
-    
+
+    if(smp_init(mbinfo) < 0) {
+        panic("smp_init failed");
+    }
+
+    // Distribute kernel heap memory among cores
+    dist_kernel_mem();
+
     lprintf("Initializing kernel");
     kernel_init();
     lprintf("Finish initialization");
+
+    // Boot AP kernels after initilization is done
+    smp_boot(ap_kernel_main);
 
     lprintf( "Ready to load first task" );
     loadFirstTask("idle");
@@ -51,8 +66,8 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
 void kernel_init() {
 
     if (malloc_init() < 0)
-         panic("Initialize malloc failed!");
-    
+        panic("Initialize malloc failed!");
+
     if (init_IDT(timer_callback) < 0)
         panic("Initialize IDT failed!");
 
@@ -74,7 +89,7 @@ void kernel_init() {
         panic("Initialize scheduler failed!");
 
     // Initialize system call specific data structure
-    
+
     if (syscall_print_init() < 0)
         panic("Initialize syscall print() failed!");
 
@@ -83,7 +98,7 @@ void kernel_init() {
 
     if (syscall_sleep_init() < 0)
         panic("Initialize syscall sleep() failed!");
-    
+
     if(syscall_vanish_init() < 0)
         panic("Initialize syscall vanish() failed!");
 

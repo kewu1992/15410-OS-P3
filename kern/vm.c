@@ -19,7 +19,15 @@
 #include <pm.h>
 #include <control_block.h>
 #include <asm_helper.h>
+#include <apic.h>
+#include <mptable.h>
 
+#include <lmm/lmm.h>
+#include <lmm/lmm_types.h>
+#include <malloc/malloc_internal.h>
+
+/** Number of kernel heap memory initially allocated for CPU0 */
+#define LMM_0_INIT_MEM  (256 * 1024)
 
 /** @brief Invalidate a page table entry in TLB to force consulting actual 
  *  memory to fetch the page table entry next time the page is accessed.
@@ -142,20 +150,20 @@ static int count_pages_user_space() {
 
 
 /** @brief Clear page directory entry specified and free corresponding
-  * page tables.
-  *
-  * This function is needed when kernel memory becomes insufficient during 
-  * the process of allocating page tables and changes need to be reverted.
-  *
-  * @param bitmap A bitmap where 1s in it are the relative index of the page 
-  * directory entry to clear.
-  * @param bitmap_size The size of the bitmap
-  * @param pd_index_start The offset that the index in the bitmap should
-  * consider to get the absolute index in the page directory entry
-  *
-  * @return void
-  *
-  */
+ * page tables.
+ *
+ * This function is needed when kernel memory becomes insufficient during 
+ * the process of allocating page tables and changes need to be reverted.
+ *
+ * @param bitmap A bitmap where 1s in it are the relative index of the page 
+ * directory entry to clear.
+ * @param bitmap_size The size of the bitmap
+ * @param pd_index_start The offset that the index in the bitmap should
+ * consider to get the absolute index in the page directory entry
+ *
+ * @return void
+ *
+ */
 static void clear_pd_entry(char *bitmap, int bitmap_size, int pd_index_start) {
 
     pd_t *pd = (pd_t *)get_cr3();
@@ -406,7 +414,7 @@ int is_page_ZFOD(uint32_t va, uint32_t error_code, int need_check_error_code)
     // a write from user space to a page that is present.
     if(need_check_error_code) {
         if(!(IS_SET(error_code, PG_P) && IS_SET(error_code, PG_US) && 
-            IS_SET(error_code, PG_RW))) {
+                    IS_SET(error_code, PG_RW))) {
             return 0;
         }
     }
@@ -545,6 +553,116 @@ static uint32_t init_pd() {
     return (uint32_t)pd;
 }
 
+/** @brief Set local apic mapping
+ *   
+ *  @param pd_base The page diretory base to set mapping
+ *  @return void
+ */
+static void set_local_apic_translation(uint32_t pd_base) {
+
+    uint32_t page = LAPIC_VIRT_BASE;
+
+    uint32_t pd_index = GET_PD_INDEX(page);
+
+    pd_t *pd = (pd_t *)pd_base;
+    pde_t *pde = &(pd->pde[pd_index]);
+
+    // Check page directory entry presence
+    if(!IS_SET(*pde, PG_P)) {
+        // not present
+        // Impossible since we have allocated it.
+        panic("Allocated page table not present?!");
+    }
+
+    // Set page table entry
+    uint32_t pt_index = GET_PT_INDEX(page);
+    pt_t *pt = (pt_t *)((*pde) & PAGE_ALIGN_MASK);
+    pte_t *pte = &(pt->pte[pt_index]);
+
+    // Get page table entry default bits
+    uint32_t pte_ctrl_bits = ctrl_bits_pte;
+
+    // Change privilege level to user
+    // Allow user mode access when set
+    SET_BIT(pte_ctrl_bits, PG_US);
+
+    // Disable cache
+    SET_BIT(pte_ctrl_bits, PG_PCD);
+
+    uint32_t local_apic_addr = (uint32_t)smp_lapic_base();
+
+    // Set page table entry
+    *pte = local_apic_addr | pte_ctrl_bits;
+
+}
+
+/** @brief Distribute kernel heap memory
+ *  
+ *  Evenly distribute kernel heap memory among available cores
+ *
+ *  @return void
+ */
+void dist_kernel_mem() {
+
+    // Get number of cores
+    int num_cpus = smp_num_cpus();
+    lprintf("Current number of cpus: %d", num_cpus);
+
+    // Distribute kernel memory evenly among cores
+
+    // Memory under 1 megabyte is reserved, deduct it
+    // LMM_0_INIT_MEM has been allocated as well, deduct it
+    vm_size_t kmem_avail = USER_MEM_START - 0x100000 - LMM_0_INIT_MEM;
+    void *smidge = NULL;
+    while(smidge == NULL) {
+        smidge = lmm_alloc(&malloc_lmm, kmem_avail, 0);
+        kmem_avail -= sizeof(uint32_t);
+    }
+
+    vm_size_t kmem_per_core = kmem_avail / num_cpus;
+    lprintf("kernel heap memory per core: %x", (unsigned)kmem_per_core);
+
+    int i;
+    for(i = 0; i < num_cpus; i++) {
+        lmm_add_free(&core_malloc_lmm[i], smidge + i * kmem_per_core, 
+                kmem_per_core);
+        lprintf("add kernel memory %x bytes for cpu %d succeeded", 
+                (unsigned)kmem_per_core, i);
+    }
+}
+
+/** @brief Initilize virtual memory
+ *
+ *  Create a page directory that directly maps kernel space, set it as
+ *  %cr3, and enable paging.
+ *
+ *  @return 0 on success; -1 on error
+ */
+int init_vm_raw() {
+
+    // Get page direcotry base for the first task
+    uint32_t pd = init_pd();
+    if(pd == ERROR_MALLOC_LIB) {
+        return -1;
+    }
+
+    // Establish a translation from virtual address LAPIC_VIRT_BASE to the
+    // local APIC's physical address
+    set_local_apic_translation(pd);
+
+    set_cr3(pd);
+
+    // Enable paging
+    enable_paging();
+
+    // Enable global page so that kernel pages in TLB wouldn't
+    // be cleared when %cr3 is reset
+    enable_pge_flag();
+
+    return 0;
+
+}
+
 /** @brief Init virtual memory
  *  
  *  Create the first page directory to map kernel address space, 
@@ -557,16 +675,10 @@ int init_vm() {
     // Configure default page table entry and page diretory entry control bits
     init_pg_ctrl_bits();
 
-    // Get page direcotry base for the first task
-    uint32_t pdb = init_pd();
-    set_cr3(pdb);
-
-    // Enable paging
-    enable_paging();
-
-    // Enable global page so that kernel pages in TLB wouldn't
-    // be cleared when %cr3 is reset
-    enable_pge_flag();
+    if(init_vm_raw() < 0) {
+        lprintf("init_vm_raw failed");
+        return -1;
+    }
 
     // Allocate a system-wide all-zero frame to do ZFOD later
     void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
@@ -578,10 +690,8 @@ int init_vm() {
     memset(new_f, 0, PAGE_SIZE);
     all_zero_frame = (uint32_t)new_f;
 
-    // Init user space physical memory manger
+    // Init user space physical memory manager
     int ret = init_pm();
-
-    lprintf("Paging is enabled!");
 
     return ret;
 }
@@ -598,7 +708,7 @@ uint32_t create_pd() {
         return ERROR_MALLOC_LIB;
     }
     memset((void *)pd, 0, PAGE_SIZE);
-    
+
     // Reuse kernel space page tables
     uint32_t old_pd = get_cr3();
     memcpy(pd, (void *)old_pd, NUM_PT_KERNEL * sizeof(uint32_t));
@@ -842,7 +952,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
 
     uint32_t page_lowest = va & PAGE_ALIGN_MASK;
     uint32_t page_highest = (va + (uint32_t)size_bytes - 1) &
-            PAGE_ALIGN_MASK;
+        PAGE_ALIGN_MASK;
 
     // Acquire page table lock only for new pages syscall, since there's
     // no concurrency problem when kernel calls new_region to load tasks
@@ -1043,7 +1153,7 @@ int new_region(uint32_t va, int size_bytes, int rw_perm,
  * @return 0 on success; a negative integer on error
  */
 int new_pages(void *base, int len) {
-    
+
     // if base is not aligned
     if((uint32_t)base % PAGE_SIZE != 0) {
         return ERROR_BASE_NOT_ALIGNED;     

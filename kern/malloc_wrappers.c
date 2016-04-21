@@ -13,8 +13,10 @@
 #include <mutex.h>
 #include <simics.h>
 
+#include <mptable.h>
+
 /** @brief Lock that protects mutex library */
-static mutex_t lock;
+static mutex_t lock[MAX_CPUS];
 
 /** @brief Init malloc library 
  *
@@ -22,7 +24,16 @@ static mutex_t lock;
  *
  */
 int malloc_init() {
-    return mutex_init(&lock);
+    int num_cpus = smp_num_cpus();
+
+    int i;
+    for(i = 0; i < num_cpus; i++) {
+        if(mutex_init(&lock[i]) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 
@@ -34,10 +45,12 @@ int malloc_init() {
  */
 void *malloc(size_t size)
 {
+    int cur_cpu = smp_get_cpu();
+
     void* rv;
-    mutex_lock(&lock);
+    mutex_lock(&lock[cur_cpu]);
     rv = _malloc(size);
-    mutex_unlock(&lock);
+    mutex_unlock(&lock[cur_cpu]);
     return rv;
 }
 
@@ -50,10 +63,12 @@ void *malloc(size_t size)
  */
 void *memalign(size_t alignment, size_t size)
 {
+    int cur_cpu = smp_get_cpu();
+
     void* rv;
-    mutex_lock(&lock);
+    mutex_lock(&lock[cur_cpu]);
     rv = _memalign(alignment, size);
-    mutex_unlock(&lock);
+    mutex_unlock(&lock[cur_cpu]);
     return rv;
 }
 
@@ -66,10 +81,13 @@ void *memalign(size_t alignment, size_t size)
  */
 void *calloc(size_t nelt, size_t eltsize)
 {
+
+    int cur_cpu = smp_get_cpu();
+
     void* rv;
-    mutex_lock(&lock);
+    mutex_lock(&lock[cur_cpu]);
     rv = _calloc(nelt, eltsize);
-    mutex_unlock(&lock);
+    mutex_unlock(&lock[cur_cpu]);
     return rv;
 }
 
@@ -82,10 +100,12 @@ void *calloc(size_t nelt, size_t eltsize)
  */
 void *realloc(void *buf, size_t new_size)
 {
+    int cur_cpu = smp_get_cpu();
+
     void* rv;
-    mutex_lock(&lock);
+    mutex_lock(&lock[cur_cpu]);
     rv = _realloc(buf, new_size);
-    mutex_unlock(&lock);
+    mutex_unlock(&lock[cur_cpu]);
     return rv;
 }
 
@@ -97,9 +117,11 @@ void *realloc(void *buf, size_t new_size)
  */
 void free(void *buf)
 {
-    mutex_lock(&lock);
+    int cur_cpu = smp_get_cpu();
+
+    mutex_lock(&lock[cur_cpu]);
     _free(buf);
-    mutex_unlock(&lock);
+    mutex_unlock(&lock[cur_cpu]);
 }
 
 /** @brief Thread-safe version of _smalloc
@@ -110,10 +132,12 @@ void free(void *buf)
  */
 void *smalloc(size_t size)
 {
+    int cur_cpu = smp_get_cpu();
+
     void* rv;
-    mutex_lock(&lock);
+    mutex_lock(&lock[cur_cpu]);
     rv = _smalloc(size);
-    mutex_unlock(&lock);
+    mutex_unlock(&lock[cur_cpu]);
     return rv;
 }
 
@@ -126,10 +150,12 @@ void *smalloc(size_t size)
  */
 void *smemalign(size_t alignment, size_t size)
 {
+    int cur_cpu = smp_get_cpu();
+
     void* rv;
-    mutex_lock(&lock);
+    mutex_lock(&lock[cur_cpu]);
     rv = _smemalign(alignment, size);
-    mutex_unlock(&lock);
+    mutex_unlock(&lock[cur_cpu]);
     return rv;
 }
 
@@ -142,9 +168,11 @@ void *smemalign(size_t alignment, size_t size)
  */
 void sfree(void *buf, size_t size)
 {
-    mutex_lock(&lock);
+    int cur_cpu = smp_get_cpu();
+
+    mutex_lock(&lock[cur_cpu]);
     _sfree(buf, size);
-    mutex_unlock(&lock);
+    mutex_unlock(&lock[cur_cpu]);
 }
 
 /** @brief Get malloc library's lock
@@ -153,6 +181,8 @@ void sfree(void *buf, size_t size)
  *
  */
 mutex_t *get_malloc_lib_lock() {
-    return &lock;
+    int cur_cpu = smp_get_cpu();
+
+    return &lock[cur_cpu];
 }
 
