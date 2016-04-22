@@ -116,11 +116,13 @@ static void enable_paging() {
  *
  *  @return Void
  */
+/*
 static void enable_pge_flag() {
     uint32_t cr4 = get_cr4();
     cr4 |= CR4_PGE;
     set_cr4(cr4);
 }
+*/
 
 
 /** @brief Count number of pages allocated in user space
@@ -681,7 +683,7 @@ void adopt_init_pd(int cur_cpu) {
 
     // Enable global page so that kernel pages in TLB wouldn't
     // be cleared when %cr3 is reset
-    enable_pge_flag();
+    //enable_pge_flag();
 }
 
 /** @brief Init virtual memory
