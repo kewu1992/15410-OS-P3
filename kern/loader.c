@@ -34,6 +34,7 @@
 #include <syscall_errors.h>
 
 #include <smp.h>
+#include <timer_driver.h>
 
 /** @brief The maximum address space supported by the kernel */
 #define MAX_ADDR 0xFFFFFFFF
@@ -139,15 +140,20 @@ void loadFirstTask(const char *filename) {
     void *my_program, *usr_esp;
     int rv;
 
-    // create new process
-    tcb_t *thread = tcb_create_process(NORMAL, get_cr3());
+    // create the idle process
+    tcb_t *thread = tcb_create_idle_process(NORMAL, get_cr3());
+    if (thread == NULL)
+        panic("Load first task failed for cpu%d", smp_get_cpu());
+
+    // Init lapic timer
+    init_lapic_timer_driver();
 
     const char *argv[1] = {filename};
     if ((rv = loadTask(filename, 1, argv, &usr_esp, &my_program)) < 0)
-        panic("Load first task failed");
+        panic("Load first task failed for cpu%d", smp_get_cpu());
 
     // set idle thread as NULL (will reset if the first thread is idle)
-    idle_thr[smp_get_cpu()] = NULL;
+    idle_thr[smp_get_cpu()] = thread;
 
     load_kernel_stack(thread->k_stack_esp, usr_esp, my_program, 
                                                 strcmp(filename, "idle") == 0);
@@ -335,15 +341,13 @@ void* push_to_stack(void *esp, uint32_t value) {
 void idle_process_init() {
     lprintf("Initializing idle process for cpu%d", smp_get_cpu());
 
-    idle_thr[smp_get_cpu()] = tcb_get_entry((void*)asm_get_esp());
-
     // let cpu1 to fork init
     if (smp_get_cpu() != 1)
         return;
     
     // fork
     context_switch(OP_FORK, 0);
-    if (tcb_get_entry((void*)asm_get_esp())->result == 0) {        
+    if (tcb_get_entry((void*)asm_get_esp())->result == 0) {       
         // child process, exec(init)
         char my_execname[] = "init";
         char *argv[] = {my_execname, 0};
@@ -391,7 +395,12 @@ void loadMailboxTask() {
     init_eflags = get_eflags();
 
     // create new process
-    tcb_t *thread = tcb_create_process(NORMAL, get_cr3());
+    tcb_t *thread = tcb_create_idle_process(NORMAL, get_cr3());
+    if (thread == NULL)
+        panic("Load mailbox task failed");
+
+    // Init lapic timer
+    init_lapic_timer_driver();
 
     // set idle thread as NULL
     idle_thr[0] = NULL;

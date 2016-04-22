@@ -43,8 +43,9 @@ int spinlock_init(spinlock_t* lock) {
  *  @param lock The lock to lock
  *  @return void
  */
-void spinlock_lock(spinlock_t* lock) {
-    disable_interrupts();
+void spinlock_lock(spinlock_t* lock, int is_disable_interrupt) {
+    if (is_disable_interrupt)
+        disable_interrupts();
 
     int cpu_id = (smp_get_cpu() == 0) ? 0 : 1;
 
@@ -61,7 +62,7 @@ void spinlock_lock(spinlock_t* lock) {
  *  @param lock The lock to unlock
  *  @return void
  */
-void spinlock_unlock(spinlock_t* lock) {
+void spinlock_unlock(spinlock_t* lock, int is_enable_interrupt) {
     int cpu_id = (smp_get_cpu() == 0) ? 0 : 1;
 
     if (lock->waiting[1-cpu_id])
@@ -69,7 +70,8 @@ void spinlock_unlock(spinlock_t* lock) {
     else
         asm_xchg(&lock->available, 1);
 
-    enable_interrupts();
+    if (is_enable_interrupt)
+        enable_interrupts();
 }
 
 /** @brief Destroy a spinlock

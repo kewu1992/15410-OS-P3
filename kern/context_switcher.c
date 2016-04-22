@@ -97,9 +97,13 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
+    lprintf("before context switch: tid:%d at cpu%d", this_thr->tid, smp_get_cpu());
+
     asm_context_switch(op, arg, this_thr);
 
     this_thr = tcb_get_entry((void*)asm_get_esp());
+
+    lprintf("after context switch: tid:%d at cpu%d", this_thr->tid, smp_get_cpu());
 
 
     // for child process of fork(), set cr3 to the new page table base
@@ -194,9 +198,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
         case OP_CONTEXT_SWITCH: // normal context switch 
         case OP_YIELD:  // yield -1 or yield to a specific thread
             // let sheduler choose the next thread to run
-            spinlock_lock(spinlocks[smp_get_cpu()]);
+            spinlock_lock(spinlocks[smp_get_cpu()], 1);
             new_thr = scheduler_get_next((int)arg);
-            spinlock_unlock(spinlocks[smp_get_cpu()]);
+            spinlock_unlock(spinlocks[smp_get_cpu()], 1);
             if (new_thr == NULL) {
                 if ((int)arg == -1)
                     // no other thread to yield to, just return this thread
@@ -211,7 +215,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
-            spinlock_lock(spinlocks[smp_get_cpu()]);
+            spinlock_lock(spinlocks[smp_get_cpu()], 1);
             // decide to enqueue this thread, should not be interrupted until 
             // context switch to the next thread successfully
             if (this_thr != idle_thr[smp_get_cpu()])
@@ -286,7 +290,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
-            spinlock_lock(spinlocks[smp_get_cpu()]);
+            spinlock_lock(spinlocks[smp_get_cpu()], 1);
             // decide to enqueue this thread, should not be interrupted until 
             // context switch to the next thread successfully
             scheduler_make_runnable(this_thr);
@@ -308,7 +312,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
-            spinlock_lock(spinlocks[smp_get_cpu()]);
+            spinlock_lock(spinlocks[smp_get_cpu()], 1);
             // decide to enqueue this thread, should not be interrupted until 
             // context switch to the next thread successfully
             scheduler_make_runnable(this_thr);
@@ -317,7 +321,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
         case OP_BLOCK: // block itself
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
-            spinlock_lock(spinlocks[smp_get_cpu()]);
+            spinlock_lock(spinlocks[smp_get_cpu()], 1);
             if (this_thr->state == WAKEUP || this_thr->state == MADE_RUNNABLE) {
                 // already be wakened up or made runnable, should not block
                 this_thr->state = NORMAL;
@@ -356,7 +360,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
-            spinlock_lock(spinlocks[smp_get_cpu()]);
+            spinlock_lock(spinlocks[smp_get_cpu()], 1);
             if (new_thr->state == BLOCKED) {
                 // the thread has already blocked, put it to the queue of 
                 // scheduler
@@ -376,7 +380,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
-            spinlock_lock(spinlocks[smp_get_cpu()]);
+            spinlock_lock(spinlocks[smp_get_cpu()], 1);
             scheduler_make_runnable(this_thr);
 
             if (new_thr->state == BLOCKED)
@@ -470,5 +474,5 @@ int context_switcher_init() {
 
 /** @brief Unlock spinlock of context switcher */
 void context_switch_unlock() {
-    spinlock_unlock(spinlocks[smp_get_cpu()]);
+    spinlock_unlock(spinlocks[smp_get_cpu()], 1);
 }

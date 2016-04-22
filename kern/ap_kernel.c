@@ -24,8 +24,6 @@
 
 #include <mptable.h>
 #include <smp.h>
-
-#include <timer_driver.h>
 #include <smp_message.h>
 
 
@@ -60,27 +58,12 @@ void ap_kernel_main(int cpu_id) {
     uint32_t cr3 = (uint32_t)get_cr3();
     lprintf("cpu %d's cr3:%x", smp_get_cpu(), (unsigned)cr3);
 
-    /*
-
-    // Try heap memory
-    void *p = malloc(4);
-    if(p == NULL) {
-        lprintf("malloc failed");
-        MAGIC_BREAK;
-    }
-
-    *((int *)p) = 177;
-    lprintf("cpu %d malloc succeeded: 0x%x", 
-            smp_get_cpu(), (unsigned)p);
-
-    */
-
-    init_lapic_timer_driver();
-
     enable_interrupts();
 
-    while(1) ;
+    lprintf("Ready to load first task for cpu%d", cpu_id);
+    loadFirstTask("idle");
 
-
+    // should never reach here
+    panic("loadFirstTask() returned!");
 }
 

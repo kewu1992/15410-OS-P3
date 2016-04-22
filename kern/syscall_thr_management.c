@@ -107,7 +107,7 @@ int sleep_syscall_handler(int ticks) {
 
     // lock the spinlock to avoid timer interrupt when manipulating 
     // priority queue of sleep()
-    spinlock_lock(&sleep_lock);
+    spinlock_lock(&sleep_lock, 1);
 
     sleep_queue_data_t my_data;
     // calculate its time to wake up
@@ -121,7 +121,7 @@ int sleep_syscall_handler(int ticks) {
     my_node.data = &my_data;
     pri_queue_enqueue(&sleep_queue, &my_node);
 
-    spinlock_unlock(&sleep_lock);
+    spinlock_unlock(&sleep_lock, 1);
 
     context_switch(OP_BLOCK, 0);
 

@@ -45,6 +45,19 @@ typedef struct {
     } data;
 } msg_t;
 
+
+int msg_init();
+
 int init_ap_msg();
+
+void msg_synchronize();
+
+void worker_send_msg(msg_t* msg);
+
+msg_t* worker_recv_msg();
+
+void manager_send_msg(msg_t* msg);
+
+msg_t* manager_recv_msg();
 
 #endif

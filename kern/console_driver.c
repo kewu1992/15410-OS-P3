@@ -194,9 +194,9 @@ void putbytes(const char *s, int len) {
         return;
     int i;
     for (i = 0; i < len; i++) {
-        spinlock_lock(&spinlock);
+        spinlock_lock(&spinlock, 1);
         putbyte(s[i]);
-        spinlock_unlock(&spinlock);
+        spinlock_unlock(&spinlock, 1);
     }
 }
 

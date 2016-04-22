@@ -190,7 +190,7 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
     return thread;
 }
 
-/** @brief Create a process with a thread
+/** @brief Create a idle process with a thread
  *
  *  @param state The state for created thread
  *  @param new_page_table_base The page table base that will be used for the 
@@ -199,17 +199,49 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
  *  @return Thread control block data structure of the newly created thread, 
  *          return NULL on error
  */
-tcb_t* tcb_create_process(thread_state_t state, uint32_t new_page_table_base) {
+tcb_t* tcb_create_idle_process(thread_state_t state, uint32_t new_page_table_base) {
     tcb_t *thread = tcb_create_thread_only(NULL, state);
     if (thread == NULL) {
         return NULL;
     }
-    
-    pcb_t *process = tcb_create_process_only(thread, NULL, new_page_table_base);
+
+    pcb_t *process = malloc(sizeof(pcb_t));
     if (process == NULL) {
-        tcb_free_thread(thread);
         return NULL;
     }
+    process->pid = thread->tid;
+    process->page_table_base = new_page_table_base;
+
+    
+    process->exit_status = NULL;
+
+
+    process->exit_status_node = NULL;
+
+    // Initialize task wait struct
+    task_wait_t *task_wait = &process->task_wait_struct;
+    if(simple_queue_init(&task_wait->wait_queue) < 0)
+        return NULL;
+    if(mutex_init(&task_wait->lock) < 0)
+        return NULL;
+    // Initially 0 alive child task
+    task_wait->num_alive = 0;
+    // Initially 0 zombie child task
+    task_wait->num_zombie = 0;
+
+    // Initially have one thread
+    process->cur_thr_num = 1;
+
+
+    // Init page table lock
+    int i;
+    for(i = 0; i < NUM_PT_LOCKS_PER_PD; i++) {
+        if(mutex_init(&process->pt_locks[i]) < 0) {
+            return NULL;
+        }
+    }
+
+    thread->pcb = process;
 
     return thread;
 }

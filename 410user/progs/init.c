@@ -9,13 +9,16 @@
 
 #include <syscall.h>
 #include <stdio.h>
+#include <simics.h>
 
 int main()
 {
+  /*
   int pid, exitstatus;
   char shell[] = "shell";
   char * args[] = {shell, 0};
 
+  
   while(1) {
     pid = fork();
     if (!pid)
@@ -25,4 +28,12 @@ int main()
   
     printf("Shell exited with status %d; starting it back up...", exitstatus);
   }
+  */
+
+  //if(fork() == 0) 
+  //  lprintf("I am child");
+  //else
+    lprintf("I am parent");
+
+  while(1);
 }

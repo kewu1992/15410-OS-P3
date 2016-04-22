@@ -65,7 +65,7 @@ int mutex_init(mutex_t *mp) {
  *  @return void
  */
 void mutex_destroy(mutex_t *mp) {
-    spinlock_lock(&mp->inner_lock);
+    spinlock_lock(&mp->inner_lock, 1);
 
     if (mp->lock_holder == -2) {
         // try to destroy a destroied mutex
@@ -82,7 +82,7 @@ void mutex_destroy(mutex_t *mp) {
 
     mp->lock_holder = -2;
 
-    spinlock_unlock(&mp->inner_lock);
+    spinlock_unlock(&mp->inner_lock, 1);
 }
 
 /** @brief Lock mutex
@@ -99,7 +99,7 @@ void mutex_destroy(mutex_t *mp) {
 void mutex_lock(mutex_t *mp) {
     tcb_t* thr = tcb_get_entry((void*)asm_get_esp());
 
-    spinlock_lock(&mp->inner_lock);
+    spinlock_lock(&mp->inner_lock, 1);
     if (mp->lock_holder == -2) {
         // try to lock a destroied mutex
         panic("mutex %p has already been destroied!", mp);
@@ -108,7 +108,7 @@ void mutex_lock(mutex_t *mp) {
     if (mp->lock_holder == -1) {
         // mutex is unlocked, get the mutex lock directly and set it to locked
         mp->lock_holder = thr->tid;
-        spinlock_unlock(&mp->inner_lock);
+        spinlock_unlock(&mp->inner_lock, 1);
     } else {
         simple_node_t node;
         node.thr = thr;
@@ -118,7 +118,7 @@ void mutex_lock(mutex_t *mp) {
         // will not be destroied until this thread get the mutex, so it is safe
         simple_queue_enqueue(&mp->deque, &node);
 
-        spinlock_unlock(&mp->inner_lock);
+        spinlock_unlock(&mp->inner_lock, 1);
 
         // while this thread doesn't get the mutex, block itself
         // in our implementation, this while loop should only loop once
@@ -145,7 +145,7 @@ int mutex_try_lock(mutex_t *mp) {
 
     int rv;
 
-    spinlock_lock(&mp->inner_lock);
+    spinlock_lock(&mp->inner_lock, 1);
     if (mp->lock_holder == -2) {
         // try to lock a destroied mutex
         panic("mutex %p has already been destroied!", mp);
@@ -159,7 +159,7 @@ int mutex_try_lock(mutex_t *mp) {
         // mutex is locked, just return failed
         rv = -1;
     }
-    spinlock_unlock(&mp->inner_lock);
+    spinlock_unlock(&mp->inner_lock, 1);
 
     return rv;
 }
@@ -175,7 +175,7 @@ int mutex_try_lock(mutex_t *mp) {
  *  @return void
  */
 void mutex_unlock(mutex_t *mp) {
-    spinlock_lock(&mp->inner_lock);
+    spinlock_lock(&mp->inner_lock, 1);
 
     if (mp->lock_holder == -2) {
         // try to unlock a destroied mutex
@@ -197,7 +197,7 @@ void mutex_unlock(mutex_t *mp) {
         mp->lock_holder = ((tcb_t *)(node->thr))->tid;
     }
 
-    spinlock_unlock(&mp->inner_lock);
+    spinlock_unlock(&mp->inner_lock, 1);
 
     if (node != NULL) {
         // Make runnable the blocked thread in the head of queue (and now it is

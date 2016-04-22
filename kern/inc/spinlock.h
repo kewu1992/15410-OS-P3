@@ -33,9 +33,9 @@ typedef struct {
 
 int spinlock_init(spinlock_t* lock);
 
-void spinlock_lock(spinlock_t* lock);
+void spinlock_lock(spinlock_t* lock, int is_disable_interrupt);
 
-void spinlock_unlock(spinlock_t* lock);
+void spinlock_unlock(spinlock_t* lock, int is_enable_interrupt);
 
 void spinlock_destroy(spinlock_t* lock);
 

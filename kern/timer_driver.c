@@ -98,11 +98,12 @@ void init_lapic_timer_driver() {
 
 void apic_timer_interrupt_handler() {
 
-    // int cur_cpu = smp_get_cpu();
-    //lprintf("CPU%d Apic timer interrupt handler called", cur_cpu);
-
     // Acknowledge interrupt
     apic_eoi();
+
+    enable_interrupts();
+    
+    context_switch(OP_CONTEXT_SWITCH, -1);
 
 }
 

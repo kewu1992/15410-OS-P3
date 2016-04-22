@@ -49,6 +49,8 @@ void smp_manager_boot() {
      // barrier to wait for all AP cores ready
     msg_synchronize();
 
+    lprintf("all cores synchronized");
+
     while(1) {
         manager_recv_msg();
         

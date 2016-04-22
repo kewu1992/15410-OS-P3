@@ -171,7 +171,7 @@ int readline_syscall_handler(int len, char *buf) {
     while (reading_count < reading_length) {
         // spinlock is used to disable keyboard interrupt when manipulate data
         // structures of keyboard driver and readline() syscall. 
-        spinlock_lock(&reading_lock);
+        spinlock_lock(&reading_lock, 1);
         int ch = readchar();
         if (ch == -1) {
             // there is no data, block this thread. Keyboard interrupt handler
@@ -179,7 +179,7 @@ int readline_syscall_handler(int len, char *buf) {
             // wake up this thread when this readline() syscall completes.
             read_waiting_thr = tcb_get_entry((void*)asm_get_esp());
             
-            spinlock_unlock(&reading_lock);
+            spinlock_unlock(&reading_lock, 1);
 
             context_switch(OP_BLOCK, 0);
 
@@ -187,7 +187,7 @@ int readline_syscall_handler(int len, char *buf) {
         } else {
             if (!((char)ch == '\b' && reading_count == 0))
                 putbyte((char)ch);
-            spinlock_unlock(&reading_lock);
+            spinlock_unlock(&reading_lock, 1);
             
             if ((char)ch == '\b')
                 reading_count = (reading_count == 0) ? 0 : (reading_count - 1);

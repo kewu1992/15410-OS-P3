@@ -61,12 +61,6 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     while(!finished_cal_apic_timer)
         continue;
 
-    // Boot AP kernels is now in smp_manager_boot()
-
-    // Init lapic timer
-    init_lapic_timer_driver();
-
-
     lprintf("Ready to load mailbox task for cpu0");
     loadMailboxTask();
 

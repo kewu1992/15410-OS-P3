@@ -122,7 +122,7 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
 
 tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state);
 
-tcb_t* tcb_create_process(thread_state_t state, uint32_t new_page_table_base);
+tcb_t* tcb_create_idle_process(thread_state_t state, uint32_t new_page_table_base);
 
 void tcb_free_thread(tcb_t *thr);
 
