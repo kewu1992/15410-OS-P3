@@ -108,7 +108,7 @@ void apic_timer_interrupt_handler() {
 
 void pic_timer_interrupt_handler() {
     
-    lprintf("pic timer handler called, numTicks: %d", ++numTicks);
+    ++numTicks;
 
     if(finished_init_vm) {
 
@@ -127,7 +127,6 @@ void pic_timer_interrupt_handler() {
             lapic_write(LAPIC_TIMER_INIT, 0);
 
             uint32_t diff = 0xffffffff - lapic_timer_cur;
-            lprintf("diff: %x", (unsigned)diff);
 
             // Given that the lapic divider value is 1, diff in 100ms divided 
             // by 10 is the desired lapic_timer_init value to generate 
