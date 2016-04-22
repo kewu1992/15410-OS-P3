@@ -21,13 +21,13 @@ static int num_cpus;
 static int num_free_frames_per_core;
 
 /** @brief Number of free frames currently available in physical memory */
-static int num_free_frames_left[MAX_CPUS];
+static int *num_free_frames_left[MAX_CPUS];
 
 /** @brief The lapic base frame that shouldn't be allocated */
 static uint32_t lapic_base;
 
 /** @brief Mutex that protects frame allocation */
-static mutex_t lock[MAX_CPUS];
+static mutex_t *lock[MAX_CPUS];
 
 /**
  * @brief Get a free frame
@@ -41,9 +41,9 @@ uint32_t get_frames_raw() {
 
     int cur_cpu = smp_get_cpu();
 
-    mutex_lock(&lock[cur_cpu]);
+    mutex_lock(lock[cur_cpu]);
     uint32_t index = get_next();
-    mutex_unlock(&lock[cur_cpu]);
+    mutex_unlock(lock[cur_cpu]);
 
     if((int)index == NAN) {
         return ERROR_NOT_ENOUGH_MEM;
@@ -74,9 +74,9 @@ void free_frames_raw(uint32_t base) {
     int index = (base - cur_cpu * num_free_frames_per_core - USER_MEM_START) 
         / PAGE_SIZE;
 
-    mutex_lock(&lock[cur_cpu]);
+    mutex_lock(lock[cur_cpu]);
     put_back(index);
-    mutex_unlock(&lock[cur_cpu]);
+    mutex_unlock(lock[cur_cpu]);
 
 }
 
@@ -107,7 +107,13 @@ int init_pm() {
         lapic_base = (uint32_t)smp_lapic_base();
     }
 
-    num_free_frames_left[cur_cpu] = num_free_frames_per_core;
+    // Malloc on each core to avoid false sharing
+    num_free_frames_left[cur_cpu] = malloc(sizeof(int));
+    if(num_free_frames_left[cur_cpu] == NULL) {
+        return -1; 
+    }
+
+    *num_free_frames_left[cur_cpu] = num_free_frames_per_core;
     lprintf("add user memory %d frames for cpu %d succeeded",
             num_free_frames_per_core, cur_cpu);
 
@@ -116,7 +122,12 @@ int init_pm() {
         return -1;
     }
 
-    if (mutex_init(&lock[cur_cpu]) < 0) {
+    lock[cur_cpu] = malloc(sizeof(mutex_t));
+    if(lock[cur_cpu] == NULL) {
+        return -1;
+    }
+
+    if (mutex_init(lock[cur_cpu]) < 0) {
         lprintf("mutex_init() failed when init_pm()");
         return -1;
     }
@@ -139,10 +150,10 @@ int reserve_frames(int count) {
 
     int cur_cpu = smp_get_cpu();
 
-    num_free_frames_left[cur_cpu] = 
-        atomic_add(&num_free_frames_left[cur_cpu], -count);
-    if(num_free_frames_left[cur_cpu] < 0) {
-        atomic_add(&num_free_frames_left[cur_cpu], count);
+    *num_free_frames_left[cur_cpu] = 
+        atomic_add(num_free_frames_left[cur_cpu], -count);
+    if(*num_free_frames_left[cur_cpu] < 0) {
+        atomic_add(num_free_frames_left[cur_cpu], count);
         return -1;
     }
 
@@ -160,6 +171,6 @@ int reserve_frames(int count) {
 void unreserve_frames(int count) {
 
     int cur_cpu = smp_get_cpu();
-    atomic_add(&num_free_frames_left[cur_cpu], count); 
+    atomic_add(num_free_frames_left[cur_cpu], count); 
 }
 

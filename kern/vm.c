@@ -613,12 +613,12 @@ void dist_kernel_mem() {
 
     // Distribute kernel memory evenly among cores
 
-    // Memory under 1 megabyte is reserved, deduct it
-    // LMM_0_INIT_MEM has been allocated as well, deduct it
-    vm_size_t kmem_avail = USER_MEM_START - 0x100000 - LMM_0_INIT_MEM;
+    // Get amount of memory available in the pool
+    vm_size_t kmem_avail = lmm_avail(&malloc_lmm, 0);
     void *smidge = NULL;
-    while(smidge == NULL) {
+    while(1) {
         smidge = lmm_alloc(&malloc_lmm, kmem_avail, 0);
+        if(smidge != NULL) break;
         kmem_avail -= sizeof(uint32_t);
     }
 

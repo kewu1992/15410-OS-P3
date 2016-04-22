@@ -32,7 +32,6 @@
 static void ap_kernel_init(int cpu_id) {
 
     adopt_init_pd(cpu_id);
-    lprintf("finish init vm");
 
     if (malloc_init(cpu_id) < 0)
         panic("Initialize malloc at cpu%d failed!", cpu_id);
