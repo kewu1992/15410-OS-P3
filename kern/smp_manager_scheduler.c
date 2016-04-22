@@ -16,30 +16,16 @@
 
 // static mutex_t queue_mutex;
 
-static simple_queue_t** msg_queues;
-static spinlock_t** spinlocks;
 
-static int num_worker_cores;
 
-static void worker_run();
-static void work_finish();
+// static void worker_run();
+// static void work_finish();
 
 extern void ap_kernel_main(int cpu_id);
 
 void smp_manager_boot() {
-    int num_cpus = smp_num_cpus();
     
-    if (num_cpus <= 1)
-        panic("Numbe of cpu <= 1 !");
-
-    num_worker_cores = num_cpus - 1;
-
-    msg_queues = calloc(2*num_worker_cores, sizeof(simple_queue_t*));
-    if (msg_queues == NULL)
-        panic("smp_manager_boot() failed");
-
-    spinlocks = calloc(2*num_worker_cores, sizeof(spinlock_t*));
-    if (spinlocks == NULL)
+    if (msg_init() < 0)
         panic("smp_manager_boot() failed");
 
     /*
@@ -60,27 +46,11 @@ void smp_manager_boot() {
     // Boot AP kernels after initilization is done
     smp_boot(ap_kernel_main);
 
-    // barrier to wait for all AP cores ready
-    int i;
-    for (i = 0; i < 2*num_worker_cores; i++) {
-        while (msg_queues[i] == NULL)
-            continue;
-        while (spinlocks[i] == NULL)
-            continue;
-    }
+     // barrier to wait for all AP cores ready
+    msg_synchronize();
 
-   while(1) {
-        int i = 0;
-        simple_node_t* msg_node = NULL;
-
-        do {
-            spinlock_lock(spinlocks[i]);
-            msg_node = simple_queue_dequeue(msg_queues[i]);
-            spinlock_unlock(spinlocks[i]);
-            i = (i + 2) % num_worker_cores;
-        } while (msg_node == NULL);
-
-        msg_t* msg = msg_node->thr;
+    while(1) {
+        manager_recv_msg();
         
         // do real work
     } 

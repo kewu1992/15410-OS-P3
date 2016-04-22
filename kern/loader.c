@@ -33,6 +33,8 @@
 #include <context_switcher.h>
 #include <syscall_errors.h>
 
+#include <smp.h>
+
 /** @brief The maximum address space supported by the kernel */
 #define MAX_ADDR 0xFFFFFFFF
 
@@ -74,7 +76,7 @@ static uint32_t init_eflags;
 
 /** @brief tcb for idle task, it is a global variable that will be used
  *         in context_switcher.c as well */
-tcb_t* idle_thr;
+tcb_t* idle_thr[MAX_CPUS];
 
 /** @brief Return the initial value of EFLAGS */
 uint32_t get_init_eflags() {
@@ -133,7 +135,6 @@ int getbytes( const char *filename, int offset, int size, char *buf )
  *  @return Should never return
  */
 void loadFirstTask(const char *filename) {  
-    // init_eflags = get_eflags();
 
     void *my_program, *usr_esp;
     int rv;
@@ -145,12 +146,8 @@ void loadFirstTask(const char *filename) {
     if ((rv = loadTask(filename, 1, argv, &usr_esp, &my_program)) < 0)
         panic("Load first task failed");
 
-    // set init pcb (who-to-reap-orphan-process) as the first pcb 
-    // (will reset if the first pcb is idle)
-    set_init_pcb(thread->pcb);
-
     // set idle thread as NULL (will reset if the first thread is idle)
-    idle_thr = NULL;
+    idle_thr[smp_get_cpu()] = NULL;
 
     load_kernel_stack(thread->k_stack_esp, usr_esp, my_program, 
                                                 strcmp(filename, "idle") == 0);
@@ -336,9 +333,13 @@ void* push_to_stack(void *esp, uint32_t value) {
  *  @return Void
  */
 void idle_process_init() {
-    lprintf("Initializing idle process");
+    lprintf("Initializing idle process for cpu%d", smp_get_cpu());
 
-    idle_thr = tcb_get_entry((void*)asm_get_esp());
+    idle_thr[smp_get_cpu()] = tcb_get_entry((void*)asm_get_esp());
+
+    // let cpu1 to fork init
+    if (smp_get_cpu() != 1)
+        return;
     
     // fork
     context_switch(OP_FORK, 0);
@@ -392,10 +393,8 @@ void loadMailboxTask() {
     // create new process
     tcb_t *thread = tcb_create_process(NORMAL, get_cr3());
 
-
-    // ????????????
-    // set idle thread as NULL (will reset if the first thread is idle)
-    //idle_thr = NULL;
+    // set idle thread as NULL
+    idle_thr[0] = NULL;
 
     asm_mailbox_process_load(thread->k_stack_esp);
     // should never reach here

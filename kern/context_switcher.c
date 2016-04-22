@@ -79,7 +79,7 @@ static spinlock_t* spinlocks[MAX_CPUS];
 
 /** @brief The idle thread(task), this will be scheduled by scheduler when 
  *         there is no other thread to run */
-extern tcb_t* idle_thr;
+extern tcb_t** idle_thr;
 
 /** @brief Context switch from a thread to another thread. 
  *
@@ -214,7 +214,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             spinlock_lock(spinlocks[smp_get_cpu()]);
             // decide to enqueue this thread, should not be interrupted until 
             // context switch to the next thread successfully
-            if (this_thr != idle_thr)
+            if (this_thr != idle_thr[smp_get_cpu()])
                 scheduler_make_runnable(this_thr);
             return new_thr;
         
@@ -336,14 +336,14 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 // let sheduler to choose the next thread to run
                 new_thr = scheduler_block();
                 if (new_thr == NULL) {
-                    if (this_thr == idle_thr)
+                    if (this_thr == idle_thr[smp_get_cpu()])
                         panic("idle thread try to block itself, something \
                                                                 goes wrong!");
-                    else if (idle_thr == NULL)
+                    else if (idle_thr[smp_get_cpu()] == NULL)
                         panic("no other process is running, %d can not \
                                                     be blocked", this_thr->tid);
                     else
-                        return idle_thr;
+                        return idle_thr[smp_get_cpu()];
                 } else { 
                     return new_thr;
                 }
