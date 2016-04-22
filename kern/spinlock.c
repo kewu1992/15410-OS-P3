@@ -24,6 +24,7 @@
 #include <spinlock.h>
 #include <asm.h>
 #include <asm_atomic.h>
+#include <smp.h>
 
 /** @brief Init spin lock
  *  
@@ -31,7 +32,9 @@
  *  @return 0
  */
 int spinlock_init(spinlock_t* lock) {
-    *lock = 1;
+    lock->available = 1;
+    lock->waiting[0] = 0;
+    lock->waiting[1] = 0;
     return 0;
 }
 
@@ -43,8 +46,14 @@ int spinlock_init(spinlock_t* lock) {
 void spinlock_lock(spinlock_t* lock) {
     disable_interrupts();
 
-    while (!asm_xchg(lock, 0)) 
+    int cpu_id = (smp_get_cpu() == 0) ? 0 : 1;
+
+    lock->waiting[cpu_id] = 1;
+
+    while (lock->waiting[cpu_id] && !asm_xchg(&lock->available, 0)) 
        continue;
+
+    lock->waiting[cpu_id] = 0;
 }
 
 /** @brief Unlock a spinlock
@@ -53,7 +62,13 @@ void spinlock_lock(spinlock_t* lock) {
  *  @return void
  */
 void spinlock_unlock(spinlock_t* lock) {
-    asm_xchg(lock, 1);
+    int cpu_id = (smp_get_cpu() == 0) ? 0 : 1;
+
+    if (lock->waiting[1-cpu_id])
+        lock->waiting[1-cpu_id] = 0;
+    else
+        asm_xchg(&lock->available, 1);
+
     enable_interrupts();
 }
 
@@ -63,5 +78,5 @@ void spinlock_unlock(spinlock_t* lock) {
  *  @return void
  */
 void spinlock_destroy(spinlock_t* lock) {
-    asm_xchg(lock, 0);
+    asm_xchg(&lock->available, 0);
 }

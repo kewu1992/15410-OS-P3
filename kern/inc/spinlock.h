@@ -26,7 +26,10 @@
 
 
 /**@ brief spinlock type */
-typedef int spinlock_t;
+typedef struct {
+    int available;
+    int waiting[2];
+} spinlock_t;
 
 int spinlock_init(spinlock_t* lock);
 
