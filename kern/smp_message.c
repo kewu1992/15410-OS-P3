@@ -33,10 +33,10 @@ int init_ap_msg() {
     if(spinlock_init(inq_lock) < 0 || spinlock_init(outq_lock) < 0) return -1;
 
     // Assign to slots
-    msg_queues[cur_cpu * 2] = inq;
-    msg_queues[cur_cpu * 2 + 1] = outq;
-    msg_spinlocks[cur_cpu * 2] = inq_lock;
-    msg_spinlocks[cur_cpu * 2 + 1] = outq_lock;
+    msg_queues[cur_cpu * 2] = outq;
+    msg_queues[cur_cpu * 2 + 1] = inq;
+    msg_spinlocks[cur_cpu * 2] = outq_lock;
+    msg_spinlocks[cur_cpu * 2 + 1] = inq_lock;
 
     return 0;
 }
@@ -70,9 +70,27 @@ void msg_synchronize() {
 
 void worker_send_msg(msg_t* msg) {
 
+    int cur_cpu = smp_get_cpu();
+
+    int id = cur_cpu * 2;
+    spinlock_lock(spinlocks[id]);
+    simple_queue_enqueue(msg_queues[id], &(msg->node));
+    spinlock_unlock(spinlocks[id]);
+
 }
 
 msg_t* worker_recv_msg() {
+
+    int cur_cpu = smp_get_cpu();
+
+    int id = cur_cpu * 2 + 1;
+    simple_node_t* msg_node = NULL;
+
+    spinlock_lock(spinlocks[id]);
+    msg_node = simple_queue_dequeue(msg_queues[id]);
+    spinlock_unlock(spinlocks[id]);
+
+    // Construct msg_t and return
 
 }
 
