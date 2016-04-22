@@ -25,9 +25,10 @@
 #include <mptable.h>
 #include <smp.h>
 
+#include <timer_driver.h>
+#include <smp_message.h>
 
-#include <apic.h> // TO BE REMOVED
-#include <timer_driver.h> // TO BE REMOVED
+
 
 static void ap_kernel_init(int cpu_id) {
 
@@ -38,6 +39,9 @@ static void ap_kernel_init(int cpu_id) {
 
     if(init_pm() < 0)
         panic("init_pm at cpu%d failed!", cpu_id);
+
+    if(init_ap_msg() < 0)
+        panic("init_msg at cpu%d failed!", cpu_id);
 
     if (context_switcher_init() < 0)
         panic("Initialize context_switcher at cpu%d failed!", cpu_id);

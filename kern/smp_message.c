@@ -5,6 +5,42 @@ spinlock_t** msg_spinlocks;
 
 static int num_worker_cores;
 
+/** @brief Initialize AP cores' message queue 
+  * 
+  * @return 0 on success; a negative integer on error
+  *
+  */
+int init_ap_msg() {
+
+    int cur_cpu = smp_get_cpu();
+
+    // Inq and outq
+    simple_queue_t *inq = malloc(sizeof(simple_queue_t));
+    if(inq == NULL) return -1;
+
+    simple_queue_t *outq = malloc(sizeof(simple_queue_t));
+    if(outq == NULL) return -1;
+
+    if(simple_queue_init(inq) < 0 || simple_queue_init(outq) < 0) return -1;
+
+    // Locks
+    spinlock_t *inq_lock = malloc(sizeof(spinlock_t));
+    if(inq_lock == NULL) return -1;
+
+    spinlock_t *outq_lock = malloc(sizeof(spinlock_t));
+    if(outq_lock == NULL) return -1;
+
+    if(spinlock_init(inq_lock) < 0 || spinlock_init(outq_lock) < 0) return -1;
+
+    // Assign to slots
+    msg_queues[cur_cpu * 2] = inq;
+    msg_queues[cur_cpu * 2 + 1] = outq;
+    msg_spinlocks[cur_cpu * 2] = inq_lock;
+    msg_spinlocks[cur_cpu * 2 + 1] = outq_lock;
+
+    return 0;
+}
+
 int msg_init() {
     int num_cpus = smp_num_cpus();
     

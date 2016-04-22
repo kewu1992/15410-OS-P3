@@ -45,4 +45,6 @@ typedef struct {
     } data;
 } msg_t;
 
+int init_ap_msg();
+
 #endif
