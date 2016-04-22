@@ -35,6 +35,8 @@ void keyboard_wrapper();
  */
 void timer_wrapper();
 
+void apic_timer_wrapper();
+
 /** @brief Gettid syscall handler wrapper
  *
  *  @return Void

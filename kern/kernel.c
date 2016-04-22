@@ -26,6 +26,15 @@
 #include <mptable.h>
 #include <smp.h>
 
+#include <apic.h>
+#include <timer_driver.h>
+
+/** @brief A flag indicating if init_vm has finished */
+int finished_init_vm;
+
+/** @brief A flag indicating if APIC timer has been calibrated */
+int finished_cal_apic_timer;
+
 static void kernel_init();
 
 extern void ap_kernel_main(int cpu_id);
@@ -50,11 +59,22 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     kernel_init();
     lprintf("Finish initialization");
 
+    // Spin wait before apic timer is calibrated
+    while(!finished_cal_apic_timer) {
+        ;
+    }
+
     // Boot AP kernels after initilization is done
     smp_boot(ap_kernel_main);
 
+    // Init lapic timer
+    init_lapic_timer_driver();
+
     lprintf( "Ready to load first task" );
     loadFirstTask("idle");
+
+
+    enable_interrupts();
 
     // should never reach here
     return 0;
@@ -79,7 +99,9 @@ void kernel_init() {
     if (init_vm() < 0)
         panic("Initialize virtual memory failed!");
 
-    enable_interrupts();
+    // Mark as init_vm has finished, so that code in PIC timer interrupt can 
+    // start calibrating lapic timer
+    finished_init_vm = 1;
 
     if (context_switcher_init() < 0) {
         panic("Initialize context_switcher failed!");

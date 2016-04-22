@@ -268,6 +268,11 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     install_IDT_entry(GET_CURSOR_POS_INT, get_cursor_pos_wrapper, 
                                                         SEGSEL_KERNEL_CS, 3, 0);
 
+
+    // instll APIC timer interrupt handler
+    install_IDT_entry(APIC_TIMER_IDT_ENTRY, apic_timer_wrapper, SEGSEL_KERNEL_CS, 0, 1);
+
+
     // install exception's IDT
     init_exception_IDT();
 

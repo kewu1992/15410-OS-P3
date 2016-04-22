@@ -25,6 +25,10 @@
 #include <mptable.h>
 #include <smp.h>
 
+
+#include <apic.h> // TO BE REMOVED
+#include <timer_driver.h> // TO BE REMOVED
+
 static int ap_kernel_init() {
 
     // Init virtual memory mapping for this core
@@ -57,7 +61,7 @@ void ap_kernel_main(int cpu_id) {
 
     uint32_t cr3 = (uint32_t)get_cr3();
     lprintf("cpu %d's cr3:%x", smp_get_cpu(), (unsigned)cr3);
-
+/*
     // Try heap memory
     void *p = malloc(4);
     if(p == NULL) {
@@ -68,9 +72,11 @@ void ap_kernel_main(int cpu_id) {
     *((int *)p) = 177;
     lprintf("cpu %d malloc succeeded: 0x%x", 
             smp_get_cpu(), (unsigned)p);
+*/
 
-    // Configure LAPIC timer
-    // Use the PIT on the BSP to determine the APIC bus frequency
+    init_lapic_timer_driver();
+
+    enable_interrupts();
 
     while(1) ;
 

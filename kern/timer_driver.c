@@ -22,8 +22,31 @@
 #include <control_block.h>
 #include <asm_helper.h>
 
+#include <apic.h>
+
+#include <timer_driver.h>
+
+#include <smp.h>
+
 /** @brief Frequency */
 #define FREQ 100
+
+/** @brief A flag indicating if init_vm has finished */
+extern int finished_init_vm;
+
+/** @brief A flag indicating if APIC timer has been calibrated */
+extern int finished_cal_apic_timer;
+
+/** @brief The numTicks at the time we start calibrating APIC timer */
+static unsigned int start_numTicks;
+
+/** @brief Initial counter value of lapic timer 
+  * Initially set it to a large value to for calibrating, set it to the 
+  * desired value that can generate interrupts per 10 ms with the
+  * corresponding divider value.
+  */
+static uint32_t lapic_timer_init = 0xffffffff;
+
 
 /** @brief Function pointer points to callback function of timer */
 static void* (*callback)(unsigned int);
@@ -50,6 +73,82 @@ void init_timer_driver(void* (*tickback)(unsigned int)) {
     numTicks = 0;
 }
 
+
+void init_lapic_timer_driver() {
+
+    uint32_t lapic_lvt_timer = lapic_read(LAPIC_LVT_TIMER);
+
+    // Timer initial count 
+    lapic_write(LAPIC_TIMER_INIT, lapic_timer_init);
+
+    // Frequency divider of the timer
+    uint32_t lapic_timer_div = LAPIC_X1;
+    lapic_write(LAPIC_TIMER_DIV, lapic_timer_div);
+
+    // Set as periodic mode
+    lapic_lvt_timer |= LAPIC_PERIODIC;
+    // Enable lapic timer interrupt
+    lapic_lvt_timer &= ~LAPIC_IMASK;
+    // Set idt vector 
+    lapic_lvt_timer |= APIC_TIMER_IDT_ENTRY;
+    // Write the value back
+    lapic_write(LAPIC_LVT_TIMER, lapic_lvt_timer);
+
+}
+
+void apic_timer_interrupt_handler() {
+
+    int cur_cpu = smp_get_cpu();
+    lprintf("CPU%d Apic timer interrupt handler called", cur_cpu);
+
+    // Acknowledge interrupt
+    apic_eoi();
+
+}
+
+void pic_timer_interrupt_handler() {
+    
+    lprintf("pic timer handler called, numTicks: %d", ++numTicks);
+
+    if(finished_init_vm) {
+
+        if(start_numTicks == 0) {
+            start_numTicks = numTicks;
+
+            init_lapic_timer_driver();
+        } else if(numTicks == start_numTicks + 10) {
+            // The PIC is configured to generate an interrupt every 10ms,
+            // So numTicks gets incremented every 10ms
+            // Evaluate APIC frequency after 100ms
+
+            uint32_t lapic_timer_cur = lapic_read(LAPIC_TIMER_CUR);
+
+            // Stop lapic timer for the moment
+            lapic_write(LAPIC_TIMER_INIT, 0);
+
+            uint32_t diff = 0xffffffff - lapic_timer_cur;
+            lprintf("diff: %x", (unsigned)diff);
+
+            // Given that the lapic divider value is 1, diff in 100ms divided 
+            // by 10 is the desired lapic_timer_init value to generate 
+            // interrupts every 10ms
+            lapic_timer_init = diff / 10;
+
+            // Disable PIC
+            outb(TIMER_MODE_IO_PORT, TIMER_ONE_SHOT);
+
+            // Mark finishing calibrating APIC timer
+            finished_cal_apic_timer = 1;
+        }
+
+    }
+
+    outb(INT_CTL_PORT, INT_ACK_CURRENT);
+
+    enable_interrupts();
+    return;
+}
+
 /** @brief Timer interrupt handler
  *
  *  The function is called when a timer interrupt comes in. it will update 
@@ -64,6 +163,7 @@ void init_timer_driver(void* (*tickback)(unsigned int)) {
  *  @return Void.
  */
 void timer_interrupt_handler() {
+
     tcb_t* next_thr = (tcb_t*)callback(++numTicks);
 
     outb(INT_CTL_PORT, INT_ACK_CURRENT);

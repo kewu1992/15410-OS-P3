@@ -35,6 +35,8 @@
 .global readfile_wrapper
 .global get_cursor_pos_wrapper
 
+.global apic_timer_wrapper
+
 .global de_wrapper
 .global db_wrapper
 .global nmi_wrapper
@@ -98,7 +100,37 @@ timer_wrapper:
     movl    %cr2, %eax
     pushl   %eax
 
-    call    timer_interrupt_handler
+    call    pic_timer_interrupt_handler
+
+    popl    %eax
+    movl    %eax, %cr2
+
+    # The following code will restore this_thr->k_stack_esp from stack
+    pushl   %esp                    # push arg for tcb_get_entry()
+    call    tcb_get_entry           # %eax = *this_thr
+    addl    $4, %esp                # 'pop' arg
+    popl    (%eax)                  # pop this_thr->k_stack_esp
+    
+    call    asm_pop_ss              # restore all data segment selectors
+    popa
+    iret
+
+
+apic_timer_wrapper:
+    pusha
+    call    asm_push_ss             # save all data segment selectors
+    call    asm_set_ss              # set all data segment selectors to SEGSEL_KERNEL_DS
+
+    # The following code will save this_thr->k_stack_esp on stack
+    pushl   %esp                    # push arg for tcb_get_entry()
+    call    tcb_get_entry           # %eax = *this_thr
+    addl    $4, %esp                # 'pop' arg
+    pushl   (%eax)                  # push this_thr->k_stack_esp
+
+    movl    %cr2, %eax
+    pushl   %eax
+
+    call    apic_timer_interrupt_handler
 
     popl    %eax
     movl    %eax, %cr2
