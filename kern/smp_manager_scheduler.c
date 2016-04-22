@@ -12,9 +12,9 @@
 
 //static tcb_t* mailbox_thr;
 
-static simple_queue_t worker_queue;
+// static simple_queue_t worker_queue;
 
-static mutex_t queue_mutex;
+// static mutex_t queue_mutex;
 
 static simple_queue_t** msg_queues;
 static spinlock_t** spinlocks;
@@ -60,19 +60,41 @@ void smp_manager_boot() {
     // Boot AP kernels after initilization is done
     smp_boot(ap_kernel_main);
 
-    while(1);
+    // barrier to wait for all AP cores ready
+    int i;
+    for (i = 0; i < 2*num_worker_cores; i++) {
+        while (msg_queues[i] == NULL)
+            continue;
+        while (spinlocks[i] == NULL)
+            continue;
+    }
 
-    worker_run();
+   while(1) {
+        int i = 0;
+        simple_node_t* msg_node = NULL;
 
+        do {
+            spinlock_lock(spinlocks[i]);
+            msg_node = simple_queue_dequeue(msg_queues[i]);
+            spinlock_unlock(spinlocks[i]);
+            i = (i + 2) % num_worker_cores;
+        } while (msg_node == NULL);
+
+        msg_t* msg = msg_node->thr;
+        
+        // do real work
+    } 
 }
 
 
+/*
 void worker_run() {
     while (1) {
         lprintf("thr %d at cpu%d goes here", tcb_get_entry((void*)asm_get_esp())->tid, smp_get_cpu());
         work_finish();
     }
 }
+
 
 void work_finish() {
     simple_node_t node;
@@ -85,9 +107,8 @@ void work_finish() {
     context_switch(OP_BLOCK, 0);
 }
 
-/*
-void assign_work() {
 
+void assign_work() {
     while(1) {
         mutex_lock(&queue_mutex);
         simple_node_t* thr_node = simple_queue_dequeue(&worker_queue);
