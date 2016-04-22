@@ -44,6 +44,9 @@
  */
 extern void asm_invalidate_tlb(uint32_t va);
 
+/** @brief Initial page directory for all cores */
+static uint32_t init_page_dir[MAX_CPUS];
+
 /** @brief A system wide all-zero frame used for ZFOD */
 static uint32_t all_zero_frame;
 
@@ -638,19 +641,40 @@ void dist_kernel_mem() {
  *
  *  @return 0 on success; -1 on error
  */
-int init_vm_raw() {
+static int init_vm_raw() {
 
-    // Get page direcotry base for the first task
-    uint32_t pd = init_pd();
-    if(pd == ERROR_MALLOC_LIB) {
-        return -1;
+    int num_cpus = smp_num_cpus();
+
+    int i;
+    // Create page directories for all cores on CPU0
+    for(i = 0; i < num_cpus; i++) {
+        uint32_t pd = init_pd();
+        if(pd == ERROR_MALLOC_LIB) {
+            return -1;
+        }
+
+        // Establish a translation from virtual address LAPIC_VIRT_BASE to the
+        // local APIC's physical address
+        set_local_apic_translation(pd);
+
+        init_page_dir[i] = pd;
     }
 
-    // Establish a translation from virtual address LAPIC_VIRT_BASE to the
-    // local APIC's physical address
-    set_local_apic_translation(pd);
 
-    set_cr3(pd);
+    return 0;
+
+}
+
+/** @brief Adopt initial page directory and enable paging
+  *
+  * @param cur_cpu Current cpu index
+  *
+  * @return void
+  *
+  */
+void adopt_init_pd(int cur_cpu) {
+
+    set_cr3(init_page_dir[cur_cpu]);
 
     // Enable paging
     enable_paging();
@@ -658,9 +682,6 @@ int init_vm_raw() {
     // Enable global page so that kernel pages in TLB wouldn't
     // be cleared when %cr3 is reset
     enable_pge_flag();
-
-    return 0;
-
 }
 
 /** @brief Init virtual memory
@@ -679,6 +700,8 @@ int init_vm() {
         lprintf("init_vm_raw failed");
         return -1;
     }
+
+    adopt_init_pd(0);
 
     // Allocate a system-wide all-zero frame to do ZFOD later
     void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
