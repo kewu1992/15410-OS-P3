@@ -125,7 +125,7 @@ typedef struct {
 } pd_t;
 
 int init_vm();
-int init_vm_raw();
+void adopt_init_pd(int cur_cpu);
 uint32_t create_pd();
 uint32_t clone_pd();
 int new_region(uint32_t va, int size_bytes, int rw_perm, 

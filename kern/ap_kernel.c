@@ -31,15 +31,7 @@
 
 static void ap_kernel_init(int cpu_id) {
 
-    // Init virtual memory mapping for this core
-    // To allocate kernel heap memory using portion of this core, must have vm
-    // mapping, then must have a page directory, which must use malloc to 
-    // allocate; so, initially, AP uses BSP's kernel memory to make a page
-    // directory during vm_init_raw, and after that, AP can use its portion of
-    // kernel heap memory.
-    if(init_vm_raw() < 0)
-        panic("init_vm_raw at cpu%d failed!", cpu_id);
-
+    adopt_init_pd(cpu_id);
     lprintf("finish init vm");
 
     if (malloc_init(cpu_id) < 0)
