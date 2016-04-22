@@ -14,6 +14,7 @@
 
 .global asm_new_process_iret
 .global asm_idle_process_iret
+.global asm_mailbox_process_load
 
 asm_new_process_iret:
     movl    4(%esp), %esp    # put new esp to %esp
@@ -34,3 +35,7 @@ asm_idle_process_iret:
     movw    %ax, %fs
     movw    %ax, %gs
     iret
+
+asm_mailbox_process_load:
+    movl    4(%esp), %esp    # put new esp to %esp
+    call    smp_manager_boot

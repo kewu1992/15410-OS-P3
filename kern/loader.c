@@ -67,6 +67,8 @@ extern void asm_new_process_iret(void *esp);
  */
 extern void asm_idle_process_iret(void *esp);
 
+extern void asm_mailbox_process_load(void *esp);
+
 /** @brief The initial value of EFLAGS that will be set to every new process */
 static uint32_t init_eflags;
 
@@ -131,7 +133,7 @@ int getbytes( const char *filename, int offset, int size, char *buf )
  *  @return Should never return
  */
 void loadFirstTask(const char *filename) {  
-    init_eflags = get_eflags();
+    // init_eflags = get_eflags();
 
     void *my_program, *usr_esp;
     int rv;
@@ -380,4 +382,21 @@ void idle_process_init() {
         // parent process(idle)
         return;
     }
- }
+}
+
+
+
+void loadMailboxTask() {  
+    init_eflags = get_eflags();
+
+    // create new process
+    tcb_t *thread = tcb_create_process(NORMAL, get_cr3());
+
+
+    // ????????????
+    // set idle thread as NULL (will reset if the first thread is idle)
+    //idle_thr = NULL;
+
+    asm_mailbox_process_load(thread->k_stack_esp);
+    // should never reach here
+}

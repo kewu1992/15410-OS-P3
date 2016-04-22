@@ -111,10 +111,11 @@ typedef struct tcb_t {
     thread_state_t state;
     /** @brief The parameters for registered swexn handler */
     swexn_t *swexn_struct;
+
+    // msg_t* my_msg;
 } tcb_t;
 
 
-int tcb_init();
 
 pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr, 
                                             uint32_t new_page_table_base);

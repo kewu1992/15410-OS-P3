@@ -26,4 +26,6 @@ int loadTask(const char *filename, int argc, const char **argv, void** usr_esp,
 void load_kernel_stack(void* k_stack_esp, void* u_stack_esp, void* program, 
                                                                   int is_idle);
 
+void loadMailboxTask();
+
 #endif /* _LOADER_H */

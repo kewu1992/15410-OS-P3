@@ -24,10 +24,10 @@
 #include <context_switcher.h>
 
 #include <mptable.h>
-#include <smp.h>
 
 #include <apic.h>
 #include <timer_driver.h>
+#include <smp_manager_scheduler.h>
 
 /** @brief A flag indicating if init_vm has finished */
 int finished_init_vm;
@@ -36,8 +36,6 @@ int finished_init_vm;
 int finished_cal_apic_timer;
 
 static void kernel_init();
-
-extern void ap_kernel_main(int cpu_id);
 
 /** @brief Kernel entrypoint.
  *  
@@ -60,21 +58,17 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
     lprintf("Finish initialization");
 
     // Spin wait before apic timer is calibrated
-    while(!finished_cal_apic_timer) {
-        ;
-    }
+    while(!finished_cal_apic_timer)
+        continue;
 
-    // Boot AP kernels after initilization is done
-    smp_boot(ap_kernel_main);
+    // Boot AP kernels is now in smp_manager_boot()
 
     // Init lapic timer
     init_lapic_timer_driver();
 
-    lprintf( "Ready to load first task" );
-    loadFirstTask("idle");
 
-
-    enable_interrupts();
+    lprintf("Ready to load mailbox task for cpu0");
+    loadMailboxTask();
 
     // should never reach here
     return 0;
@@ -85,33 +79,32 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
  */
 void kernel_init() {
 
-    if (malloc_init() < 0)
-        panic("Initialize malloc failed!");
+    if (malloc_init(0) < 0)
+        panic("Initialize malloc at cpu0 failed!");
 
     if (init_IDT(timer_callback) < 0)
-        panic("Initialize IDT failed!");
+        panic("Initialize IDT at cpu0 failed!");
 
-    if (tcb_init() < 0)
-        panic("Initialize tcb failed!");
+    enable_interrupts();
 
     // Initialize vm, all kernel 16 MB will be directly mapped and
     // paging will be enabled after this call
     if (init_vm() < 0)
-        panic("Initialize virtual memory failed!");
+        panic("Initialize virtual memory at cpu0 failed!");
 
     // Mark as init_vm has finished, so that code in PIC timer interrupt can 
     // start calibrating lapic timer
     finished_init_vm = 1;
 
-    if (context_switcher_init() < 0) {
-        panic("Initialize context_switcher failed!");
-    }
+    if (context_switcher_init() < 0)
+        panic("Initialize context_switcher at cpu0 failed!");
 
     if (scheduler_init() < 0)
-        panic("Initialize scheduler failed!");
+        panic("Initialize scheduler at cpu0 failed!");
 
     // Initialize system call specific data structure
 
+    
     if (syscall_print_init() < 0)
         panic("Initialize syscall print() failed!");
 
@@ -129,6 +122,7 @@ void kernel_init() {
 
     if (syscall_readfile_init() < 0)
         panic("Initialize syscall readfile() failed!");
+    
 
     clear_console();
 }

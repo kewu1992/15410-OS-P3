@@ -1,4 +1,6 @@
-/** @file control_block.c
+/** NEED TO CHANGE COMMENTS!! (tcb_table)
+
+@file control_block.c
  *  @brief This file contains functions related to thread control block (tcb)
  *         and process control block (pcb).
  *
@@ -42,23 +44,8 @@
  *         overflow if it exceeds this limit and should be killed */
 #define STACK_OVERFLOW_LIMIT    0x1C00
 
-/** @brief This tcb table contains thread control block data structure for
- *         all threads created by kernel. */
-static tcb_t **tcb_table;
-
 /** @brief Counter that will be used for assigning tid and pid */
 static int id_count = -1;
-
-static void tcb_set_entry(void *addr, tcb_t *thr);
-
-/** @brief Initialize tcb table data structure
- *  
- *  @return On success return 0, or error return -1
- */
-int tcb_init() {
-    tcb_table = _calloc(USER_MEM_START/K_STACK_SIZE, sizeof(tcb_t*));
-    return tcb_table ? 0 : -1;
-}
 
 /** @brief Create a process without creating a thread
  *
@@ -186,26 +173,19 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
  *          return NULL on error (because of out of memory)
  */
 tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
-    tcb_t *thread = malloc(sizeof(tcb_t));
-    if (thread == NULL) {
+    void* k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE);
+    if (k_stack_esp == NULL)
         return NULL;
-    }
+        
+    tcb_t *thread = (tcb_t*)tcb_get_entry(k_stack_esp);
+
+    thread->k_stack_esp = tcb_get_high_addr(k_stack_esp);
     thread->tid = atomic_add(&id_count, 1);
     thread->pcb = process;
     thread->state = state;
 
-    thread->k_stack_esp = smemalign(K_STACK_SIZE, K_STACK_SIZE);
-    if (thread->k_stack_esp == NULL) {
-        free(thread);
-        return NULL;
-    } else 
-        thread->k_stack_esp += K_STACK_SIZE;
-
     // Initially no swexn handler registered
     thread->swexn_struct = NULL;
-    
-    // set tcb table entry
-    tcb_set_entry(thread->k_stack_esp-1, thread);
 
     return thread;
 }
@@ -242,23 +222,20 @@ tcb_t* tcb_create_process(thread_state_t state, uint32_t new_page_table_base) {
  */
 void tcb_free_thread(tcb_t *thr) {
 
-    // Free stack
-    void *stack_esp = thr->k_stack_esp;
-    void *stack_low = tcb_get_low_addr(stack_esp);
-    if(tcb_get_entry(stack_esp) == NULL) {
-        panic("The stack to free is NULL");
-    }
-    tcb_table[GET_K_STACK_INDEX(stack_esp)] = NULL;
-    sfree(stack_low, K_STACK_SIZE);
-
     // Free swexn struct
     if(thr->swexn_struct != NULL) {
         free(thr->swexn_struct);
         thr->swexn_struct = NULL;
     }
 
-    // Free tcb
-    free(thr);
+    // Free stack
+    void *stack_esp = thr->k_stack_esp;
+    void *stack_low = tcb_get_low_addr(stack_esp);
+    if(tcb_get_entry(stack_esp) == NULL) {
+        panic("The stack to free is NULL");
+    }
+    sfree(stack_low, K_STACK_SIZE);
+
 }
 
 /** @brief Release resources used by a thread
@@ -273,23 +250,20 @@ void tcb_free_thread(tcb_t *thr) {
  */
 void tcb_vanish_thread(tcb_t *thr) {
 
-    // Free stack
-    void *stack_esp = thr->k_stack_esp;
-    void *stack_low = tcb_get_low_addr(stack_esp);
-    if(tcb_get_entry(stack_esp) == NULL) {
-        panic("The stack to free is NULL");
-    }
-    tcb_table[GET_K_STACK_INDEX(stack_esp)] = NULL;
-    _sfree(stack_low, K_STACK_SIZE);
-
     // Free swexn struct
     if(thr->swexn_struct != NULL) {
         _free(thr->swexn_struct);
         thr->swexn_struct = NULL;
     }
 
-    // Free tcb
-    _free(thr);
+    // Free stack
+    void *stack_esp = thr->k_stack_esp;
+    void *stack_low = tcb_get_low_addr(stack_esp);
+    if(tcb_get_entry(stack_esp) == NULL) {
+        panic("The stack to free is NULL");
+    }
+    _sfree(stack_low, K_STACK_SIZE);
+
 }
 
 /** @brief Free pcb and all resources that are associated with it 
@@ -312,17 +286,6 @@ void tcb_free_process(pcb_t *process) {
     free(process);
 }
 
-/** @brief set the tcb entry in tcb_table for a thread
- *
- *  @param addr An address of kernel stack of the thread
- *  @param thr The tcb struct to set
- *
- *  @return Void
- */
-static void tcb_set_entry(void *addr, tcb_t *thr) {
-    tcb_table[GET_K_STACK_INDEX(addr)] = thr;
-}
-
 /** @brief Get the tcb entry of a thread given its kernel stack address
  *
  *  @param addr An address of kernel stack of the thread
@@ -330,7 +293,7 @@ static void tcb_set_entry(void *addr, tcb_t *thr) {
  *  @return Thread control block data structure of the thread
  */
 tcb_t* tcb_get_entry(void *addr) {
-    return tcb_table[GET_K_STACK_INDEX(addr)];
+    return (tcb_t*)tcb_get_high_addr(addr);
 }
 
 /** @brief Get the highest kernel stack address of a thread 
@@ -340,7 +303,7 @@ tcb_t* tcb_get_entry(void *addr) {
  *  @return The highest kernel stack address of the thread
  */
 void* tcb_get_high_addr(void *addr) {
-    return (void*)((GET_K_STACK_INDEX(addr) + 1) * K_STACK_SIZE);
+    return (void*)((GET_K_STACK_INDEX(addr) + 1) * K_STACK_SIZE - sizeof(tcb_t));
 }
 
 /** @brief Get the lowest kernel stack address of a thread 

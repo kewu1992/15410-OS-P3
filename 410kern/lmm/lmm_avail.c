@@ -31,6 +31,9 @@ vm_size_t lmm_avail(lmm_t *lmm, lmm_flags_t flags)
 	count = 0;
 	for (reg = lmm->regions; reg; reg = reg->next)
 	{
+		assert((reg->nodes == 0) == (reg->free == 0));
+		if (reg->nodes == 0)
+			continue;
 		assert((vm_offset_t)reg->nodes >= reg->min);
 		assert((vm_offset_t)reg->nodes < reg->max);
 		assert(reg->free >= 0);

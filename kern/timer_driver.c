@@ -98,8 +98,8 @@ void init_lapic_timer_driver() {
 
 void apic_timer_interrupt_handler() {
 
-    int cur_cpu = smp_get_cpu();
-    lprintf("CPU%d Apic timer interrupt handler called", cur_cpu);
+    // int cur_cpu = smp_get_cpu();
+    //lprintf("CPU%d Apic timer interrupt handler called", cur_cpu);
 
     // Acknowledge interrupt
     apic_eoi();
@@ -176,11 +176,11 @@ void timer_interrupt_handler() {
 
     if (next_thr == NULL) {
         // no thread should be wakened up, just call normal context switch 
-        context_switch(OP_CONTEXT_SWITCH, -1);
+        //context_switch(OP_CONTEXT_SWITCH, -1);
     } else {
         // there is a thread that should wake up from sleep(), resume
         // the sleeping thread
-        context_switch(OP_RESUME, (uint32_t)next_thr);
+        //context_switch(OP_RESUME, (uint32_t)next_thr);
     }
 }
 

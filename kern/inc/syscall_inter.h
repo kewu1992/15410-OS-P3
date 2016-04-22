@@ -14,7 +14,7 @@
 #include <control_block.h>
 
 
-int malloc_init();
+int malloc_init(int cpu_id);
 
 int syscall_print_init();
 

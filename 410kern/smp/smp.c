@@ -50,7 +50,15 @@ static void (*smp_main_fn)(int cpu); /**< Stores the entry point function for
  * @return The current cpu number
  */
 int smp_get_cpu(void) {
-	return apic2cpu[get_apic_id()];
+	/* If only one CPU is running, it must be CPU 0.  Making use
+	 * of this fact makes it safe for people to call smp_get_cpu()
+	 * in early start-up code, before paging is on, thus before
+	 * the LAPIC is mapped and get_apic_id() is working.
+	 */
+	if (cpus_booted == 1)
+		return 0;
+	else
+		return apic2cpu[get_apic_id()];
 }
 
 /**
