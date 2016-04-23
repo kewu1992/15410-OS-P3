@@ -116,13 +116,11 @@ static void enable_paging() {
  *
  *  @return Void
  */
-/*
 static void enable_pge_flag() {
     uint32_t cr4 = get_cr4();
     cr4 |= CR4_PGE;
     set_cr4(cr4);
 }
-*/
 
 
 /** @brief Count number of pages allocated in user space
@@ -681,9 +679,6 @@ void adopt_init_pd(int cur_cpu) {
     // Enable paging
     enable_paging();
 
-    // Enable global page so that kernel pages in TLB wouldn't
-    // be cleared when %cr3 is reset
-    //enable_pge_flag();
 }
 
 /** @brief Init virtual memory
@@ -704,6 +699,10 @@ int init_vm() {
     }
 
     adopt_init_pd(0);
+
+    // Enable global page so that kernel pages in TLB wouldn't
+    // be cleared when %cr3 is reset
+    enable_pge_flag();
 
     // Allocate a system-wide all-zero frame to do ZFOD later
     void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
@@ -755,12 +754,14 @@ uint32_t create_pd() {
  *  locks when performing this operation. On failure, resources allocated
  *  for creating the new address space will be all freed.
  *
+ *  @param old_page_dir The page directory to clone
+ *
  *  @return The new page directory base address on success, a negative integer
  *  on error.
  */
-uint32_t clone_pd() {
+uint32_t clone_pd(uint32_t old_page_dir) {
     // The pd to clone
-    pd_t *old_pd = (pd_t *)get_cr3();
+    pd_t *old_pd = (pd_t *)old_page_dir;
 
     // Number of pages allocated in the user space of the task
     int num_pages_allocated = count_pages_user_space();
