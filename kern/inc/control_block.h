@@ -17,6 +17,7 @@
 #include <ureg.h>
 #include <mutex.h>
 #include <vm.h>
+#include <smp_message.h>
 
 /** @brief The lowest 13 bits of kernel memory are within the same k-stack */
 #define K_STACK_BITS    13
@@ -112,7 +113,7 @@ typedef struct tcb_t {
     /** @brief The parameters for registered swexn handler */
     swexn_t *swexn_struct;
 
-    // msg_t* my_msg;
+    msg_t* my_msg;
 } tcb_t;
 
 

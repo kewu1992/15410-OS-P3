@@ -16,12 +16,16 @@
 
 // static mutex_t queue_mutex;
 
-
+static int num_worker_cores;
 
 // static void worker_run();
 // static void work_finish();
 
+static int fork_next_core;
+
 extern void ap_kernel_main(int cpu_id);
+
+//static msg_t manager_msg;
 
 void smp_manager_boot() {
     
@@ -51,10 +55,37 @@ void smp_manager_boot() {
 
     lprintf("all cores synchronized");
 
+    //manager_msg.node.thr = &manager_msg;
+    //manager_msg.req_thr = tcb_get_entry((void*)asm_get_esp());
+    //manager_msg.req_cpu = 0;
+
+    num_worker_cores = smp_num_cpus() - 1;
+
+    fork_next_core = 0;
+
     while(1) {
-        manager_recv_msg();
-        
-        // do real work
+        msg_t* msg = manager_recv_msg();
+        msg_t* req_msg;
+
+        switch(msg->type) {
+        case FORK:
+            manager_send_msg(msg, fork_next_core+1); // add one to skip core 0
+            fork_next_core = (fork_next_core + 1) % num_worker_cores;
+            break;
+        case FORK_RESPONSE:
+            // change the type of request message to FORK_RESPONSE
+            req_msg = msg->data.fork_response_data.req_msg;
+            req_msg->type = FORK_RESPONSE;
+            req_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
+
+            manager_send_msg(req_msg, req_msg->req_cpu);
+
+            if (msg->data.fork_response_data.result == 0) // fork success, send new thread back
+                manager_send_msg(msg, msg->req_cpu);
+            break;
+        default:
+            break;
+        }
     } 
 }
 

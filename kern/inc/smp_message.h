@@ -5,7 +5,6 @@
 
 typedef struct {
     void* new_thr;
-    void* old_task_pd;
 } msg_data_fork_t;
 
 typedef struct {
@@ -16,6 +15,11 @@ typedef struct {
     int row;
     int column;
 } msg_data_set_cursor_pos_t;
+
+typedef struct {
+    void* req_msg;
+    int result;
+} msg_data_fork_response_t;
 
 typedef enum {
     FORK,
@@ -30,7 +34,11 @@ typedef enum {
     SET_TERM_COLOR,
     SET_CURSOR_POS,
     GET_CURSOR_POS,
-    RESPONSE
+    RESPONSE,
+
+
+    FORK_RESPONSE,
+    NONE
 } msg_type_t;
 
 typedef struct {
@@ -40,6 +48,7 @@ typedef struct {
     msg_type_t type;  // 4 bytes
     union {
         msg_data_fork_t fork_data;
+        msg_data_fork_response_t fork_response_data;
         msg_data_set_term_color_t set_term_color_data;
         msg_data_set_cursor_pos_t set_cursor_pos_data;
     } data;
@@ -56,8 +65,10 @@ void worker_send_msg(msg_t* msg);
 
 msg_t* worker_recv_msg();
 
-void manager_send_msg(msg_t* msg);
+void manager_send_msg(msg_t* msg, int dest_cpu);
 
 msg_t* manager_recv_msg();
+
+void* get_thr_from_msg_queue();
 
 #endif

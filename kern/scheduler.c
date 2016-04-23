@@ -42,9 +42,14 @@ int scheduler_init() {
 tcb_t* scheduler_get_next(int mode) {
     simple_node_t* node;
 
-    if (mode == -1)
+    if (mode == -1) {
+        // before get the next thread from queue of scheduler, check message queue
+        tcb_t* rv = (tcb_t*)get_thr_from_msg_queue();
+        if (rv)
+            return rv;
+
         node = simple_queue_dequeue(queues[smp_get_cpu()]);
-    else {
+    } else {
         // yield to a specific thread
         node = simple_queue_remove_tid(queues[smp_get_cpu()], mode);
     }

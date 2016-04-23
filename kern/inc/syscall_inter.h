@@ -50,4 +50,6 @@ void vanish_syscall_handler(int is_kernel_kill);
 
 int print_syscall_handler(int len, char *buf, int is_kernel_call);
 
+int fork_create_process(tcb_t* new_thr, tcb_t* old_thr);
+
 #endif

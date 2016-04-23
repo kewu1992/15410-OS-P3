@@ -152,7 +152,7 @@ void loadFirstTask(const char *filename) {
     if ((rv = loadTask(filename, 1, argv, &usr_esp, &my_program)) < 0)
         panic("Load first task failed for cpu%d", smp_get_cpu());
 
-    // set idle thread as NULL (will reset if the first thread is idle)
+    // set idle thread
     idle_thr[smp_get_cpu()] = thread;
 
     load_kernel_stack(thread->k_stack_esp, usr_esp, my_program, 

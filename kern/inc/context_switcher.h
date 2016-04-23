@@ -32,6 +32,11 @@
 /** @brief Yield to -1 or a given tid. */
 #define OP_YIELD 6
 
+#define OP_SEND_MSG 7
+
+
+#define FORK_RESULT_RAW_CHILD  -1024
+
 int context_switcher_init();
 
 void context_switch(int op, uint32_t arg);

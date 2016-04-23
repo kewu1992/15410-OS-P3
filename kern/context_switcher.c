@@ -79,7 +79,7 @@ static spinlock_t* spinlocks[MAX_CPUS];
 
 /** @brief The idle thread(task), this will be scheduled by scheduler when 
  *         there is no other thread to run */
-extern tcb_t** idle_thr;
+extern tcb_t* idle_thr[MAX_CPUS];
 
 /** @brief Context switch from a thread to another thread. 
  *
@@ -97,18 +97,39 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
-    lprintf("before context switch: tid:%d at cpu%d", this_thr->tid, smp_get_cpu());
+     lprintf("before context switch: tid:%d at cpu%d", this_thr->tid, smp_get_cpu());
 
     asm_context_switch(op, arg, this_thr);
 
     this_thr = tcb_get_entry((void*)asm_get_esp());
 
-    lprintf("after context switch: tid:%d at cpu%d", this_thr->tid, smp_get_cpu());
+     lprintf("after context switch: tid:%d at cpu%d", this_thr->tid, smp_get_cpu());
 
 
     // for child process of fork(), set cr3 to the new page table base
-    if (op == OP_FORK && this_thr->result == 0)
+    //if (op == OP_FORK && this_thr->result == 0)
+    //    set_cr3((uint32_t)(this_thr->pcb->page_table_base));
+
+    if (op == OP_FORK && this_thr->result == 0) {
+        if (this_thr->my_msg->type == FORK_RESPONSE) {
+            // set cr3 to partent task's page table
+            set_cr3((uint32_t)(this_thr->pcb->page_table_base));
+
+            msg_t* req_msg = this_thr->my_msg->data.fork_response_data.req_msg;
+            int rv = fork_create_process(this_thr, req_msg->req_thr);
+
+            this_thr->my_msg->req_thr = this_thr;
+            this_thr->my_msg->req_cpu = smp_get_cpu();
+            this_thr->my_msg->data.fork_response_data.result = rv;
+
+            context_switch(OP_SEND_MSG, 0);
+
+            lprintf("here");
+            while(1);
+        }
+        
         set_cr3((uint32_t)(this_thr->pcb->page_table_base));
+    }
 
     // after context switch, restore cr3
     if (this_thr->pcb->page_table_base != get_cr3())
@@ -230,7 +251,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 return this_thr;
             }
 
-            // first execute thread fork
+            // first execute thread fork (locally on the same core)
             new_thr = internal_thread_fork(this_thr);
 
             if (new_thr == NULL) {
@@ -238,46 +259,40 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->result = ENOMEM;
                 return this_thr;
             }
-            
-            // allocate resources for new process 
-            // clone page table
-            uint32_t new_page_table_base = clone_pd();
-            if (new_page_table_base == ERROR_MALLOC_LIB ||
-                new_page_table_base == ERROR_NOT_ENOUGH_MEM) {
 
-                // clone_pd() error (out of memory, either physical frames or
-                // kernel memory)
+            int rv;
+
+            if (this_thr != idle_thr[smp_get_cpu()]) {
+                // if it is not idle thread that invoking fork(), should 
+                // ask manager to do the work
+                // construct message
+                this_thr->my_msg->req_thr = this_thr;
+                this_thr->my_msg->req_cpu = smp_get_cpu();
+                this_thr->my_msg->type = FORK;
+                this_thr->my_msg->data.fork_data.new_thr = new_thr;
+
+
+                new_thr->result = 0;
+                new_thr->my_msg->type = FORK_RESPONSE;
+                new_thr->my_msg->data.fork_response_data.req_msg = this_thr->my_msg;
+
+                context_switch(OP_SEND_MSG, 0);
+
+                rv = this_thr->my_msg->data.fork_response_data.result;
+            } else {
+                new_thr->my_msg->type = NONE;
+                rv = fork_create_process(new_thr, this_thr);
+            }
+
+
+            if (rv < 0) {
+                // create process error
                 tcb_free_thread(new_thr);
                 this_thr->result = ENOMEM;
                 return this_thr;
-            }
-
-            // clone swexn handler
-            if(this_thr->swexn_struct != NULL) {
-                new_thr->swexn_struct = malloc(sizeof(swexn_t));
-                if(new_thr->swexn_struct == NULL) {
-                    int need_unreserve_frames = 1;
-                    free_entire_space(new_page_table_base, 
-                            need_unreserve_frames);
-                    tcb_free_thread(new_thr);
-                    this_thr->result = ENOMEM;
-                    return this_thr;
-                }
-                memcpy(new_thr->swexn_struct, this_thr->swexn_struct, 
-                        sizeof(swexn_t));
-            }
+            } 
             
-            // create new process
-            if (tcb_create_process_only(new_thr, this_thr, 
-                                                new_page_table_base) == NULL) {
-                // create new process failed, out of memory
-                free(new_thr->swexn_struct);
-                int need_unreserve_frames = 1;
-                free_entire_space(new_page_table_base, need_unreserve_frames);
-                tcb_free_thread(new_thr);
-                this_thr->result = ENOMEM;
-                return this_thr;
-            }
+
 
             // add num_alive of child process for parent process
             mutex_lock(&((this_thr->pcb->task_wait_struct).lock));
@@ -286,7 +301,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             // fork success
             this_thr->result = new_thr->tid;
-            new_thr->result = 0;
 
             // will unlock in asm_context_switch() --> after context switch to 
             // the next thread successfully
@@ -394,6 +408,27 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             }
 
             return new_thr;
+
+        case OP_SEND_MSG: // send message to manager core
+            spinlock_lock(spinlocks[smp_get_cpu()], 1);
+            worker_send_msg(this_thr->my_msg);
+
+            // let sheduler to choose the next thread to run
+            new_thr = scheduler_block();
+            if (new_thr == NULL) {
+
+                if (this_thr == idle_thr[smp_get_cpu()])
+                    panic("idle thread try to block itself, something \
+                                                            goes wrong!");
+                else if (idle_thr[smp_get_cpu()] == NULL)
+                    panic("no other process is running, %d can not \
+                                                be blocked", this_thr->tid);
+                else
+                    return idle_thr[smp_get_cpu()];
+            } else { 
+                return new_thr;
+            }
+
         default:
             return this_thr;
     }

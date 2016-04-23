@@ -30,9 +30,11 @@ int main()
   }
   */
 
-  //if(fork() == 0) 
-  //  lprintf("I am child");
-  //else
+  lprintf("enter init");
+  
+  if(fork() == 0) 
+    lprintf("I am child");
+  else
     lprintf("I am parent");
 
   while(1);

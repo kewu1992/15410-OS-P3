@@ -179,6 +179,13 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
         
     tcb_t *thread = (tcb_t*)tcb_get_entry(k_stack_esp);
 
+    thread->my_msg = malloc(sizeof(msg_t));
+    if (thread->my_msg == NULL) {
+        sfree(k_stack_esp, K_STACK_SIZE);
+        return NULL;
+    }
+    thread->my_msg->node.thr = (void*)(thread->my_msg);
+
     thread->k_stack_esp = tcb_get_high_addr(k_stack_esp);
     thread->tid = atomic_add(&id_count, 1);
     thread->pcb = process;

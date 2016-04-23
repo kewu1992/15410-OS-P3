@@ -4,11 +4,15 @@
 #include <smp.h>
 #include <malloc.h>
 #include <mptable.h>
+#include <control_block.h>
+#include <simics.h>
 
 simple_queue_t** msg_queues;
 spinlock_t** msg_spinlocks;
 
 static int num_worker_cores;
+
+extern tcb_t* idle_thr[MAX_CPUS];
 
 int msg_init() {
     int num_cpus = smp_num_cpus();
@@ -76,6 +80,7 @@ void msg_synchronize() {
 }
 
 void worker_send_msg(msg_t* msg) {
+    lprintf("thr %d at cpu%d send a msg, type:%d", ((tcb_t*)(msg->req_thr))->tid, msg->req_cpu, msg->type);
 
     int cur_cpu = smp_get_cpu();
 
@@ -96,13 +101,17 @@ msg_t* worker_recv_msg() {
 
     if (msg_node == NULL)
         return NULL;
-    else
+    else {
+        lprintf("cpu%d recv a msg (req thr:%d), type:%d", ((msg_t*)(msg_node->thr))->req_cpu, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
         return (msg_t*)(msg_node->thr);
+    }
 }
 
 
-void manager_send_msg(msg_t* msg) {
-    int id = (msg->req_cpu - 1) * 2 + 1;
+void manager_send_msg(msg_t* msg, int dest_cpu) {
+    lprintf("manager send a msg, type:%d", msg->type);
+
+    int id = (dest_cpu - 1) * 2 + 1;
     spinlock_lock(msg_spinlocks[id], 0);
     simple_queue_enqueue(msg_queues[id], &(msg->node));
     spinlock_unlock(msg_spinlocks[id], 0);
@@ -119,6 +128,27 @@ msg_t* manager_recv_msg() {
         i = (i + 2) % num_worker_cores;
     } while (msg_node == NULL);
 
+    lprintf("manager recv a msg at cpu%d, req thr:%d, type:%d", i/2+1, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))
+        ->type);
     return msg_node->thr;
 }
 
+void* get_thr_from_msg_queue() {
+    if (smp_get_cpu() == 0)
+        return NULL;
+
+    msg_t* msg = worker_recv_msg();
+    if (msg != NULL) {
+        tcb_t* new_thr;
+        switch(msg->type) {
+        case FORK:
+            new_thr = (tcb_t*)(msg->data.fork_data.new_thr);
+            return new_thr;
+        case FORK_RESPONSE:
+            return (tcb_t*)msg->req_thr;
+        default:
+            return NULL;
+        }
+    }
+    return NULL;
+}
