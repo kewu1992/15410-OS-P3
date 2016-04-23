@@ -127,7 +127,7 @@ typedef struct {
 int init_vm();
 void adopt_init_pd(int cur_cpu);
 uint32_t create_pd();
-uint32_t clone_pd(uint32_t old_page_dir);
+uint32_t clone_pd();
 int new_region(uint32_t va, int size_bytes, int rw_perm, 
         int is_new_pages_syscall, int is_ZFOD);
 void free_space(uint32_t pd_base, int is_kernel_space, 

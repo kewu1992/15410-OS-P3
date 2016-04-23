@@ -761,9 +761,9 @@ uint32_t create_pd() {
  *  @return The new page directory base address on success, a negative integer
  *  on error.
  */
-uint32_t clone_pd(uint32_t old_page_dir) {
+uint32_t clone_pd() {
     // The pd to clone
-    pd_t *old_pd = (pd_t *)old_page_dir;
+    pd_t *old_pd = (pd_t *)get_cr3();
 
     // Number of pages allocated in the user space of the task
     int num_pages_allocated = count_pages_user_space();
