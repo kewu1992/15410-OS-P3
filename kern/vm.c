@@ -102,11 +102,13 @@ static void init_pg_ctrl_bits() {
  *
  *  @return Void
  */
+/*
 static void enable_paging() {
     uint32_t cr0 = get_cr0();
     cr0 |= CR0_PG;
     set_cr0(cr0);
 }
+*/
 
 
 /** @brief Enable global page
@@ -702,7 +704,7 @@ int init_vm() {
 
     // Enable global page so that kernel pages in TLB wouldn't
     // be cleared when %cr3 is reset
-    enable_pge_flag();
+    //enable_pge_flag();
 
     // Allocate a system-wide all-zero frame to do ZFOD later
     void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
