@@ -65,7 +65,7 @@ void smp_manager_boot() {
 
     while(1) {
         msg_t* msg = manager_recv_msg();
-        msg_t* req_msg;
+        msg_t* ori_msg;
 
         switch(msg->type) {
         case FORK:
@@ -73,15 +73,34 @@ void smp_manager_boot() {
             fork_next_core = (fork_next_core + 1) % num_worker_cores;
             break;
         case FORK_RESPONSE:
-            // change the type of request message to FORK_RESPONSE
-            req_msg = msg->data.fork_response_data.req_msg;
-            req_msg->type = FORK_RESPONSE;
-            req_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
+            if (msg->data.fork_response_data.result == 0) { // fork success 
+                // change the type of the original message to FORK_RESPONSE
+                ori_msg = msg->data.fork_response_data.req_msg;
+                ori_msg->type = FORK_RESPONSE;
+                ori_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
 
-            manager_send_msg(req_msg, req_msg->req_cpu);
+                // send the response back to the thread calling fork()
+                manager_send_msg(ori_msg, ori_msg->req_cpu);
 
-            if (msg->data.fork_response_data.result == 0) // fork success, send new thread back
+                // also send the request message (which belongs to the new thread) back 
                 manager_send_msg(msg, msg->req_cpu);
+            } else {
+                // fork failed
+                ori_msg = msg->data.fork_response_data.req_msg;
+                if (ori_msg->data.fork_data.retry_times == num_worker_cores) {
+                    // reach the maximum retry times, just return failed
+                    ori_msg->type = FORK_RESPONSE;
+                    ori_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
+                    // send response back to the thread calling fork()
+                    manager_send_msg(ori_msg, ori_msg->req_cpu);
+                } else {
+                    // try on another core
+                    ori_msg->data.fork_data.retry_times++;
+                    int next_core = (msg->req_cpu + 1) % num_worker_cores;
+                    manager_send_msg(ori_msg, next_core+1); // add one to skip core 0
+                }
+            }
+            
             break;
         default:
             break;

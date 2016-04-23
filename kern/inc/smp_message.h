@@ -5,6 +5,7 @@
 
 typedef struct {
     void* new_thr;
+    int retry_times; 
 } msg_data_fork_t;
 
 typedef struct {

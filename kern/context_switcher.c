@@ -97,13 +97,13 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
-     lprintf("before context switch: tid:%d at cpu%d", this_thr->tid, smp_get_cpu());
+    // lprintf("before context switch: tid:%d at cpu%d, op:%d", this_thr->tid, smp_get_cpu(), op);
 
     asm_context_switch(op, arg, this_thr);
 
     this_thr = tcb_get_entry((void*)asm_get_esp());
 
-     lprintf("after context switch: tid:%d at cpu%d", this_thr->tid, smp_get_cpu());
+    // lprintf("after context switch: tid:%d at cpu%d, op:%d", this_thr->tid, smp_get_cpu(), op);
 
 
     // for child process of fork(), set cr3 to the new page table base
@@ -123,9 +123,6 @@ void context_switch(int op, uint32_t arg) {
             this_thr->my_msg->data.fork_response_data.result = rv;
 
             context_switch(OP_SEND_MSG, 0);
-
-            lprintf("here");
-            while(1);
         }
         
         set_cr3((uint32_t)(this_thr->pcb->page_table_base));
@@ -260,6 +257,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 return this_thr;
             }
 
+            // thread fork success, set result of new_thr
+            new_thr->result = 0;
+
             int rv;
 
             if (this_thr != idle_thr[smp_get_cpu()]) {
@@ -270,9 +270,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->my_msg->req_cpu = smp_get_cpu();
                 this_thr->my_msg->type = FORK;
                 this_thr->my_msg->data.fork_data.new_thr = new_thr;
+                this_thr->my_msg->data.fork_data.retry_times = 0;
 
-
-                new_thr->result = 0;
                 new_thr->my_msg->type = FORK_RESPONSE;
                 new_thr->my_msg->data.fork_response_data.req_msg = this_thr->my_msg;
 
@@ -291,7 +290,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->result = ENOMEM;
                 return this_thr;
             } 
-            
 
 
             // add num_alive of child process for parent process
@@ -302,13 +300,17 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             // fork success
             this_thr->result = new_thr->tid;
 
-            // will unlock in asm_context_switch() --> after context switch to 
-            // the next thread successfully
-            spinlock_lock(spinlocks[smp_get_cpu()], 1);
-            // decide to enqueue this thread, should not be interrupted until 
-            // context switch to the next thread successfully
-            scheduler_make_runnable(this_thr);
-            return new_thr;
+            if (this_thr == idle_thr[smp_get_cpu()]) {
+                // will unlock in asm_context_switch() --> after context switch to 
+                // the next thread successfully
+                spinlock_lock(spinlocks[smp_get_cpu()], 1);
+                // decide to enqueue this thread, should not be interrupted until 
+                // context switch to the next thread successfully
+                scheduler_make_runnable(this_thr);
+                return new_thr;
+            } else
+                return this_thr;
+            
 
         case OP_THREAD_FORK:    // thread_fork and context switch to new thread
             new_thr = internal_thread_fork(this_thr);
