@@ -102,13 +102,11 @@ static void init_pg_ctrl_bits() {
  *
  *  @return Void
  */
-/*
 static void enable_paging() {
     uint32_t cr0 = get_cr0();
     cr0 |= CR0_PG;
     set_cr0(cr0);
 }
-*/
 
 
 /** @brief Enable global page
@@ -118,11 +116,13 @@ static void enable_paging() {
  *
  *  @return Void
  */
+/*
 static void enable_pge_flag() {
     uint32_t cr4 = get_cr4();
     cr4 |= CR4_PGE;
     set_cr4(cr4);
 }
+*/
 
 
 /** @brief Count number of pages allocated in user space
