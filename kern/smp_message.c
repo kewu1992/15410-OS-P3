@@ -10,7 +10,7 @@
 simple_queue_t** msg_queues;
 spinlock_t** msg_spinlocks;
 
-static int num_worker_cores;
+int num_worker_cores;
 
 extern tcb_t* idle_thr[MAX_CPUS];
 

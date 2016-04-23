@@ -1,12 +1,10 @@
 #include <smp.h>
-#include <malloc.h>
-#include <context_switcher.h>
-#include <control_block.h>
-#include <spinlock.h>
 #include <smp_message.h>
 #include <mptable.h>
-#include <asm_helper.h>
-#include <mptable.h>
+#include <smp_syscall.h>
+#include <simics.h>
+#include <stdlib.h>
+
 
 #define NUM_WORKER_THR  16
 
@@ -16,12 +14,10 @@
 
 // static mutex_t queue_mutex;
 
-static int num_worker_cores;
-
 // static void worker_run();
 // static void work_finish();
 
-static int fork_next_core;
+
 
 extern void ap_kernel_main(int cpu_id);
 
@@ -58,49 +54,17 @@ void smp_manager_boot() {
     //manager_msg.node.thr = &manager_msg;
     //manager_msg.req_thr = tcb_get_entry((void*)asm_get_esp());
     //manager_msg.req_cpu = 0;
-
-    num_worker_cores = smp_num_cpus() - 1;
-
-    fork_next_core = 0;
+    
 
     while(1) {
         msg_t* msg = manager_recv_msg();
-        msg_t* ori_msg;
 
         switch(msg->type) {
         case FORK:
-            manager_send_msg(msg, fork_next_core+1); // add one to skip core 0
-            fork_next_core = (fork_next_core + 1) % num_worker_cores;
+            smp_syscall_fork(msg);
             break;
         case FORK_RESPONSE:
-            if (msg->data.fork_response_data.result == 0) { // fork success 
-                // change the type of the original message to FORK_RESPONSE
-                ori_msg = msg->data.fork_response_data.req_msg;
-                ori_msg->type = FORK_RESPONSE;
-                ori_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
-
-                // send the response back to the thread calling fork()
-                manager_send_msg(ori_msg, ori_msg->req_cpu);
-
-                // also send the request message (which belongs to the new thread) back 
-                manager_send_msg(msg, msg->req_cpu);
-            } else {
-                // fork failed
-                ori_msg = msg->data.fork_response_data.req_msg;
-                if (ori_msg->data.fork_data.retry_times == num_worker_cores) {
-                    // reach the maximum retry times, just return failed
-                    ori_msg->type = FORK_RESPONSE;
-                    ori_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
-                    // send response back to the thread calling fork()
-                    manager_send_msg(ori_msg, ori_msg->req_cpu);
-                } else {
-                    // try on another core
-                    ori_msg->data.fork_data.retry_times++;
-                    int next_core = (msg->req_cpu + 1) % num_worker_cores;
-                    manager_send_msg(ori_msg, next_core+1); // add one to skip core 0
-                }
-            }
-            
+            smp_fork_response(msg);
             break;
         default:
             break;

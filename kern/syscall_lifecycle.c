@@ -84,7 +84,6 @@ int fork_syscall_handler() {
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
-
 int fork_create_process(tcb_t* new_thr, tcb_t* old_thr) {
     // allocate resources for new process 
     // clone page table
@@ -94,9 +93,6 @@ int fork_create_process(tcb_t* new_thr, tcb_t* old_thr) {
 
         // clone_pd() error (out of memory, either physical frames or
         // kernel memory)
-        // tcb_free_thread(new_thr);
-        // this_thr->result = ENOMEM;
-        // return this_thr;
         return -1;
     }
 

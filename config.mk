@@ -116,7 +116,7 @@ AUTOSTACK_OBJS = autostack.o
 #
 # Kernel object files you provide in from kern/
 #
-KERNEL_OBJS = asm_atomic.o asm_context_switch.o asm_helper.o asm_invalidate_tlb.o asm_new_process_iret.o asm_ret_newureg.o asm_ret_swexn_handler.o console_driver.o context_switcher.o control_block.o exception_handler.o handler_wrapper.o hashtable.o init_IDT.o kernel.o keyboard_driver.o loader.o malloc_wrappers.o mutex.o pm.o priority_queue.o scheduler.o seg_tree.o simple_queue.o spinlock.o syscall_consoleio.o syscall_lifecycle.o syscall_memory.o syscall_misc.o syscall_thr_management.o timer_driver.o vm.o ap_kernel.o smp_manager_scheduler.o smp_message.o
+KERNEL_OBJS = asm_atomic.o asm_context_switch.o asm_helper.o asm_invalidate_tlb.o asm_new_process_iret.o asm_ret_newureg.o asm_ret_swexn_handler.o console_driver.o context_switcher.o control_block.o exception_handler.o handler_wrapper.o hashtable.o init_IDT.o kernel.o keyboard_driver.o loader.o malloc_wrappers.o mutex.o pm.o priority_queue.o scheduler.o seg_tree.o simple_queue.o spinlock.o syscall_consoleio.o syscall_lifecycle.o syscall_memory.o syscall_misc.o syscall_thr_management.o timer_driver.o vm.o ap_kernel.o smp_manager_scheduler.o smp_message.o smp_syscall_lifecycle.o
 
 ###########################################################################
 # WARNING: Do not put **test** programs into the REQPROGS variables.  Your
