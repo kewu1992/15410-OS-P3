@@ -144,6 +144,8 @@ void* get_thr_from_msg_queue() {
             new_thr = (tcb_t*)(msg->data.fork_data.new_thr);
             return new_thr;
         case FORK_RESPONSE:
+        case WAIT_RESPONSE:
+        case RESPONSE:
             return (tcb_t*)msg->req_thr;
         default:
             return NULL;

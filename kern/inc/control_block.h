@@ -35,49 +35,22 @@ typedef enum {
     WAKEUP
 } thread_state_t;
 
-/** @brief The struct to store exit status for a task */
-typedef struct {
-    /** @brief The vanished task's pid */
-    int pid;
-    /** @brief The vanished task's exit status */
-    int status;
-} exit_status_t;
-
-/** @brief Data structure for wait() syscall. Each task (pcb) has one if 
- *        this struct */
-typedef struct {
-    /** @brief The number of alive child tasks */
-    int num_alive;
-    /** @brief The number of zombie child tasks */
-    int num_zombie;
-    /** @brief A queue for threads that invoke wait() to block on */
-    simple_queue_t wait_queue;
-    /** @brief Pcb level Lock */
-    mutex_t lock;
-} task_wait_t;
-
 /** @brief Process control block */
 typedef struct pcb_t {
     /** @brief pid */
     int pid;
+    
     /** @brief The page table base of the task */
     uint32_t page_table_base;
+    
     /** @brief Parent task's pid */
     int ppid;
-    /** @brief Child tasks exit status list. When a child task dies, it will
-     *  put its exit_status_node to the parent's child_exit_status_list */
-    simple_queue_t child_exit_status_list;
-    /** @brief Exit status of the task */
-    exit_status_t *exit_status;
-    /** @brief Exit status node that will be inserted to parent task's
-     *         child_exit_status_list when the task dies */
-    simple_node_t *exit_status_node;
-
+    
+    int status;
+    
     /** @brief Current number of alive threads in the task, determine if 
       *        report task exit status and free task resources */
     int cur_thr_num;
-    /** @brief Data structure for wait() syscall */
-    task_wait_t task_wait_struct;
 
     /** @brief The locks for page table */
     mutex_t pt_locks[NUM_PT_LOCKS_PER_PD];

@@ -25,6 +25,7 @@
 #include <asm_atomic.h>
 #include <syscall_errors.h>
 #include <stdio.h>
+#include <smp.h>
 
 /** @brief At most half of the kernel stack to be used as buffer of exec() */
 #define MAX_EXEC_BUF (K_STACK_SIZE>>1)
@@ -35,26 +36,13 @@
 /** @brief The maxinum number of arguments of exec() */
 #define EXEC_MAX_ARGC (MAX_EXEC_BUF/EXEC_MAX_ARG_SIZE-1)
 
-/** @brief The initial size of hash table to stroe pid to pcb map,
- *         pick a prime number */
-#define PID_PCB_HASH_SIZE 1021
 
-/** @brief The init task, this will be used as parent task to store exit status
- *         when an orphan task vanish() */
-static pcb_t *init_task;
-
-/** @brief Hashtable to map pid to pcb, dead process doesn't have entry in 
- *         hashtable. It is useful to detect if partent task dead */
-static hashtable_t ht_pid_pcb;
-
-/** @brief Lock for ht_pid_pcb */
-static mutex_t ht_pid_pcb_lock;
 
 /** @brief A list that stores the zombie thread to be freed  */
-static simple_queue_t zombie_list;
+static simple_queue_t* zombie_lists[MAX_CPUS];
 
 /** @brief The lock for the zombie list */
-static mutex_t zombie_list_lock;
+static mutex_t* zombie_list_locks[MAX_CPUS];
 
 
 /** @brief System call handler for fork()
@@ -327,9 +315,12 @@ void set_status_syscall_handler(int status) {
     // Get current thread
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     
-    this_thr->pcb->exit_status->status = status;
+    this_thr->pcb->status = status;
 }
 
+/** @brief The init task, this will be used as parent task to store exit status
+ *         when an orphan task vanish() */
+static pcb_t* init_task;
 
 /** @brief Record init task's pcb
  *
@@ -341,57 +332,6 @@ void set_init_pcb(pcb_t *init_pcb) {
 }
 
 
-/** @brief The hash function for hash table 
-  *
-  * @param key The hash function key
-  *
-  * @return The hashed value
-  *
-  */
-static int ht_pid_pcb_hashfunc(void *key) {
-    int tid = (int)key;
-    return tid % PID_PCB_HASH_SIZE;
-}
-
-/** @brief Get pcb for pid
- *
- *  @param pid The pid of the task to look for
- *
- *  @return Task's pcb if it's alive; NULL if not
- */
-void *get_parent_task(int pid) {
-    int is_find = 0;
-    void *value = hashtable_get(&ht_pid_pcb, (void*)pid, &is_find);
-    if(is_find) {
-        return value;
-    } 
-    return NULL;
-}
-
-/** @brief Put pid to pcb mapping for a task
- *
- *  @param pid Key of the hashtable
- *  @param pcb Value of the hashtable
- *  @return On success return zero, a negative integer on error
- */
-int ht_put_task(int pid, pcb_t *pcb) {
-    mutex_lock(&ht_pid_pcb_lock);
-    int rv = hashtable_put(&ht_pid_pcb, (void *)pid, (void *)pcb); 
-    mutex_unlock(&ht_pid_pcb_lock);
-    return rv;
-}
-
-/** @brief Remove a task's pid to pcb mapping entry from the hashtable
- *
- *  @param pid Key of the hashtable
- *  @return void
- */
-void ht_remove_task(int pid) {
-    int is_find;
-    mutex_lock(&ht_pid_pcb_lock);
-    hashtable_remove(&ht_pid_pcb, (void*)pid, &is_find);
-    mutex_unlock(&ht_pid_pcb_lock);
-}
 
 
 /** @brief Get next zombie in the thread zombie list
@@ -399,7 +339,7 @@ void ht_remove_task(int pid) {
  *  @return On success, return the next zombie thread, on error return NULL
  */
 simple_node_t* get_next_zombie() {
-    simple_node_t* node = simple_queue_dequeue(&zombie_list);
+    simple_node_t* node = simple_queue_dequeue(zombie_lists[smp_get_cpu()]);
     return node;
 }
 
@@ -408,7 +348,7 @@ simple_node_t* get_next_zombie() {
  *  @return Lock for the zombie list
  */
 mutex_t *get_zombie_list_lock() {
-    return &zombie_list_lock;
+    return zombie_list_locks[smp_get_cpu()];
 }
 
 /** @brief Put next zombie in the thread zombie list
@@ -419,7 +359,7 @@ mutex_t *get_zombie_list_lock() {
  *
  */
 int put_next_zombie(simple_node_t* node) {
-    int rv = simple_queue_enqueue(&zombie_list, node);
+    int rv = simple_queue_enqueue(zombie_lists[smp_get_cpu()], node);
     return rv;
 }
 
@@ -429,25 +369,21 @@ int put_next_zombie(simple_node_t* node) {
  *
  */
 int syscall_vanish_init() {
-
-    // Initialize the hashtable that stores wait status
-    ht_pid_pcb.size = PID_PCB_HASH_SIZE;
-    ht_pid_pcb.func = ht_pid_pcb_hashfunc;
-    if(hashtable_init(&ht_pid_pcb) < 0) {
+    zombie_lists[smp_get_cpu()] = malloc(sizeof(simple_queue_t));
+    if (zombie_lists[smp_get_cpu()] == NULL)
         return -1;
-    }
 
-    if(mutex_init(&ht_pid_pcb_lock) < 0) {
+    zombie_list_locks[smp_get_cpu()] = malloc(sizeof(mutex_t));
+    if (zombie_list_locks[smp_get_cpu()] == NULL)
         return -1;
-    }
 
-    if(simple_queue_init(&zombie_list) < 0) {
+    if(simple_queue_init(zombie_lists[smp_get_cpu()]) < 0)
         return -1;
-    }
 
-    if (mutex_init(&zombie_list_lock) < 0) {
+
+    if (mutex_init(zombie_list_locks[smp_get_cpu()]) < 0)
         return -1;
-    }
+
 
     return 0;
 }
@@ -498,48 +434,18 @@ void vanish_syscall_handler(int is_kernel_kill) {
         if(is_kernel_kill) {
             // The thread is killed by the kernel
             // set_status(-2) first
-            this_task->exit_status->status = -2;
+            this_task->status = -2;
         }
 
-        // Assume task init shouldn't vanish and this task isn't the task init
+        // construct message
+        this_thr->my_msg->req_thr = this_thr;
+        this_thr->my_msg->req_cpu = smp_get_cpu();
+        this_thr->my_msg->type = VANISH;
+        this_thr->my_msg->data.vanish_data.pid = this_task->pid;
+        this_thr->my_msg->data.vanish_data.ppid = this_task->ppid;
+        this_thr->my_msg->data.vanish_data.status = this_task->status;
 
-        // ====== Start report exit status to its parent or init task =========
-
-        // Get hashtable's lock
-        mutex_lock(&ht_pid_pcb_lock);
-        // Get parent task's pcb
-        pcb_t *parent_task = get_parent_task(this_task->ppid);
-
-        if(parent_task == NULL) {
-            // Parent is dead 
-            // Report to init task
-            parent_task = init_task;
-        }
-
-        // Get parent task's task_wait lock
-        task_wait_t *task_wait = &parent_task->task_wait_struct;
-        mutex_lock(&task_wait->lock);
-        // Release hashtable's lock
-        mutex_unlock(&ht_pid_pcb_lock);
-
-        // Put exit_status into parent's child exit status list  
-        simple_queue_enqueue(&parent_task->child_exit_status_list, 
-                                                   this_task->exit_status_node);
-
-        task_wait->num_zombie++;
-        task_wait->num_alive--;
-
-        // Make runnable a parent task's thread that is blocked on wait() if any
-        simple_node_t* node = simple_queue_dequeue(&task_wait->wait_queue);
-        tcb_t *wait_thr;
-        if(node != NULL) {
-            wait_thr = (tcb_t *)node->thr;
-            mutex_unlock(&task_wait->lock);
-            context_switch(OP_MAKE_RUNNABLE, (uint32_t)wait_thr);
-        } else {
-            mutex_unlock(&task_wait->lock);
-        }
-        // ======= End report exit status to its parent or init task ==========
+        context_switch(OP_SEND_MSG, 0);
 
         // Free resources (page table, hash table entry and pcb) for this task
         uint32_t old_pd = this_task->page_table_base;
@@ -547,52 +453,6 @@ void vanish_syscall_handler(int is_kernel_kill) {
         // Free old address space
         int need_unreserve_frames = 1;
         free_entire_space(old_pd, need_unreserve_frames);
-
-        // Get hashtable's lock
-        mutex_lock(&ht_pid_pcb_lock);
-        // Get this task's pcb's lock
-        task_wait_t *this_task_wait = &this_task->task_wait_struct;
-        mutex_lock(&this_task_wait->lock);
-        // Delete this task's hashtable entry in hashtable
-        int is_find; 
-        hashtable_remove(&ht_pid_pcb, (void*)this_task->pid, &is_find);
-        if(is_find == 0) {
-            panic("delete task %d in hashtable failed", this_task->pid);
-        }
-        // Release pcb's lock
-        mutex_unlock(&this_task_wait->lock);
-        // Release hashtable's lock
-        mutex_unlock(&ht_pid_pcb_lock);
-
-        // Now nobody can alter resources in current task's pcb except itself
-
-        // Report unreaped children's status to task init
-        task_wait_t *init_task_wait = &init_task->task_wait_struct;
-        mutex_lock(&init_task_wait->lock);
-
-        // Put children tasks' exit_status into init task's child exit status 
-        // list
-        int has_unreaped_child = 0;
-        while((node = simple_queue_dequeue(
-                        &this_task->child_exit_status_list)) != NULL) {
-            has_unreaped_child = 1;
-            simple_queue_enqueue(&init_task->child_exit_status_list, node);
-            init_task_wait->num_zombie++;
-        }
-
-        if (has_unreaped_child) {
-            // Make runnable init task
-            node = simple_queue_dequeue(&init_task_wait->wait_queue);
-            if(node != NULL) {
-                wait_thr = (tcb_t *)node->thr;
-                mutex_unlock(&init_task_wait->lock);
-                context_switch(OP_MAKE_RUNNABLE, (uint32_t)wait_thr);
-            } else {
-                mutex_unlock(&init_task_wait->lock);
-            }
-        } else {
-            mutex_unlock(&init_task_wait->lock);
-        }
 
         // Delete resources in pcb and free pcb
         tcb_free_process(this_task);
@@ -604,9 +464,9 @@ void vanish_syscall_handler(int is_kernel_kill) {
     simple_node_t node;
     node.thr = this_thr;
 
-    mutex_lock(&zombie_list_lock);
+    mutex_lock(zombie_list_locks[smp_get_cpu()]);
     put_next_zombie(&node);
-    mutex_unlock(&zombie_list_lock);
+    mutex_unlock(zombie_list_locks[smp_get_cpu()]);
 
     context_switch(OP_BLOCK, 0);
 
@@ -650,59 +510,21 @@ int wait_syscall_handler(int *status_ptr) {
         return EFAULT;
     }
 
+
     // Get current thread
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-    if(this_thr == NULL) {
-        panic("tcb is NULL");
-    }
 
-    // define a node for simple queue using stack space
-    simple_node_t node;
-    node.thr = this_thr;
+    // construct message
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = WAIT;
+    this_thr->my_msg->data.wait_data.pid = this_thr->pcb->pid;
 
-    // Get current task
-    pcb_t *this_task = this_thr->pcb;
-    if(this_task == NULL) {
-        panic("pcb is NULL");
-    }
+    context_switch(OP_SEND_MSG, 0);
 
-    task_wait_t *wait = &(this_task->task_wait_struct);
+    if(status_ptr != NULL && this_thr->my_msg->data.wait_response_data.pid > 0)
+        *status_ptr = this_thr->my_msg->data.wait_response_data.status;
 
-    while (1) {
-        mutex_lock(&wait->lock);
-        // check if can reap
-        if (wait->num_zombie == 0 && 
-                (wait->num_alive == simple_queue_size(&wait->wait_queue))) {
-            // impossible to reap, return error
-            mutex_unlock(&wait->lock);
-            return ECHILD;
-        } else if (wait->num_zombie == 0) {
-            // have alive task (potential zombie), need to block. Enter the
-            // tail of queue to wait, note that stack memory is used for 
-            // simple_node_t. Because the stack of wait_syscall_handler()
-            // will not be destroied until return, so it is safe
-            simple_queue_enqueue(&wait->wait_queue, &node);
-            mutex_unlock(&wait->lock);
-
-            context_switch(OP_BLOCK, 0);
-            continue;
-        } else {
-            // have zombie task, can reap directly
-            wait->num_zombie--;
-            simple_node_t *node = 
-                simple_queue_dequeue(&this_task->child_exit_status_list);
-            mutex_unlock(&wait->lock);
-
-            exit_status_t *es = (exit_status_t*)node->thr;
-
-            if(status_ptr != NULL)
-                *status_ptr = es->status;
-            int rv = es->pid;
-            free(es);
-            free(node);
-            return rv;
-        }
-    }
-
+    return this_thr->my_msg->data.wait_response_data.pid;
 }
 

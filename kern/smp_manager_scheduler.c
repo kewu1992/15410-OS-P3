@@ -26,8 +26,10 @@ extern void ap_kernel_main(int cpu_id);
 void smp_manager_boot() {
     
     if (msg_init() < 0)
-        panic("smp_manager_boot() failed");
+        panic("msg_init() in smp_manager_boot() failed");
 
+    if (smp_syscall_vanish_init() < 0)
+        panic("smp_syscall_vanish_init() in smp_manager_boot() failed");
     /*
     if (mutex_init(&queue_mutex) < 0)
         panic("smp_manager_boot() failed");
@@ -65,6 +67,12 @@ void smp_manager_boot() {
             break;
         case FORK_RESPONSE:
             smp_fork_response(msg);
+            break;
+        case WAIT:
+            smp_syscall_wait(msg);
+            break;
+        case VANISH:
+            smp_syscall_vanish(msg);
             break;
         default:
             break;

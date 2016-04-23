@@ -38,10 +38,6 @@ simple_node_t* get_next_zombie();
 
 int put_next_zombie(simple_node_t* node);
 
-int ht_put_task(int pid, pcb_t *pcb);
-
-void ht_remove_task(int pid);
-
 mutex_t *get_zombie_list_lock();
 
 void set_init_pcb(pcb_t *init_task);

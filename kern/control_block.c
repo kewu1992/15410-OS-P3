@@ -72,84 +72,21 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
     else
         process->ppid = -1;
 
-    // Put pid to pcb mapping in hashtable
-    if (ht_put_task(process->pid, process) < 0) {
-        // out of memory
-        free(process);
-        return NULL;
-    }
-
-    process->exit_status = malloc(sizeof(exit_status_t));
-    if (process->exit_status == NULL) {
-        // out of memory
-        ht_remove_task(process->pid);
-        free(process);
-        return NULL;
-    }
-    process->exit_status->pid = process->pid;
     // Initially exit status is 0
-    process->exit_status->status = 0;
-
-
-    process->exit_status_node = malloc(sizeof(simple_node_t));
-    if (process->exit_status_node == NULL) {
-        // out of memory
-        free(process->exit_status);
-        ht_remove_task(process->pid);
-        free(process);
-        return NULL;
-    }
-    process->exit_status_node->thr = (void*)process->exit_status;
+    process->status = 0;
 
     // Initially have one thread
-    process->cur_thr_num = 1;
-    
-    if(simple_queue_init(&process->child_exit_status_list) < 0) {
-        free(process->exit_status);
-        free(process->exit_status_node);
-        ht_remove_task(process->pid);
-        free(process);
-        return NULL;
-    }
-
-    // Initialize task wait struct
-    task_wait_t *task_wait = &process->task_wait_struct;
-    if(simple_queue_init(&task_wait->wait_queue) < 0) {
-        simple_queue_destroy(&process->child_exit_status_list);
-        free(process->exit_status);
-        free(process->exit_status_node);
-        ht_remove_task(process->pid);
-        free(process);
-        return NULL;
-    }
-    if(mutex_init(&task_wait->lock) < 0) {
-        simple_queue_destroy(&task_wait->wait_queue);
-        simple_queue_destroy(&process->child_exit_status_list);
-        free(process->exit_status);
-        free(process->exit_status_node);
-        ht_remove_task(process->pid);
-        free(process);
-        return NULL;
-    }
-    // Initially 0 alive child task
-    task_wait->num_alive = 0;
-    // Initially 0 zombie child task
-    task_wait->num_zombie = 0;
+    process->cur_thr_num = 1;    
 
     // Init page table lock
     int i;
     for(i = 0; i < NUM_PT_LOCKS_PER_PD; i++) {
         if(mutex_init(&process->pt_locks[i]) < 0) {
-            simple_queue_destroy(&task_wait->wait_queue);
-            simple_queue_destroy(&process->child_exit_status_list);
-            free(process->exit_status);
-            free(process->exit_status_node);
-            mutex_destroy(&task_wait->lock);
             int j;
             for(j = 0; j < i - 1; j++) {
                 mutex_destroy(&process->pt_locks[j]);
             }
-            ht_remove_task(process->pid);
+           
             free(process);
             return NULL;
         }
@@ -219,22 +156,6 @@ tcb_t* tcb_create_idle_process(thread_state_t state, uint32_t new_page_table_bas
     process->pid = thread->tid;
     process->page_table_base = new_page_table_base;
 
-    
-    process->exit_status = NULL;
-
-
-    process->exit_status_node = NULL;
-
-    // Initialize task wait struct
-    task_wait_t *task_wait = &process->task_wait_struct;
-    if(simple_queue_init(&task_wait->wait_queue) < 0)
-        return NULL;
-    if(mutex_init(&task_wait->lock) < 0)
-        return NULL;
-    // Initially 0 alive child task
-    task_wait->num_alive = 0;
-    // Initially 0 zombie child task
-    task_wait->num_zombie = 0;
 
     // Initially have one thread
     process->cur_thr_num = 1;
@@ -312,9 +233,6 @@ void tcb_vanish_thread(tcb_t *thr) {
  *  @return void
  */
 void tcb_free_process(pcb_t *process) {
-    mutex_destroy(&process->task_wait_struct.lock);
-    simple_queue_destroy(&process->task_wait_struct.wait_queue);
-    simple_queue_destroy(&process->child_exit_status_list);
 
     // destroy page table lock
     int i;

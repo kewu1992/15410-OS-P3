@@ -271,6 +271,9 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->my_msg->type = FORK;
                 this_thr->my_msg->data.fork_data.new_thr = new_thr;
                 this_thr->my_msg->data.fork_data.retry_times = 0;
+                this_thr->my_msg->data.fork_data.new_tid = new_thr->tid;
+                this_thr->my_msg->data.fork_data.ppid = this_thr->pcb->pid;
+
 
                 new_thr->my_msg->type = FORK_RESPONSE;
                 new_thr->my_msg->data.fork_response_data.req_msg = this_thr->my_msg;
@@ -290,12 +293,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->result = ENOMEM;
                 return this_thr;
             } 
-
-
-            // add num_alive of child process for parent process
-            mutex_lock(&((this_thr->pcb->task_wait_struct).lock));
-            (this_thr->pcb->task_wait_struct).num_alive++;
-            mutex_unlock(&((this_thr->pcb->task_wait_struct).lock));
 
             // fork success
             this_thr->result = new_thr->tid;
