@@ -51,7 +51,12 @@ static uint32_t lapic_timer_init = 0xffffffff;
 /** @brief Function pointer points to callback function of timer */
 static void* (*callback)(unsigned int);
 
-/** @brief Stores the total number of timer interrupts that handler has caught*/
+/** @brief The total number of lapic timer interrupts that handler has caught 
+  * on different cores.
+  */
+static unsigned int *apic_num_ticks[MAX_CPUS];
+
+/** @brief The total number of PIC timer interrupts that handler has caught */
 static unsigned int numTicks;
 
 /** @brief Initialize timer device driver.
@@ -74,7 +79,20 @@ void init_timer_driver(void* (*tickback)(unsigned int)) {
 }
 
 
+/** @brief Initialize lapic timer driver
+ *
+ *  @return Void.
+ */
 void init_lapic_timer_driver() {
+
+    int cur_cpu = smp_get_cpu();
+
+    apic_num_ticks[cur_cpu] = malloc(sizeof(unsigned int));
+    if(apic_num_ticks[cur_cpu] == NULL) {
+        panic("init_lapic_timer_driver failed");
+    }
+
+    *apic_num_ticks[cur_cpu] = 0;
 
     uint32_t lapic_lvt_timer = lapic_read(LAPIC_LVT_TIMER);
 
@@ -97,6 +115,10 @@ void init_lapic_timer_driver() {
 }
 
 void apic_timer_interrupt_handler() {
+
+    int cur_cpu = smp_get_cpu();
+
+    (*apic_num_ticks[cur_cpu])++;
 
     // Acknowledge interrupt
     apic_eoi();
@@ -126,6 +148,8 @@ void pic_timer_interrupt_handler() {
 
             // Stop lapic timer for the moment
             lapic_write(LAPIC_TIMER_INIT, 0);
+            free(apic_num_ticks[0]);
+            apic_num_ticks[0] = NULL;
 
             uint32_t diff = 0xffffffff - lapic_timer_cur;
 
@@ -163,6 +187,13 @@ void pic_timer_interrupt_handler() {
  *  @return Void.
  */
 void timer_interrupt_handler() {
+
+    /* *********************************************************
+    Make sure to update corresponding timer's apic_num_ticks
+
+            int cur_cpu = smp_get_cpu();
+            (*apic_num_ticks[cur_cpu])++;
+    */
 
     tcb_t* next_thr = (tcb_t*)callback(++numTicks);
 
