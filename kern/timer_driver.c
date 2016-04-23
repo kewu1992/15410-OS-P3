@@ -217,6 +217,8 @@ void timer_interrupt_handler() {
 
 /** @brief Get the current ticks */
 unsigned int timer_get_ticks() {
-    return numTicks;
+
+    int cur_cpu = smp_get_cpu();
+    return *apic_num_ticks[cur_cpu];
 }
 
