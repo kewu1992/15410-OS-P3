@@ -78,6 +78,10 @@ void smp_manager_boot() {
         case VANISH:
             smp_syscall_vanish(msg);
             break;
+        case VANISH_BACK:
+            msg->type = RESPONSE;
+            manager_send_msg(msg, msg->data.vanish_back_data.ori_cpu);
+            break;
         case SET_CURSOR_POS:
             smp_set_cursor_pos_syscall_handler(msg);
             break;
@@ -96,12 +100,14 @@ void smp_manager_boot() {
         case SET_INIT_PCB:
              smp_set_init_pcb(msg);
              break;
+        /*
         case MAKE_RUNNABLE:
              smp_make_runnable_syscall_handler(msg);
              break;
         case DESCHEDULE:
              smp_deschedule_syscall_handler(msg);
              break;
+        */
         default:
             break;
         }

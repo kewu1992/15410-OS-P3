@@ -329,7 +329,6 @@ static pcb_t* init_task;
  */
 int set_init_pcb(pcb_t *init_pcb) {
     init_task = init_pcb; 
-
     // construct message
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     this_thr->my_msg->req_thr = this_thr;
@@ -466,6 +465,15 @@ void vanish_syscall_handler(int is_kernel_kill) {
         // Delete resources in pcb and free pcb
         tcb_free_process(this_task);
     }
+
+    // send this thread back to the cpu who malloc() it
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = VANISH_BACK;
+    this_thr->my_msg->data.vanish_back_data.ori_cpu = this_thr->ori_cpu;
+    context_switch(OP_SEND_MSG, 0);
+
+    // now this thread is running on the cpu who malloc() it
 
     // Add self to system wide zombie list. Note that stack space of 
     // vanish_syscall_handler() is used for simple_node. Because this stack 

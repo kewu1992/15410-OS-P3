@@ -85,6 +85,7 @@ void worker_send_msg(msg_t* msg) {
     int cur_cpu = smp_get_cpu();
 
     int id = (cur_cpu - 1) * 2;
+
     spinlock_lock(msg_spinlocks[id], 0);
     simple_queue_enqueue(msg_queues[id], &(msg->node));
     spinlock_unlock(msg_spinlocks[id], 0);
@@ -109,7 +110,7 @@ msg_t* worker_recv_msg() {
 
 
 void manager_send_msg(msg_t* msg, int dest_cpu) {
-    //lprintf("manager send a msg, type:%d", msg->type);
+    //lprintf("manager send a msg to cpu%d, type:%d", dest_cpu, msg->type);
 
     int id = (dest_cpu - 1) * 2 + 1;
     spinlock_lock(msg_spinlocks[id], 0);
@@ -121,12 +122,16 @@ msg_t* manager_recv_msg() {
     int i = 0;
     simple_node_t* msg_node = NULL;
 
-    do {
+    while (1) {
         spinlock_lock(msg_spinlocks[i], 0);
         msg_node = simple_queue_dequeue(msg_queues[i]);
         spinlock_unlock(msg_spinlocks[i], 0);
-        i = (i + 2) % num_worker_cores;
-    } while (msg_node == NULL);
+
+        if (msg_node != NULL)
+            break;
+
+        i = (i + 2) % (2*num_worker_cores);
+    }
 
     //lprintf("manager recv a msg at cpu%d, req thr:%d, type:%d", i/2+1, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
     return msg_node->thr;
