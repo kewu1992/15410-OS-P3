@@ -12,4 +12,15 @@ int smp_syscall_vanish_init();
 void smp_syscall_vanish(msg_t* msg);
 
 void smp_syscall_wait(msg_t* msg);
+
+void smp_readline_syscall_handler(msg_t *msg);
+
+void smp_get_cursor_pos_syscall_handler(msg_t *msg);
+
+void smp_print_syscall_handler(msg_t *msg);
+
+void smp_set_cursor_pos_syscall_handler(msg_t *msg);
+
+void smp_set_term_color_syscall_handler(msg_t *msg);
+
 #endif

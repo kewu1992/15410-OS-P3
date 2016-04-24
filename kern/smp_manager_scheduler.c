@@ -74,6 +74,21 @@ void smp_manager_boot() {
         case VANISH:
             smp_syscall_vanish(msg);
             break;
+        case SET_CURSOR_POS:
+            smp_set_cursor_pos_syscall_handler(msg);
+            break;
+        case SET_TERM_COLOR:
+            smp_set_term_color_syscall_handler(msg);
+            break;
+        case GET_CURSOR_POS:
+            smp_get_cursor_pos_syscall_handler(msg);
+            break;
+        case READLINE:
+            smp_readline_syscall_handler(msg);
+            break;
+        case PRINT:
+            smp_print_syscall_handler(msg);
+            break;
         default:
             break;
         }

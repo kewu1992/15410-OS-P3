@@ -2,7 +2,7 @@
  *  @brief System calls related to console I/O.
  *
  *  This file contains implementations of system calls that are related to 
- *  console I/O.
+ *  console I/O on worker cores side.
  *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu <kewu@andrew.cmu.edu>
@@ -19,63 +19,12 @@
 #include <vm.h>
 #include <syscall_errors.h>
 
+#include <smp.h>
+
 /** @brief At most half of the kernel stack can be used as buffer for 
  *         readline() */
 #define MAX_READLINE_BUF (K_STACK_SIZE>>1)
 
-/** @brief For print() syscall.
-*          The mutex to prevent mulitple print() from interleaving */
-static mutex_t print_lock;
-
-/** @brief For readline() syscall.
- *         The mutex to prevent mulitple readline() from interleaving */
-static mutex_t read_lock;
-
-/** @brief For readline() syscall.
- *         The thread that is blocked on readline() and waiting for input. 
- *         If there is no thread waiting for input, this variable should be 
- *         NULL. */
-static tcb_t* read_waiting_thr;
-
-/** @brief For readline() syscall.
- *         The number of bytes that have been read by one readline() syscall */
-static int reading_count;
-
-/** @brief For readline() syscall.
- *         The maximum number of bytes that cen be read by one readline() 
- *         syscall, which equals 'len' argument of readline() syscall */
-static int reading_length;
-
-/** @brief For readline() syscall.
- *         The buffer to store bytes read by readline(). This buffer using
- *         kernel stack space */
-static char *reading_buf;
-
-/** @brief For readline() syscall.
- *         lock to avoid any interrupt durring operation. Because interrupt 
- *         handlers are using interrupt gate which disable all interrupts, here
- *         we can not use mutex for protection. Because in mutex_lock(), it will
- *         call enable_interrupts() and make interrupt gate useless. */
-static spinlock_t reading_lock;
-
-
-/** @brief Initialize data structure for print() syscall */
-int syscall_print_init() {
-    return mutex_init(&print_lock);
-}
-
-/** @brief Initialize data structure for readline() syscall */
-int syscall_read_init() {
-    read_waiting_thr = NULL;
-
-    if (spinlock_init(&reading_lock) < 0)
-        return -1;
-
-    if (mutex_init(&read_lock) < 0)
-        return -2;
-
-    return 0;   
-}
 
 /** @brief System call handler for print()
  *
@@ -107,12 +56,30 @@ int print_syscall_handler(int len, char *buf, int is_kernel_call) {
         // Finish argument check
     }
 
-    // using mutex lock to avoid multiple print() interleaving
-    mutex_lock(&print_lock);
-    putbytes((const char*)buf, len);
-    mutex_unlock(&print_lock);
+    // Copy to kernel memory so that manager core can access it as well
+    char *kernel_buf = malloc(len);
+    if(kernel_buf == NULL) {
+        return ENOMEM;
+    }
+    memcpy(kernel_buf, buf, len);
 
-    return 0;
+    // Hand over to manager core
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+
+    // Construct message
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = PRINT;
+    this_thr->my_msg->data.print_data.len = len;
+    this_thr->my_msg->data.print_data.buf = kernel_buf;
+
+    context_switch(OP_SEND_MSG, 0);
+
+    free(kernel_buf);
+
+    return this_thr->my_msg->data.response_data.result;
+
 }
 
 /** @brief System call handler for readline()
@@ -156,96 +123,29 @@ int readline_syscall_handler(int len, char *buf) {
         return EINVAL;
     // Finish argument check
 
-    // using mutex lock to avoid multiple readline() interleaving
-    mutex_lock(&read_lock);
-
-    int rv = 0;
-
-    // kernel stack space is used to store bytes read by readline().
-    char kernel_buf[MAX_READLINE_BUF];
-
-    reading_count = 0;
-    reading_length = len;
-    reading_buf = kernel_buf;
-    
-    while (reading_count < reading_length) {
-        // spinlock is used to disable keyboard interrupt when manipulate data
-        // structures of keyboard driver and readline() syscall. 
-        spinlock_lock(&reading_lock, 1);
-        int ch = readchar();
-        if (ch == -1) {
-            // there is no data, block this thread. Keyboard interrupt handler
-            // will put data to buffer when input comes in. It will 
-            // wake up this thread when this readline() syscall completes.
-            read_waiting_thr = tcb_get_entry((void*)asm_get_esp());
-            
-            spinlock_unlock(&reading_lock, 1);
-
-            context_switch(OP_BLOCK, 0);
-
-            break;
-        } else {
-            if (!((char)ch == '\b' && reading_count == 0))
-                putbyte((char)ch);
-            spinlock_unlock(&reading_lock, 1);
-            
-            if ((char)ch == '\b')
-                reading_count = (reading_count == 0) ? 0 : (reading_count - 1);
-            else
-                reading_buf[reading_count++] = (char)ch;
-
-            if ((char)ch == '\n')
-                break;
-        }
-    }
-    
-    // copy data from kernel buffer to user buffer
-    memcpy(buf, reading_buf, reading_count);
-    rv = reading_count;
-
-    mutex_unlock(&read_lock);
-
-    return rv;
-}
-
-/** @brief Put input byte to the buffer of readline() and wake up blocked thread
- *         if readline() completes
- *
- *  This function should only be called by keyboard interrupt, so this function
- *  call will not be interrupted. It can manipulate data structure of readline()
- *  safely.
- * 
- *  @return Return the blocked thread that should be wakened up if readline() 
- *          completes, return NULL otherwise */
-void* resume_reading_thr(char ch) {
-    // echo input consumed by readline() to screen
-    if (!(ch == '\b' && reading_count == 0))
-        putbyte(ch);
-
-    if (ch == '\b')
-        reading_count = (reading_count == 0) ? 0 : (reading_count - 1);
-    else{
-        reading_buf[reading_count++] = ch;
+    char *kernel_buf = malloc(MAX_READLINE_BUF);
+    if(kernel_buf == NULL) {
+        return ENOMEM;
     }
 
-    // check if readline() completes
-    if (reading_count == reading_length || ch == '\n') {
-        tcb_t* rv = read_waiting_thr;
-        read_waiting_thr = NULL;
-        return (void*)rv;
-    }
+    // Hand over to manager core
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
 
-    return NULL;
-}
+    // Construct message
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = READLINE;
+    this_thr->my_msg->data.readline_data.kernel_buf = kernel_buf;
+    this_thr->my_msg->data.readline_data.len = len;
 
-/** @brief Check if there is any thread blocked on readline(), waiting for input
- *
- *  This function should only be called by keyboard interrupt, so this function
- *  call will not be interrupted. It can read value of read_waiting_thr safely.
- * 
- *  @return Return 1 if there is thread waiting, return zero otherwise */
-int has_read_waiting_thr() {
-    return (read_waiting_thr != NULL);
+    context_switch(OP_SEND_MSG, 0);
+
+    int reading_count = this_thr->my_msg->data.response_data.result;
+    memcpy(buf, kernel_buf, reading_count);
+    free(kernel_buf);
+
+    return reading_count;
 }
 
 
@@ -258,13 +158,18 @@ int has_read_waiting_thr() {
  */
 int set_term_color_syscall_handler(int color) {
 
-    // Wait while other threads are printing stuff
-    int ret;
-    mutex_lock(&print_lock);
-    ret = set_term_color(color);
-    mutex_unlock(&print_lock);
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
 
-    return ret;
+    // Construct message
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = SET_TERM_COLOR;
+    this_thr->my_msg->data.set_term_color_data.color = color;
+
+    context_switch(OP_SEND_MSG, 0);
+
+    return this_thr->my_msg->data.response_data.result;
 
 }
 
@@ -278,13 +183,19 @@ int set_term_color_syscall_handler(int color) {
  */
 int set_cursor_pos_syscall_handler(int row, int col) {
 
-    // Wait while other threads are printing stuff
-    int ret;
-    mutex_lock(&print_lock);
-    ret = set_cursor(row, col);
-    mutex_unlock(&print_lock);
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
 
-    return ret;
+    // Construct message
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = SET_CURSOR_POS;
+    this_thr->my_msg->data.set_cursor_pos_data.row = row;
+    this_thr->my_msg->data.set_cursor_pos_data.col = col;
+
+    context_switch(OP_SEND_MSG, 0);
+
+    return this_thr->my_msg->data.response_data.result;
 
 }
 
@@ -302,18 +213,25 @@ int get_cursor_pos_syscall_handler(int *row, int *col) {
     int is_check_null = 0;
     int max_len = sizeof(int);
     int need_writable = 1;
-    if(check_mem_validness((char *)row,max_len,is_check_null,need_writable)<0 ||
-       check_mem_validness((char *)col,max_len,is_check_null,need_writable)<0) {
+    if(check_mem_validness((char *)row,max_len,is_check_null,need_writable)<0 
+            || check_mem_validness((char *)col,max_len,is_check_null,
+                need_writable)<0) {
         return -1;
     }
 
-    // Since row and col are fetched in two steps, should be an atomic
-    // operation to make row and col related to one point
-    mutex_lock(&print_lock);
-    get_cursor(row, col);
-    mutex_unlock(&print_lock);
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+
+    // Construct message
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = GET_CURSOR_POS;
+
+    context_switch(OP_SEND_MSG, 0);
+
+    *row = this_thr->my_msg->data.get_cursor_pos_response_data.row;
+    *col = this_thr->my_msg->data.get_cursor_pos_response_data.col;
 
     return 0;
-
 }
 

@@ -25,9 +25,28 @@ typedef struct {
 } msg_data_set_term_color_t;
 
 typedef struct {
+    int len;
+    char *buf;
+} msg_data_print_t;
+
+typedef struct {
     int row;
-    int column;
+    int col;
 } msg_data_set_cursor_pos_t;
+
+typedef struct {
+    int len;
+    char *kernel_buf;
+} msg_data_readline_t;
+
+typedef struct {
+    int result;
+} msg_data_response_t;
+
+typedef struct {
+    int row;
+    int col;
+} msg_data_get_cursor_pos_response_t;
 
 typedef struct {
     void* req_msg;
@@ -72,7 +91,11 @@ typedef struct {
         msg_data_fork_response_t fork_response_data;
         msg_data_set_term_color_t set_term_color_data;
         msg_data_set_cursor_pos_t set_cursor_pos_data;
+        msg_data_readline_t readline_data;
+        msg_data_print_t print_data;
         msg_data_wait_response_t wait_response_data;
+        msg_data_get_cursor_pos_response_t get_cursor_pos_response_data;
+        msg_data_response_t response_data;
     } data;
 } msg_t;
 
