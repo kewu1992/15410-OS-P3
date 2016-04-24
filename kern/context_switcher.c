@@ -97,13 +97,11 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
-    // lprintf("before context switch: tid:%d at cpu%d, op:%d", this_thr->tid, smp_get_cpu(), op);
+    lprintf("before context switch: tid:%d at cpu%d, op:%d, cr3:%x", this_thr->tid, smp_get_cpu(), op, (unsigned int)get_cr3());
 
     asm_context_switch(op, arg, this_thr);
 
     this_thr = tcb_get_entry((void*)asm_get_esp());
-
-    // lprintf("after context switch: tid:%d at cpu%d, op:%d", this_thr->tid, smp_get_cpu(), op);
 
 
     // for child process of fork(), set cr3 to the new page table base
@@ -131,6 +129,9 @@ void context_switch(int op, uint32_t arg) {
     // after context switch, restore cr3
     if (this_thr->pcb->page_table_base != get_cr3())
         set_cr3(this_thr->pcb->page_table_base);
+
+
+    lprintf("after context switch: tid:%d at cpu%d, op:%d, cr3:%x", this_thr->tid, smp_get_cpu(), op, (unsigned int)get_cr3());
 
     // reset esp0
     set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp-1));
@@ -175,6 +176,7 @@ void context_switch(int op, uint32_t arg) {
                         put_next_zombie(node);
                     } else {
                         // Zombie thread is ready to be freed
+                        lprintf("thr %d reap zombie thr %d", this_thr->tid, zombie_thr->tid);
                         tcb_vanish_thread(zombie_thr);
                     }
                 }
@@ -346,7 +348,6 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 if (this_thr->state == NORMAL) {
                     this_thr->state = BLOCKED;
                 } else  {
-                    MAGIC_BREAK;
                     panic("strange state in context_switch(OP_BLOCK,0): %d", 
                                                             this_thr->state);
                 }

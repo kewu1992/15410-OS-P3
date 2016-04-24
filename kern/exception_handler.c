@@ -194,8 +194,9 @@ static void exception_interpret(int exception_type, uint32_t fault_va,
                     IS_SET(error_code, PG_US) ? "user" : "kernel",
                     IS_SET(error_code, PG_P) ? "protected" : "non-present",
                     (unsigned)fault_va);
-            print_syscall_handler(strlen(buf), buf, 1);
+            //print_syscall_handler(strlen(buf), buf, 1);
             lprintf(buf);
+            MAGIC_BREAK;
             break;
         case IDT_MF: 
             print_syscall_handler(strlen("X87 Math Fault"), 
@@ -236,7 +237,6 @@ static void exception_interpret(int exception_type, uint32_t fault_va,
  * @return void
  */
 void exception_handler(int exception_type) {
-
     // Get ureg value when exception happened
     ureg_t ureg;
     memset(&ureg, 0, sizeof(ureg_t));

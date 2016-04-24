@@ -80,7 +80,7 @@ void msg_synchronize() {
 }
 
 void worker_send_msg(msg_t* msg) {
-    //lprintf("thr %d at cpu%d send a msg, type:%d", ((tcb_t*)(msg->req_thr))->tid, msg->req_cpu, msg->type);
+    lprintf("thr %d at cpu%d send a msg, type:%d", ((tcb_t*)(msg->req_thr))->tid, msg->req_cpu, msg->type);
 
     int cur_cpu = smp_get_cpu();
 
@@ -102,14 +102,14 @@ msg_t* worker_recv_msg() {
     if (msg_node == NULL)
         return NULL;
     else {
-        //lprintf("cpu%d recv a msg (req thr:%d), type:%d", ((msg_t*)(msg_node->thr))->req_cpu, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
+        lprintf("cpu%d recv a msg (req thr:%d), type:%d", ((msg_t*)(msg_node->thr))->req_cpu, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
         return (msg_t*)(msg_node->thr);
     }
 }
 
 
 void manager_send_msg(msg_t* msg, int dest_cpu) {
-    //lprintf("manager send a msg, type:%d", msg->type);
+    lprintf("manager send a msg, type:%d", msg->type);
 
     int id = (dest_cpu - 1) * 2 + 1;
     spinlock_lock(msg_spinlocks[id], 0);
@@ -128,7 +128,7 @@ msg_t* manager_recv_msg() {
         i = (i + 2) % num_worker_cores;
     } while (msg_node == NULL);
 
-    //lprintf("manager recv a msg at cpu%d, req thr:%d, type:%d", i/2+1, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
+    lprintf("manager recv a msg at cpu%d, req thr:%d, type:%d", i/2+1, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
     return msg_node->thr;
 }
 

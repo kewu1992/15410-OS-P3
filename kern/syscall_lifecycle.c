@@ -69,6 +69,7 @@ static mutex_t* zombie_list_locks[MAX_CPUS];
  */
 int fork_syscall_handler() {
     context_switch(OP_FORK, 0);
+    MAGIC_BREAK;
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 

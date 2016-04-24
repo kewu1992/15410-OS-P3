@@ -844,6 +844,9 @@ uint32_t clone_pd() {
                         new_f | GET_CTRL_BITS(pt->pte[j]);
                     // Invalidate page in tlb as we update page table entry
                     asm_invalidate_tlb(va);
+                    
+                    lprintf("%x", (unsigned int)new_f);
+
                     memcpy((void *)va, frame_buf, PAGE_SIZE);
                     // Change back old page table entry to point to the old
                     // frame.

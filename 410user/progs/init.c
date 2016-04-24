@@ -7,6 +7,7 @@
  *  @status done
  */
 
+
 #include <syscall.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -16,14 +17,14 @@
 DEF_TEST_NAME("fork_exit_bomb:");
 
 int main(int argc, char *argv[]) {
-    //int pid = 0;
-    //int count = 0;
+    int pid = 0;
+    int count = 0;
 
-    //report_start(START_CMPLT);
+    report_start(START_CMPLT);
 
   lprintf("parent pid: %d", gettid());
 
-  /*
+  
   while(count < 1000) {
     if((pid = fork()) == 0) {
       exit(42);
@@ -36,8 +37,8 @@ int main(int argc, char *argv[]) {
   }
 
     report_end(END_SUCCESS);
-  exit(42);
-  */
+  
 
   while(1);
 }
+

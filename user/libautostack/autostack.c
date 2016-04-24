@@ -163,6 +163,7 @@ void swexn_handler(void *arg, ureg_t *ureg) {
  *  @return void
  */
 void install_autostack(void *stack_high, void *stack_low) {
+    /*
     // first get ebp of _main()
     void* ebp = (void*)asm_get_ebp();
     ebp__main = get_last_ebp(ebp);
@@ -171,10 +172,12 @@ void install_autostack(void *stack_high, void *stack_low) {
     root_thread_stack_high = (uint32_t)stack_high;
     root_thread_stack_low = (uint32_t)stack_low;
 
+
     // Initialize malloc library and allocate an exception stack
     if(malloc_init() < 0) {
         return;
     }
+
 
     void *new_base = malloc(EXCEPTION_STACK_SIZE);
     if(new_base == NULL) {
@@ -187,11 +190,13 @@ void install_autostack(void *stack_high, void *stack_low) {
         exn_stack_high--;
     }
 
+
     uint32_t esp3 = exn_stack_high;
     // Register exception handler
     if(swexn((void *)esp3, swexn_handler, NULL, NULL) < 0) {
         return;
     }
+    */
 }
 
 

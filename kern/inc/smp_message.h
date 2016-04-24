@@ -63,24 +63,24 @@ typedef struct {
 } msg_data_set_init_pcb_t;
 
 typedef enum {
-    FORK,
-    THREAD_FORK,
-    VANISH,
-    WAIT,
-    YIELD,
-    DESCHEDULE,
-    MAKE_RUNNABLE,
-    READLINE,
-    PRINT,
-    SET_TERM_COLOR,
-    SET_CURSOR_POS,
-    GET_CURSOR_POS,
-    SET_INIT_PCB,
-    RESPONSE,
+    FORK,           // 0
+    THREAD_FORK,    // 1
+    VANISH,         // 2
+    WAIT,           // 3
+    YIELD,          // 4
+    DESCHEDULE,     // 5
+    MAKE_RUNNABLE,  // 6
+    READLINE,       // 7
+    PRINT,          // 8
+    SET_TERM_COLOR, // 9
+    SET_CURSOR_POS, // 10
+    GET_CURSOR_POS, // 11
+    SET_INIT_PCB,   // 12
+    RESPONSE,       // 13
 
 
-    FORK_RESPONSE,
-    WAIT_RESPONSE,
+    FORK_RESPONSE,  // 14
+    WAIT_RESPONSE,  // 15
     NONE
 } msg_type_t;
 

@@ -46,6 +46,10 @@ static void ap_kernel_init(int cpu_id) {
 
     if (scheduler_init() < 0)
         panic("Initialize scheduler at cpu%d failed!", cpu_id);
+
+
+    if (syscall_vanish_init() < 0)
+        panic("Initialize vanish at cpu%d failed!", cpu_id);
 }
 
 

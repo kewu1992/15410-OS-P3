@@ -102,7 +102,7 @@ void smp_fork_response(msg_t* msg) {
 
         // add num_alive of child process for parent process
         mutex_lock(&ht_pid_pcb_lock);
-        pcb_vanish_wait_t* parent_task = (pcb_vanish_wait_t*)get_task(msg->data.fork_data.ppid);
+        pcb_vanish_wait_t* parent_task = (pcb_vanish_wait_t*)get_task(ori_msg->data.fork_data.ppid);
         mutex_unlock(&ht_pid_pcb_lock);
 
         mutex_lock(&parent_task->task_wait_struct.lock);
