@@ -94,11 +94,15 @@ int has_read_waiting_thr() {
 void smp_readline_syscall_handler(msg_t *msg) {
 
     // Check if some other thread is requesting readline(), if so, enqueue 
-    // current request.
+    // current request. This checking should be locked by spinlock to avoid
+    // keyboard interrupt during checking
+    spinlock_lock(&reading_lock, 1);
     if(has_read_waiting_thr()) {
         simple_queue_enqueue(&readline_queue, &(msg->node));
+        spinlock_unlock(&reading_lock, 1);
         return;
     }
+    spinlock_unlock(&reading_lock, 1);
 
     int len = msg->data.readline_data.len;
     char *kernel_buf = msg->data.readline_data.kernel_buf;

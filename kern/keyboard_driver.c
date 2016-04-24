@@ -105,7 +105,6 @@ void keyboard_interrupt_handler(){
     // if thr != NULL, it means readline() completes and the blocked thread 
     // should be wakened up
     if (thr) {
-
         msg_t *msg = ((tcb_t *)thr)->my_msg;
         manager_send_msg(msg, msg->req_cpu);
     }
