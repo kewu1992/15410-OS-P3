@@ -15,6 +15,7 @@
 .global asm_new_process_iret
 .global asm_idle_process_iret
 .global asm_mailbox_process_load
+.global asm_idle_process_load
 
 asm_new_process_iret:
     movl    4(%esp), %esp    # put new esp to %esp
@@ -39,3 +40,10 @@ asm_idle_process_iret:
 asm_mailbox_process_load:
     movl    4(%esp), %esp    # put new esp to %esp
     call    smp_manager_boot
+
+asm_idle_process_load:
+    movl    8(%esp), %eax    # store filename arg
+    movl    4(%esp), %esp    # put new esp to %esp
+    subl    $128, %esp       # reserve some space for loading 
+    pushl   %eax             # restore filename arg
+    call    load_idle_process

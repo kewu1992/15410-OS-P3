@@ -346,6 +346,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 if (this_thr->state == NORMAL) {
                     this_thr->state = BLOCKED;
                 } else  {
+                    MAGIC_BREAK;
                     panic("strange state in context_switch(OP_BLOCK,0): %d", 
                                                             this_thr->state);
                 }

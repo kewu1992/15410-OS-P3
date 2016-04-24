@@ -99,11 +99,11 @@ void kernel_init() {
     // Initialize system call specific data structure
 
     
-    if (syscall_print_init() < 0)
-        panic("Initialize syscall print() failed!");
+    //if (syscall_print_init() < 0)
+    //    panic("Initialize syscall print() failed!");
 
-    if (syscall_read_init() < 0)
-        panic("Initialize syscall readline() failed!");
+    //if (syscall_read_init() < 0)
+    //    panic("Initialize syscall readline() failed!");
 
     if (syscall_sleep_init() < 0)
         panic("Initialize syscall sleep() failed!");

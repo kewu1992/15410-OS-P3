@@ -325,10 +325,20 @@ static pcb_t* init_task;
 /** @brief Record init task's pcb
  *
  * @param init_pcb The init task's pcb
- * @return Void
+ * @return On success return 0, on error return -1
  */
-void set_init_pcb(pcb_t *init_pcb) {
+int set_init_pcb(pcb_t *init_pcb) {
     init_task = init_pcb; 
+
+    // construct message
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = SET_INIT_PCB;
+    this_thr->my_msg->data.set_init_pcb_data.pid = init_pcb->pid;
+    context_switch(OP_SEND_MSG, 0);
+
+    return this_thr->my_msg->data.response_data.result;
 }
 
 
@@ -432,8 +442,7 @@ void vanish_syscall_handler(int is_kernel_kill) {
         // exit status to its father and free resources used by this task
 
         if(is_kernel_kill) {
-            // The thread is killed by the kernel
-            // set_status(-2) first
+            // The thread is killed by the kernel set_status(-2) first
             this_task->status = -2;
         }
 

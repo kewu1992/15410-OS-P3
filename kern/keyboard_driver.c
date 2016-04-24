@@ -77,6 +77,8 @@ void keyboard_interrupt_handler(){
     }
 
     void* thr = 0;
+
+    /*
     if (has_read_waiting_thr()) {
         // some threads are waiting for input, try to process scancode and
         // fill buffer of readline()
@@ -96,6 +98,7 @@ void keyboard_interrupt_handler(){
         if (ch != -1)
             thr = resume_reading_thr((char)ch);
     }
+    */
 
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
 
