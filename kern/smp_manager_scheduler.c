@@ -4,6 +4,7 @@
 #include <smp_syscall.h>
 #include <simics.h>
 #include <stdlib.h>
+#include <timer_driver.h>
 
 
 #define NUM_WORKER_THR  16
@@ -45,6 +46,9 @@ void smp_manager_boot() {
     }
     */
 
+    // Init lapic timer
+    init_lapic_timer_driver();
+
     // Boot AP kernels after initilization is done
     smp_boot(ap_kernel_main);
 
@@ -74,6 +78,7 @@ void smp_manager_boot() {
         case VANISH:
             smp_syscall_vanish(msg);
             break;
+        /*
         case SET_CURSOR_POS:
             smp_set_cursor_pos_syscall_handler(msg);
             break;
@@ -89,6 +94,10 @@ void smp_manager_boot() {
         case PRINT:
             smp_print_syscall_handler(msg);
             break;
+        */
+        case SET_INIT_PCB:
+             smp_set_init_pcb(msg);
+             break;
         default:
             break;
         }

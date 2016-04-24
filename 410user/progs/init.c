@@ -8,34 +8,36 @@
  */
 
 #include <syscall.h>
+#include <stdlib.h>
 #include <stdio.h>
-#include <simics.h>
+#include "410_tests.h"
+#include <report.h>
 
-int main()
-{
+DEF_TEST_NAME("fork_exit_bomb:");
+
+int main(int argc, char *argv[]) {
+    //int pid = 0;
+    //int count = 0;
+
+    //report_start(START_CMPLT);
+
+  lprintf("parent pid: %d", gettid());
+
   /*
-  int pid, exitstatus;
-  char shell[] = "shell";
-  char * args[] = {shell, 0};
-
-  
-  while(1) {
-    pid = fork();
-    if (!pid)
-      exec(shell, args);
-    
-    while (pid != wait(&exitstatus));
-  
-    printf("Shell exited with status %d; starting it back up...", exitstatus);
+  while(count < 1000) {
+    if((pid = fork()) == 0) {
+      exit(42);
+    }
+    if(pid < 0) {
+      break;
+    }
+    count++;
+        report_fmt("child: %d", pid);
   }
-  */
 
-  lprintf("enter init");
-  
-  if(fork() == 0) 
-    lprintf("I am child");
-  else
-    lprintf("I am parent");
+    report_end(END_SUCCESS);
+  exit(42);
+  */
 
   while(1);
 }

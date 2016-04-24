@@ -72,6 +72,8 @@ extern void asm_idle_process_iret(void *esp);
 
 extern void asm_mailbox_process_load(void *esp);
 
+extern void asm_idle_process_load(void* esp, const char *filename);
+
 /** @brief The initial value of EFLAGS that will be set to every new process */
 static uint32_t init_eflags;
 
@@ -136,17 +138,22 @@ int getbytes( const char *filename, int offset, int size, char *buf )
  *  @return Should never return
  */
 void loadFirstTask(const char *filename) {  
-
-    void *my_program, *usr_esp;
-    int rv;
-
     // create the idle process
     tcb_t *thread = tcb_create_idle_process(NORMAL, get_cr3());
     if (thread == NULL)
         panic("Load first task failed for cpu%d", smp_get_cpu());
 
+    asm_idle_process_load(thread->k_stack_esp, filename);
+}
+
+void load_idle_process(const char *filename) {
+    tcb_t* thread = tcb_get_entry((void*)asm_get_esp());
+
     // Init lapic timer
     init_lapic_timer_driver();
+
+    void *my_program, *usr_esp;
+    int rv;
 
     const char *argv[1] = {filename};
     if ((rv = loadTask(filename, 1, argv, &usr_esp, &my_program)) < 0)
@@ -347,7 +354,8 @@ void idle_process_init() {
     
     // fork
     context_switch(OP_FORK, 0);
-    if (tcb_get_entry((void*)asm_get_esp())->result == 0) {       
+    if (tcb_get_entry((void*)asm_get_esp())->result == 0) {  
+
         // child process, exec(init)
         char my_execname[] = "init";
         char *argv[] = {my_execname, 0};
@@ -377,8 +385,10 @@ void idle_process_init() {
         // modify tcb
         this_thr->k_stack_esp = tcb_get_high_addr((void*)asm_get_esp());
 
-        // reset init_pcb (who-to-reap-orphan-process) as the second pcb 
-        set_init_pcb(this_thr->pcb);
+        // set init_pcb (who-to-reap-orphan-process) 
+        if (set_init_pcb(this_thr->pcb) < 0) {
+            panic("set_init_pcb() failed");
+        }
 
         lprintf("Ready to load init process");
         // load kernel stack, jump to new program
@@ -398,9 +408,6 @@ void loadMailboxTask() {
     tcb_t *thread = tcb_create_idle_process(NORMAL, get_cr3());
     if (thread == NULL)
         panic("Load mailbox task failed");
-
-    // Init lapic timer
-    init_lapic_timer_driver();
 
     // set idle thread as NULL
     idle_thr[0] = NULL;

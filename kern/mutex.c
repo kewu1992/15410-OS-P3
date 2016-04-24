@@ -183,6 +183,7 @@ void mutex_unlock(mutex_t *mp) {
     }
 
     if (mp->lock_holder == -1) {
+        MAGIC_BREAK;
         panic("try to unlock an unlocked mutex %p", mp);
     }
 

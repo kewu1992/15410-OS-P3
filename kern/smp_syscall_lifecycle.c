@@ -58,7 +58,9 @@ static int fork_next_core = 0;
 
 extern int num_worker_cores;
 
+static int create_pcb_vanish_wait_struct(int pid);
 
+static void free_pcb_vanish_wait_struct(pcb_vanish_wait_t* pcb);
 
 
 /** @brief The initial size of hash table to stroe pid to pcb map,
@@ -77,107 +79,21 @@ static mutex_t ht_pid_pcb_lock;
 
 
 void smp_syscall_fork(msg_t* msg) {
-    
-    /***************************************************
-     * Start creating pcb_vanish_wait_t for the new task
-     ***************************************************/
-
-    pcb_vanish_wait_t* process = malloc(sizeof(pcb_vanish_wait_t));
-    if (process == NULL) {
+     if (create_pcb_vanish_wait_struct(msg->data.fork_data.new_tid) < 0) {
+        // create_pcb_vanish_wait_struct failed, return error
         // change message type to response
         msg->type = FORK_RESPONSE;
         msg->data.fork_response_data.result = -1;
         // send response back to the thread calling fork()
         manager_send_msg(msg, msg->req_cpu);
-    }
-
-    int pid = msg->data.fork_data.new_tid;
-    // Put pid to pcb mapping in hashtable
-    if (ht_put_task(pid, process) < 0) {
-        // out of memory
-        free(process);
-        msg->type = FORK_RESPONSE;
-        msg->data.fork_response_data.result = -1;
-        manager_send_msg(msg, msg->req_cpu);
-    }
-
-    process->exit_status = malloc(sizeof(exit_status_t));
-    if (process->exit_status == NULL) {
-        // out of memory
-        free(process);
-        msg->type = FORK_RESPONSE;
-        msg->data.fork_response_data.result = -1;
-        manager_send_msg(msg, msg->req_cpu);
-    }
-    process->exit_status->pid = pid;
-    // Initially exit status is 0
-    process->exit_status->status = 0;
-
-    process->exit_status_node = malloc(sizeof(simple_node_t));
-    if (process->exit_status_node == NULL) {
-        // out of memory
-        ht_remove_task(pid);
-        free(process->exit_status);
-        free(process);
-        msg->type = FORK_RESPONSE;
-        msg->data.fork_response_data.result = -1;
-        manager_send_msg(msg, msg->req_cpu);
-    }
-    process->exit_status_node->thr = (void*)process->exit_status;
-
-    if(simple_queue_init(&process->child_exit_status_list) < 0) {
-        free(process->exit_status_node);
-        ht_remove_task(pid);
-        free(process->exit_status);
-        free(process);
-        msg->type = FORK_RESPONSE;
-        msg->data.fork_response_data.result = -1;
-        manager_send_msg(msg, msg->req_cpu);
-    }
-
-    // Initialize task wait struct
-    task_wait_t *task_wait = &process->task_wait_struct;
-    if(simple_queue_init(&task_wait->wait_queue) < 0) {
-        simple_queue_destroy(&process->child_exit_status_list);
-        free(process->exit_status_node);
-        ht_remove_task(pid);
-        free(process->exit_status);
-        free(process);
-        msg->type = FORK_RESPONSE;
-        msg->data.fork_response_data.result = -1;
-        manager_send_msg(msg, msg->req_cpu);
-    }
-    if(mutex_init(&task_wait->lock) < 0) {
-        simple_queue_destroy(&task_wait->wait_queue);
-        simple_queue_destroy(&process->child_exit_status_list);
-        free(process->exit_status_node);
-        ht_remove_task(pid);
-        free(process->exit_status);
-        free(process);
-        msg->type = FORK_RESPONSE;
-        msg->data.fork_response_data.result = -1;
-        manager_send_msg(msg, msg->req_cpu);
-    }
-    // Initially 0 alive child task
-    task_wait->num_alive = 0;
-    // Initially 0 zombie child task
-    task_wait->num_zombie = 0;
-
-    /***************************************************
-     * Finish creating pcb_vanish_wait_t for the new task
-     ***************************************************/
+     }
 
     // send fork message to another call to continue executing fork()
     manager_send_msg(msg, fork_next_core+1); // add one to skip core 0
     fork_next_core = (fork_next_core + 1) % num_worker_cores;
 }
 
-static void free_pcb_vanish_wait(pcb_vanish_wait_t* pcb) {
-    mutex_destroy(&pcb->task_wait_struct.lock);
-    simple_queue_destroy(&pcb->task_wait_struct.wait_queue);
-    simple_queue_destroy(&pcb->child_exit_status_list);
-    free(pcb);
-}
+
 
 void smp_fork_response(msg_t* msg) {
     msg_t* ori_msg;
@@ -194,7 +110,6 @@ void smp_fork_response(msg_t* msg) {
         mutex_unlock(&parent_task->task_wait_struct.lock);
 
         // change the type of the original message to FORK_RESPONSE
-        
         ori_msg->type = FORK_RESPONSE;
         ori_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
 
@@ -209,9 +124,14 @@ void smp_fork_response(msg_t* msg) {
         if (ori_msg->data.fork_data.retry_times == num_worker_cores) {
             // reach the maximum retry times, just return failed
 
+            // remove pid from map
+            ht_remove_task(msg->data.fork_data.new_tid);
 
-            // TODO: free pcb_vanish_wait_t and remove pid***********
-
+            // free pcb_vanish_wait_t 
+            mutex_lock(&ht_pid_pcb_lock);
+            pcb_vanish_wait_t* this_task = (pcb_vanish_wait_t*)get_task(msg->data.fork_data.new_tid);
+            mutex_unlock(&ht_pid_pcb_lock);
+            free_pcb_vanish_wait_struct(this_task);
 
             ori_msg->type = FORK_RESPONSE;
             ori_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
@@ -299,11 +219,27 @@ int smp_syscall_vanish_init() {
     return 0;
 }
 
+void smp_set_init_pcb(msg_t* msg) {  
+    int rv = create_pcb_vanish_wait_struct(msg->data.set_init_pcb_data.pid);
+    if (rv == 0) {
+        mutex_lock(&ht_pid_pcb_lock);
+        init_task = (pcb_vanish_wait_t*)get_task(msg->data.set_init_pcb_data.pid);
+        mutex_unlock(&ht_pid_pcb_lock);
+    }
+    
+    msg->type = RESPONSE;
+    msg->data.response_data.result = rv;
+    manager_send_msg(msg, msg->req_cpu);
+}
+
 
 void smp_syscall_vanish(msg_t* msg) {
     mutex_lock(&ht_pid_pcb_lock);
     pcb_vanish_wait_t* this_task = (pcb_vanish_wait_t*)get_task(msg->data.vanish_data.pid);
     mutex_unlock(&ht_pid_pcb_lock);
+    if (this_task == NULL) {
+        panic("Can not find pcb_vanish_wait_t in smp_syscall_vanish()");
+    }
 
     // Get hashtable's lock
     mutex_lock(&ht_pid_pcb_lock);
@@ -311,8 +247,7 @@ void smp_syscall_vanish(msg_t* msg) {
     pcb_vanish_wait_t *parent_task = get_task(msg->data.vanish_data.ppid);
 
     if(parent_task == NULL) {
-        // Parent is dead 
-        // Report to init task
+        // Parent is dead, report to init task
         parent_task = init_task;
     }
 
@@ -338,9 +273,9 @@ void smp_syscall_vanish(msg_t* msg) {
             simple_queue_dequeue(&parent_task->child_exit_status_list);
         mutex_unlock(&task_wait->lock);
 
-        exit_status_t *es = (exit_status_t*)exit_status_node->thr;
+        exit_status_t *es = (exit_status_t*)(exit_status_node->thr);
 
-        msg_t* wait_msg = (msg_t *)wait_node->thr;
+        msg_t* wait_msg = (msg_t *)(wait_node->thr);
         wait_msg->type = WAIT_RESPONSE;
         wait_msg->data.wait_response_data.pid = es->pid;
         wait_msg->data.wait_response_data.status = es->status;
@@ -353,13 +288,6 @@ void smp_syscall_vanish(msg_t* msg) {
         mutex_unlock(&task_wait->lock);
     }
     // ======= End report exit status to its parent or init task ==========
-
-    // Free resources (page table, hash table entry and pcb) for this task
-    //uint32_t old_pd = this_task->page_table_base;
-
-    // Free old address space
-    //int need_unreserve_frames = 1;
-    //free_entire_space(old_pd, need_unreserve_frames);
 
     // Get hashtable's lock
     mutex_lock(&ht_pid_pcb_lock);
@@ -403,9 +331,9 @@ void smp_syscall_vanish(msg_t* msg) {
                 simple_queue_dequeue(&init_task->child_exit_status_list);
             mutex_unlock(&init_task_wait->lock);
 
-            exit_status_t *es = (exit_status_t*)exit_status_node->thr;
+            exit_status_t *es = (exit_status_t*)(exit_status_node->thr);
 
-            msg_t* wait_msg = (msg_t *)wait_node->thr;
+            msg_t* wait_msg = (msg_t *)(wait_node->thr);
             wait_msg->type = WAIT_RESPONSE;
             wait_msg->data.wait_response_data.pid = es->pid;
             wait_msg->data.wait_response_data.status = es->status;
@@ -413,13 +341,12 @@ void smp_syscall_vanish(msg_t* msg) {
             free(exit_status_node);
 
             manager_send_msg(wait_msg, wait_msg->req_cpu);
-        } else{
+        } else
             mutex_unlock(&init_task_wait->lock);
-        }
     } else
         mutex_unlock(&init_task_wait->lock);
 
-    free_pcb_vanish_wait(this_task);
+    free_pcb_vanish_wait_struct(this_task);
 
     msg->type = RESPONSE;
     manager_send_msg(msg, msg->req_cpu);
@@ -436,7 +363,7 @@ void smp_syscall_wait(msg_t* msg) {
 
     task_wait_t *wait = &(pcb->task_wait_struct);
 
-    
+
     mutex_lock(&wait->lock);
     // check if can reap
     if (wait->num_zombie == 0 && 
@@ -459,7 +386,7 @@ void smp_syscall_wait(msg_t* msg) {
             simple_queue_dequeue(&pcb->child_exit_status_list);
         mutex_unlock(&wait->lock);
 
-        exit_status_t *es = (exit_status_t*)exit_status_node->thr;
+        exit_status_t *es = (exit_status_t*)(exit_status_node->thr);
 
         msg->type = WAIT_RESPONSE;
         msg->data.wait_response_data.pid = es->pid;
@@ -473,4 +400,77 @@ void smp_syscall_wait(msg_t* msg) {
 }
 
 
+static int create_pcb_vanish_wait_struct(int pid) {
+    pcb_vanish_wait_t* process = malloc(sizeof(pcb_vanish_wait_t));
+    if (process == NULL)
+        return -1;
 
+    // Put pid to pcb mapping in hashtable
+    if (ht_put_task(pid, process) < 0) {
+        // out of memory
+        free(process);
+        return -1;
+    }
+
+    process->exit_status = malloc(sizeof(exit_status_t));
+    if (process->exit_status == NULL) {
+        // out of memory
+        ht_remove_task(pid);
+        free(process);
+        return -1;
+    }
+    process->exit_status->pid = pid;
+    // Initially exit status is 0
+    process->exit_status->status = 0;
+
+    process->exit_status_node = malloc(sizeof(simple_node_t));
+    if (process->exit_status_node == NULL) {
+        // out of memory
+        ht_remove_task(pid);
+        free(process->exit_status);
+        free(process);
+        return -1;
+    }
+    process->exit_status_node->thr = (void*)process->exit_status;
+
+    if(simple_queue_init(&process->child_exit_status_list) < 0) {
+        free(process->exit_status_node);
+        ht_remove_task(pid);
+        free(process->exit_status);
+        free(process);
+        return -1;
+    }
+
+    // Initialize task wait struct
+    task_wait_t *task_wait = &process->task_wait_struct;
+    if(simple_queue_init(&task_wait->wait_queue) < 0) {
+        simple_queue_destroy(&process->child_exit_status_list);
+        free(process->exit_status_node);
+        ht_remove_task(pid);
+        free(process->exit_status);
+        free(process);
+        return -1;
+    }
+    if(mutex_init(&task_wait->lock) < 0) {
+        simple_queue_destroy(&task_wait->wait_queue);
+        simple_queue_destroy(&process->child_exit_status_list);
+        free(process->exit_status_node);
+        ht_remove_task(pid);
+        free(process->exit_status);
+        free(process);
+        return -1;
+    }
+    // Initially 0 alive child task
+    task_wait->num_alive = 0;
+    // Initially 0 zombie child task
+    task_wait->num_zombie = 0;
+
+    return 0;
+}
+
+static void free_pcb_vanish_wait_struct(pcb_vanish_wait_t* pcb) {
+    mutex_destroy(&pcb->task_wait_struct.lock);
+    simple_queue_destroy(&pcb->task_wait_struct.wait_queue);
+    simple_queue_destroy(&pcb->child_exit_status_list);
+    free(pcb);
+}

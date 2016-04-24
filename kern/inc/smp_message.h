@@ -58,6 +58,10 @@ typedef struct {
     int pid;
 }msg_data_wait_response_t;
 
+typedef struct {
+    int pid;
+} msg_data_set_init_pcb_t;
+
 typedef enum {
     FORK,
     THREAD_FORK,
@@ -71,6 +75,7 @@ typedef enum {
     SET_TERM_COLOR,
     SET_CURSOR_POS,
     GET_CURSOR_POS,
+    SET_INIT_PCB,
     RESPONSE,
 
 
@@ -96,6 +101,7 @@ typedef struct {
         msg_data_wait_response_t wait_response_data;
         msg_data_get_cursor_pos_response_t get_cursor_pos_response_data;
         msg_data_response_t response_data;
+        msg_data_set_init_pcb_t set_init_pcb_data;
     } data;
 } msg_t;
 
