@@ -97,7 +97,7 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
-    lprintf("before context switch: tid:%d at cpu%d, op:%d, cr3:%x", this_thr->tid, smp_get_cpu(), op, (unsigned int)get_cr3());
+    //lprintf("before context switch: tid:%d at cpu%d, op:%d, cr3:%x", this_thr->tid, smp_get_cpu(), op, (unsigned int)get_cr3());
 
     asm_context_switch(op, arg, this_thr);
 
@@ -131,7 +131,7 @@ void context_switch(int op, uint32_t arg) {
         set_cr3(this_thr->pcb->page_table_base);
 
 
-    lprintf("after context switch: tid:%d at cpu%d, op:%d, cr3:%x", this_thr->tid, smp_get_cpu(), op, (unsigned int)get_cr3());
+    //lprintf("after context switch: tid:%d at cpu%d, op:%d, cr3:%x", this_thr->tid, smp_get_cpu(), op, (unsigned int)get_cr3());
 
     // reset esp0
     set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp-1));

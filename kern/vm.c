@@ -830,8 +830,6 @@ uint32_t clone_pd() {
                     // Allocate a new frame
                     uint32_t new_f = get_frames_raw();
 
-                    lprintf("new_f: 0x%x", (unsigned)new_f);
-
                     // Find out the corresponding virtual address that the
                     // current page table entry points to.
                     uint32_t va = GET_VA_BASE(i, j);
