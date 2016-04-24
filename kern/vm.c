@@ -830,6 +830,8 @@ uint32_t clone_pd() {
                     // Allocate a new frame
                     uint32_t new_f = get_frames_raw();
 
+                    lprintf("new_f: 0x%x", (unsigned)new_f);
+
                     // Find out the corresponding virtual address that the
                     // current page table entry points to.
                     uint32_t va = GET_VA_BASE(i, j);
@@ -845,7 +847,6 @@ uint32_t clone_pd() {
                     // Invalidate page in tlb as we update page table entry
                     asm_invalidate_tlb(va);
                     
-                    lprintf("%x", (unsigned int)new_f);
 
                     memcpy((void *)va, frame_buf, PAGE_SIZE);
                     // Change back old page table entry to point to the old

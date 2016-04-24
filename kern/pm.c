@@ -50,7 +50,7 @@ uint32_t get_frames_raw() {
     }
 
     uint32_t new_frame = USER_MEM_START + index * PAGE_SIZE + 
-        cur_cpu * num_free_frames_per_core;
+        cur_cpu * num_free_frames_per_core * PAGE_SIZE;
 
     if(new_frame == lapic_base) {
         return get_frames_raw();
@@ -71,8 +71,8 @@ void free_frames_raw(uint32_t base) {
 
     int cur_cpu = smp_get_cpu();
 
-    int index = (base - cur_cpu * num_free_frames_per_core - USER_MEM_START) 
-        / PAGE_SIZE;
+    int index = (base - cur_cpu * num_free_frames_per_core * PAGE_SIZE - 
+            USER_MEM_START) / PAGE_SIZE;
 
     mutex_lock(lock[cur_cpu]);
     put_back(index);
