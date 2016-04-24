@@ -152,6 +152,9 @@ void load_idle_process(const char *filename) {
     // Init lapic timer
     init_lapic_timer_driver();
 
+    lprintf("Lapic timer inited for cpu%d", smp_get_cpu());
+
+
     void *my_program, *usr_esp;
     int rv;
 

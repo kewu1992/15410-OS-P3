@@ -78,7 +78,6 @@ void smp_manager_boot() {
         case VANISH:
             smp_syscall_vanish(msg);
             break;
-        /*
         case SET_CURSOR_POS:
             smp_set_cursor_pos_syscall_handler(msg);
             break;
@@ -94,7 +93,6 @@ void smp_manager_boot() {
         case PRINT:
             smp_print_syscall_handler(msg);
             break;
-        */
         case SET_INIT_PCB:
              smp_set_init_pcb(msg);
              break;

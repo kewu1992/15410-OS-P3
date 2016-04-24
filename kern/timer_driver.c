@@ -118,6 +118,11 @@ void apic_timer_interrupt_handler() {
 
     int cur_cpu = smp_get_cpu();
 
+    // DEBUG
+    if(cur_cpu == 1) {
+        lprintf("Apic timer comes for cpu 1");
+    }
+
     (*apic_num_ticks[cur_cpu])++;
 
     // Acknowledge interrupt
