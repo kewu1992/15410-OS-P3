@@ -96,6 +96,12 @@ void smp_manager_boot() {
         case SET_INIT_PCB:
              smp_set_init_pcb(msg);
              break;
+        case MAKE_RUNNABLE:
+             smp_make_runnable_syscall_handler(msg);
+             break;
+        case DESCHEDULE:
+             smp_deschedule_syscall_handler(msg);
+             break;
         default:
             break;
         }

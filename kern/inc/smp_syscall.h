@@ -23,6 +23,10 @@ void smp_set_cursor_pos_syscall_handler(msg_t *msg);
 
 void smp_set_term_color_syscall_handler(msg_t *msg);
 
+void smp_deschedule_syscall_handler(msg_t *msg);
+
+void smp_make_runnable_syscall_handler(msg_t *msg);
+
 void smp_set_init_pcb(msg_t* msg);
 
 #endif

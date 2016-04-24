@@ -26,10 +26,6 @@
 static mutex_t print_lock;
 
 /** @brief For readline() syscall.
- *         The mutex to prevent mulitple readline() from interleaving */
-static mutex_t read_lock;
-
-/** @brief For readline() syscall.
  *         The thread that is blocked on readline() and waiting for input. 
  *         If there is no thread waiting for input, this variable should be 
  *         NULL. */
@@ -56,6 +52,8 @@ static char *reading_buf;
  *         call enable_interrupts() and make interrupt gate useless. */
 static spinlock_t reading_lock;
 
+/** @brief A queue for threads requesting readline() */
+static simple_queue_t readline_queue;
 
 /** @brief Initialize data structure for print() syscall */
 int syscall_print_init() {
@@ -69,19 +67,41 @@ int syscall_read_init() {
     if (spinlock_init(&reading_lock) < 0)
         return -1;
 
-    if (mutex_init(&read_lock) < 0)
-        return -2;
+    if(simple_queue_init(&readline_queue) < 0)
+        return -1;
 
     return 0;   
 }
 
+/** @brief Check if there is any thread blocked on readline(), waiting for input
+ *
+ *  This function should only be called by keyboard interrupt, so this function
+ *  call will not be interrupted. It can read value of read_waiting_thr safely.
+ * 
+ *  @return Return 1 if there is thread waiting, return zero otherwise */
+int has_read_waiting_thr() {
+    return (read_waiting_thr != NULL);
+}
+
+
+/** @brief Multi-core version of readline syscall handler that's on manager 
+ *  core side
+ *
+ *  @param msg The message that contains the readline request
+ *
+ *  @return void
+ */
 void smp_readline_syscall_handler(msg_t *msg) {
+
+    // Check if some other thread is requesting readline(), if so, enqueue 
+    // current request.
+    if(has_read_waiting_thr()) {
+        simple_queue_enqueue(&readline_queue, &(msg->node));
+        return;
+    }
 
     int len = msg->data.readline_data.len;
     char *kernel_buf = msg->data.readline_data.kernel_buf;
-
-    // using mutex lock to avoid multiple readline() interleaving
-    mutex_lock(&read_lock);
 
     reading_count = 0;
     reading_length = len;
@@ -96,13 +116,14 @@ void smp_readline_syscall_handler(msg_t *msg) {
             // there is no data, block this thread. Keyboard interrupt handler
             // will put data to buffer when input comes in. It will 
             // wake up this thread when this readline() syscall completes.
-            read_waiting_thr = tcb_get_entry((void*)asm_get_esp());
+            read_waiting_thr = msg->req_thr;
+
+            // No need to enqueue since there's no other request
 
             spinlock_unlock(&reading_lock, 1);
 
-            context_switch(OP_BLOCK, 0);
+            return;
 
-            break;
         } else {
             if (!((char)ch == '\b' && reading_count == 0))
                 putbyte((char)ch);
@@ -117,9 +138,6 @@ void smp_readline_syscall_handler(msg_t *msg) {
                 break;
         }
     }
-
-    mutex_unlock(&read_lock);
-
 
     msg->type = RESPONSE;
     msg->data.response_data.result = reading_count;
@@ -149,27 +167,43 @@ void* resume_reading_thr(char ch) {
 
     // check if readline() completes
     if (reading_count == reading_length || ch == '\n') {
+
+        // readline() completes
+        msg_t* msg = read_waiting_thr->my_msg;
+        msg->type = RESPONSE;
+        msg->data.response_data.result = reading_count;
         tcb_t* rv = read_waiting_thr;
-        read_waiting_thr = NULL;
+
+        // Serve next readline request
+        simple_node_t *readline_node = 
+                simple_queue_dequeue(&readline_queue);
+        if(readline_node != NULL) {
+            msg_t* next_msg = (msg_t *)(readline_node->thr);
+            int len = next_msg->data.readline_data.len;
+            char *kernel_buf = next_msg->data.readline_data.kernel_buf;
+            reading_count = 0;
+            reading_length = len;
+            reading_buf = kernel_buf;
+            read_waiting_thr = msg->req_thr;
+        } else {
+            read_waiting_thr = NULL;
+        }
+
         return (void*)rv;
+
     }
 
     return NULL;
 }
 
-/** @brief Check if there is any thread blocked on readline(), waiting for input
+
+/** @brief Multi-core version of get_cursor_pos syscall handler that's on 
+ *  manager core side
  *
- *  This function should only be called by keyboard interrupt, so this function
- *  call will not be interrupted. It can read value of read_waiting_thr safely.
- * 
- *  @return Return 1 if there is thread waiting, return zero otherwise */
-int has_read_waiting_thr() {
-    return (read_waiting_thr != NULL);
-}
-
-
-
-
+ *  @param msg The message that contains the get_cursor_pos request
+ *
+ *  @return void
+ */
 void smp_get_cursor_pos_syscall_handler(msg_t *msg) {
 
     int row;
@@ -189,6 +223,13 @@ void smp_get_cursor_pos_syscall_handler(msg_t *msg) {
 }
 
 
+/** @brief Multi-core version of print syscall handler that's on manager 
+ *  core side
+ *
+ *  @param msg The message that contains the print request
+ *
+ *  @return void
+ */
 void smp_print_syscall_handler(msg_t *msg) {
 
     int len = msg->data.print_data.len;
@@ -206,6 +247,13 @@ void smp_print_syscall_handler(msg_t *msg) {
 }
 
 
+/** @brief Multi-core version of set_cursor_pos syscall handler that's on 
+ *  manager core side
+ *
+ *  @param msg The message that contains the set_cursor_pos request
+ *
+ *  @return void
+ */
 void smp_set_cursor_pos_syscall_handler(msg_t *msg) {
 
     int row = msg->data.set_cursor_pos_data.row;
@@ -223,6 +271,13 @@ void smp_set_cursor_pos_syscall_handler(msg_t *msg) {
 }
 
 
+/** @brief Multi-core version of set_term_color syscall handler that's on 
+ *  manager core side
+ *
+ *  @param msg The message that contains the set_term_color request
+ *
+ *  @return void
+ */
 void smp_set_term_color_syscall_handler(msg_t *msg) {
 
     int color = msg->data.set_term_color_data.color;

@@ -21,6 +21,8 @@
 #include <exception_handler.h>
 #include <syscall_errors.h>
 
+#include <smp.h>
+
 /** @brief For sleep() syscall.
  *         The data field for node of sleep priority queue */
 typedef struct {
@@ -42,29 +44,12 @@ static pri_queue sleep_queue;
  *         of sleep() */
 static spinlock_t sleep_lock;
 
-/** @brief For deschedule() and make_runnable() syscalls.
- *         All threads that are blocked because of deschedule() will be stored 
- *         in this queue. make_runnable() will try to find the thread to be 
- *         made runable in this queue */
-static simple_queue_t deschedule_queue;
-
-/** @brief For deschedule() and make_runnable() syscalls.
- *         Mutex lock to protect deschedule_queue */
-static mutex_t deschedule_mutex;
-
 static int sleep_queue_compare(void* this, void* that);
 
 /** @brief Initialize data structure for sleep() syscall */
 int syscall_sleep_init() {
     int error = pri_queue_init(&sleep_queue, sleep_queue_compare);
     error |= spinlock_init(&sleep_lock);
-    return error ? -1 : 0;
-}
-
-/** @brief Initialize data structure for deschedule() syscall */
-int syscall_deschedule_init() {
-    int error = simple_queue_init(&deschedule_queue);
-    error |= mutex_init(&deschedule_mutex);
     return error ? -1 : 0;
 }
 
@@ -351,27 +336,22 @@ int deschedule_syscall_handler(int *reject) {
                 need_writable) < 0) {
         return EFAULT;
     }
+    // Finish parameter check
 
-    // using mutex to protect deschedule_queue, it also make sure examine the 
-    // value of *reject and block the thread (at here it is done by put the 
-    // thread in the deschedule_queue) is atomic with respect to make runnable()
-    mutex_lock(&deschedule_mutex);
-    if (*reject) {
-        mutex_unlock(&deschedule_mutex);
-        return 0;
-    }
-    simple_node_t node;
-    node.thr = tcb_get_entry((void*)asm_get_esp());
+    // Hand over to manager core
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
 
-    // enter the tail of deschedule_queue to wait, note that stack
-    // memory is used for node of queue. Because the stack of 
-    // deschedule_syscall_handler() will not be destroied until this 
-    // function return, so it is safe
-    simple_queue_enqueue(&deschedule_queue, &node);
-    mutex_unlock(&deschedule_mutex);
+    // Construct message
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = DESCHEDULE;
+    this_thr->my_msg->data.deschedule_data.reject = *reject;
 
-    context_switch(OP_BLOCK, 0);
-    return 0;
+    context_switch(OP_SEND_MSG, 0);
+
+    return this_thr->my_msg->data.response_data.result;
+
 }
 
 /** @brief System call handler for make_runnable()
@@ -387,14 +367,20 @@ int deschedule_syscall_handler(int *reject) {
  *          but is currently non-runnable due to a call to deschedule().
  */
 int make_runnable_syscall_handler(int tid) {
-    mutex_lock(&deschedule_mutex);
-    simple_node_t* node = simple_queue_remove_tid(&deschedule_queue, tid);
-    mutex_unlock(&deschedule_mutex);
 
-    if (node != NULL) {
-        // find the descheduled thread, make it runnable
-        context_switch(OP_MAKE_RUNNABLE, (uint32_t)node->thr);
-        return 0;
-    } else
-        return ETHREAD;
+    // Hand over to manager core
+    // Get current thread
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+
+    // Construct message
+    this_thr->my_msg->req_thr = this_thr;
+    this_thr->my_msg->req_cpu = smp_get_cpu();
+    this_thr->my_msg->type = MAKE_RUNNABLE;
+    this_thr->my_msg->data.make_runnable_data.tid = tid;
+
+    context_switch(OP_SEND_MSG, 0);
+
+    return this_thr->my_msg->data.response_data.result;
+
 }
+

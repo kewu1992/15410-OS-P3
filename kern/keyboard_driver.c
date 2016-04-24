@@ -78,16 +78,15 @@ void keyboard_interrupt_handler(){
 
     void* thr = 0;
 
-    /*
     if (has_read_waiting_thr()) {
         // some threads are waiting for input, try to process scancode and
         // fill buffer of readline()
         int ch = -1;
-        
+
         while (ch == -1 && front != rear) {
             uint8_t scancode = keybuf[rear];
             rear = (rear + 1) % KEY_BUF_SIZE;
-            
+
             // process code
             kh_type augchar = process_scancode(scancode);
             if (KH_HASDATA(augchar) && KH_ISMAKE(augchar))
@@ -98,15 +97,17 @@ void keyboard_interrupt_handler(){
         if (ch != -1)
             thr = resume_reading_thr((char)ch);
     }
-    */
 
     outb(INT_CTL_PORT, INT_ACK_CURRENT);
+
+    enable_interrupts();
 
     // if thr != NULL, it means readline() completes and the blocked thread 
     // should be wakened up
     if (thr) {
-        enable_interrupts();
-        context_switch(OP_RESUME, (uint32_t)thr);
+
+        msg_t *msg = ((tcb_t *)thr)->my_msg;
+        manager_send_msg(msg, msg->req_cpu);
     }
 }
 
@@ -124,12 +125,12 @@ void keyboard_interrupt_handler(){
  **/
 int readchar(void) {
     int ret = -1;
-    
+
     // check if keryboard buffer is empty
     while (ret == -1 && front != rear) {
         uint8_t scancode = keybuf[rear];
         rear = (rear + 1) % KEY_BUF_SIZE;
-        
+
         // process code
         kh_type augchar = process_scancode(scancode);
         if (KH_HASDATA(augchar) && KH_ISMAKE(augchar))
