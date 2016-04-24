@@ -87,6 +87,29 @@ simple_node_t* simple_queue_remove_tid(simple_queue_t *deque, int tid) {
     return NULL;
 }
 
+/** @brief Multi-core version of simple_queue_remove_tid
+  * The data field of simple queue node is a message.
+  *
+  */
+simple_node_t* smp_simple_queue_remove_tid(simple_queue_t *deque, int tid) {
+    simple_node_t* node = &(deque->head);
+
+    while(node->next != &(deque->tail)) {
+        msg_t *msg = (msg_t *)(node->next->thr);
+        tcb_t *tcb = (tcb_t *)msg->req_thr;
+
+        if(tcb->tid == tid) {
+            simple_node_t* tmp = node->next;
+            node->next = node->next->next;
+            node->next->prev = node;
+            return tmp;
+        }
+        node = node->next;
+    }
+
+    return NULL;
+}
+
 /** @brief Destroy a simple queue
  *   
  *  @param deque The simple queue to be destroied
