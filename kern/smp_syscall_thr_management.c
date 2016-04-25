@@ -32,7 +32,7 @@ static mutex_t deschedule_mutex;
 
 
 /** @brief Initialize data structure for deschedule() syscall */
-int syscall_deschedule_init() {
+int smp_syscall_deschedule_init() {
     int error = simple_queue_init(&deschedule_queue);
     error |= mutex_init(&deschedule_mutex);
     return error ? -1 : 0;

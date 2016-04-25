@@ -56,12 +56,12 @@ static spinlock_t reading_lock;
 static simple_queue_t readline_queue;
 
 /** @brief Initialize data structure for print() syscall */
-int syscall_print_init() {
+int smp_syscall_print_init() {
     return mutex_init(&print_lock);
 }
 
 /** @brief Initialize data structure for readline() syscall */
-int syscall_read_init() {
+int smp_syscall_read_init() {
     read_waiting_thr = NULL;
 
     if (spinlock_init(&reading_lock) < 0)
@@ -75,8 +75,9 @@ int syscall_read_init() {
 
 /** @brief Check if there is any thread blocked on readline(), waiting for input
  *
- *  This function should only be called by keyboard interrupt, so this function
- *  call will not be interrupted. It can read value of read_waiting_thr safely.
+ *  This function should only be called by keyboard interrupt or with protected
+ *  by spinloclk, so this function call will not be interrupted. It can read 
+ *  value of read_waiting_thr safely.
  * 
  *  @return Return 1 if there is thread waiting, return zero otherwise */
 int has_read_waiting_thr() {
@@ -91,7 +92,7 @@ int has_read_waiting_thr() {
  *
  *  @return void
  */
-void smp_readline_syscall_handler(msg_t *msg) {
+void smp_syscall_readline(msg_t *msg) {
 
     // Check if some other thread is requesting readline(), if so, enqueue 
     // current request. This checking should be locked by spinlock to avoid
@@ -119,7 +120,7 @@ void smp_readline_syscall_handler(msg_t *msg) {
         if (ch == -1) {
             // there is no data, block this thread. Keyboard interrupt handler
             // will put data to buffer when input comes in. It will 
-            // wake up this thread when this readline() syscall completes.
+            // send this thread back when this readline() syscall completes.
             read_waiting_thr = msg->req_thr;
 
             // No need to enqueue since there's no other request
@@ -143,6 +144,7 @@ void smp_readline_syscall_handler(msg_t *msg) {
         }
     }
 
+    // finish reaading, send it back
     msg->type = RESPONSE;
     msg->data.response_data.result = reading_count;
     manager_send_msg(msg, msg->req_cpu);
@@ -150,14 +152,14 @@ void smp_readline_syscall_handler(msg_t *msg) {
 }
 
 /** @brief Put input byte to the buffer of readline() and wake up blocked thread
- *         if readline() completes
+ *         (send it back) if readline() completes
  *
  *  This function should only be called by keyboard interrupt, so this function
  *  call will not be interrupted. It can manipulate data structure of readline()
  *  safely.
  * 
- *  @return Return the blocked thread that should be wakened up if readline() 
- *          completes, return NULL otherwise */
+ *  @return Return the blocked thread that should be wakened up (sent back) 
+ *          if readline() completes, return NULL otherwise */
 void* resume_reading_thr(char ch) {
     // echo input consumed by readline() to screen
     if (!(ch == '\b' && reading_count == 0))
@@ -172,13 +174,13 @@ void* resume_reading_thr(char ch) {
     // check if readline() completes
     if (reading_count == reading_length || ch == '\n') {
 
-        // readline() completes
+        // readline() completes, ready to send this thread back
         msg_t* msg = read_waiting_thr->my_msg;
         msg->type = RESPONSE;
         msg->data.response_data.result = reading_count;
         tcb_t* rv = read_waiting_thr;
 
-        // Serve next readline request
+        // Serve next readline request if any
         simple_node_t *readline_node = 
                 simple_queue_dequeue(&readline_queue);
         if(readline_node != NULL) {
@@ -208,7 +210,7 @@ void* resume_reading_thr(char ch) {
  *
  *  @return void
  */
-void smp_get_cursor_pos_syscall_handler(msg_t *msg) {
+void smp_syscall_get_cursor_pos(msg_t *msg) {
 
     int row;
     int col;
@@ -234,7 +236,7 @@ void smp_get_cursor_pos_syscall_handler(msg_t *msg) {
  *
  *  @return void
  */
-void smp_print_syscall_handler(msg_t *msg) {
+void smp_syscall_print(msg_t *msg) {
 
     int len = msg->data.print_data.len;
     char *buf = msg->data.print_data.buf;
@@ -258,7 +260,7 @@ void smp_print_syscall_handler(msg_t *msg) {
  *
  *  @return void
  */
-void smp_set_cursor_pos_syscall_handler(msg_t *msg) {
+void smp_syscall_set_cursor_pos(msg_t *msg) {
 
     int row = msg->data.set_cursor_pos_data.row;
     int col = msg->data.set_cursor_pos_data.col;
@@ -282,7 +284,7 @@ void smp_set_cursor_pos_syscall_handler(msg_t *msg) {
  *
  *  @return void
  */
-void smp_set_term_color_syscall_handler(msg_t *msg) {
+void smp_syscall_set_term_color(msg_t *msg) {
 
     int color = msg->data.set_term_color_data.color;
 

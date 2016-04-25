@@ -141,6 +141,7 @@ int readline_syscall_handler(int len, char *buf) {
 
     context_switch(OP_SEND_MSG, 0);
 
+    // get results
     int reading_count = this_thr->my_msg->data.response_data.result;
     memcpy(buf, kernel_buf, reading_count);
     free(kernel_buf);

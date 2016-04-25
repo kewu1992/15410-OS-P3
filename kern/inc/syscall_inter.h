@@ -16,15 +16,9 @@
 
 int malloc_init(int cpu_id);
 
-int syscall_print_init();
-
-int syscall_read_init();
-
 int syscall_sleep_init();
 
 int syscall_vanish_init();
-
-int syscall_deschedule_init();
 
 int syscall_readfile_init();
 
