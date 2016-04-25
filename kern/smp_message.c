@@ -117,14 +117,14 @@ msg_t* worker_recv_msg() {
     if (msg_node == NULL)
         return NULL;
     else {
-        lprintf("cpu%d recv a msg (req thr:%d), type:%d", ((msg_t*)(msg_node->thr))->req_cpu, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
+        //lprintf("cpu%d recv a msg (req thr:%d), type:%d", ((msg_t*)(msg_node->thr))->req_cpu, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
         return (msg_t*)(msg_node->thr);
     }
 }
 
 
 void manager_send_msg(msg_t* msg, int dest_cpu) {
-    lprintf("manager send a msg to cpu%d, type:%d", dest_cpu, msg->type);
+    //lprintf("manager send a msg to cpu%d, type:%d", dest_cpu, msg->type);
 
     int id = (dest_cpu - 1) * 2 + 1;
     spinlock_lock(msg_spinlocks[id], 0);
@@ -176,10 +176,6 @@ void* get_thr_from_msg_queue() {
             new_thr->pcb->page_table_base = idle_thr[smp_get_cpu()]->pcb->page_table_base;
             return new_thr;
         case HALT:
-            lprintf("cpu%d ready to die", smp_get_cpu());
-            sim_halt();
-            lprintf("???");
-            // if kernel is run on real hardware....
             asm_hlt();
         default:
             return NULL;

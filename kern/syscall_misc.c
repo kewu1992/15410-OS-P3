@@ -16,13 +16,22 @@ static char *dot_file;
 /** @brief Length of dot file */
 static int dot_file_length;
 
+/** @brief Halt by calling simics command 
+  *
+  * @return No return
+  */
+extern void sim_halt(void);
+
 /** @brief Halt syscall handler 
   *
   * @return No return
   *
   */
 void halt_syscall_handler() {
-    // construct message, tell manger to halt, then
+  
+    sim_halt();
+
+    // if kernel is run on real hardware, tell manger to halt, then
     // manager will broadcast this message to all cores
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
     msg_t* msg = this_thr->my_msg;
