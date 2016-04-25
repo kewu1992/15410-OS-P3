@@ -98,10 +98,17 @@ typedef enum {
 } msg_type_t;
 
 typedef struct {
+    /** @brief A node to enable this message be put in a queue somewhere */
     simple_node_t node;  // 12 bytes
+    /** @brief The tcb of the thread that issues a interprocessor syscall */
     void* req_thr;  // 4 bytes
+    /** @brief The index of the core where the requesting thread resides */
     int req_cpu;    // 4 bytes
+    /** @brief Type of the message: can be request or response type */
     msg_type_t type;  // 4 bytes
+    /** @brief Data field of the message, can be request or response data
+     *  Use union to limit message size
+     */
     union {
         msg_data_fork_t fork_data;
         msg_data_wait_t wait_data;
