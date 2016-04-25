@@ -26,9 +26,6 @@
 #include <lmm/lmm_types.h>
 #include <malloc/malloc_internal.h>
 
-/** Number of kernel heap memory initially allocated for CPU0 */
-#define LMM_0_INIT_MEM  (256 * 1024)
-
 /** @brief Invalidate a page table entry in TLB to force consulting actual 
  *  memory to fetch the page table entry next time the page is accessed.
  *  

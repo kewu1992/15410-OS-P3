@@ -41,6 +41,9 @@ static void ap_kernel_init(int cpu_id) {
     if(init_ap_msg() < 0)
         panic("init_msg at cpu%d failed!", cpu_id);
 
+    if(syscall_sleep_init() < 0) 
+        panic("syscall_sleep_init at cpu%d failed", cpu_id);
+
     if (context_switcher_init() < 0)
         panic("Initialize context_switcher at cpu%d failed!", cpu_id);
 

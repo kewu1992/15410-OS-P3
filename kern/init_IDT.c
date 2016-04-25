@@ -185,7 +185,7 @@ static void init_exception_IDT() {
  *   
  *  @return A negative error code on error, or 0 on success
  **/
-int init_IDT(void* (*tickback)(unsigned int)) {
+int init_IDT() {
 
     // install keyboard interrupt handler
     install_IDT_entry(KEY_IDT_ENTRY, keyboard_wrapper, SEGSEL_KERNEL_CS, 0, 1);
@@ -268,9 +268,9 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     install_IDT_entry(GET_CURSOR_POS_INT, get_cursor_pos_wrapper, 
                                                         SEGSEL_KERNEL_CS, 3, 0);
 
-
     // instll APIC timer interrupt handler
-    install_IDT_entry(APIC_TIMER_IDT_ENTRY, apic_timer_wrapper, SEGSEL_KERNEL_CS, 0, 1);
+    install_IDT_entry(APIC_TIMER_IDT_ENTRY, apic_timer_wrapper, 
+            SEGSEL_KERNEL_CS, 0, 1);
 
 
     // install exception's IDT
@@ -279,7 +279,7 @@ int init_IDT(void* (*tickback)(unsigned int)) {
     // initialize device drivers
     init_console_driver();
     init_keyboard_driver();
-    init_timer_driver(tickback);
+    init_timer_driver();
 
     return 0;
 }

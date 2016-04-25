@@ -37,20 +37,35 @@ typedef struct {
  *         sleep() will be stored in this queue. They are ordered by their
  *         time to wake up. The thread that should be wakened up in the 
  *         clostest future is at the head of the priority queue */
-static pri_queue sleep_queue;
+static pri_queue *sleep_queue[MAX_CPUS];
 
 /** @brief For sleep() syscall.
  *         A spinlock to avoid timer interrupt when manipulating data structure
  *         of sleep() */
-static spinlock_t sleep_lock;
+static spinlock_t *sleep_lock[MAX_CPUS];
 
 static int sleep_queue_compare(void* this, void* that);
 
 /** @brief Initialize data structure for sleep() syscall */
 int syscall_sleep_init() {
-    int error = pri_queue_init(&sleep_queue, sleep_queue_compare);
-    error |= spinlock_init(&sleep_lock);
-    return error ? -1 : 0;
+
+    int cur_cpu = smp_get_cpu();
+
+    sleep_queue[cur_cpu] = malloc(sizeof(pri_queue));
+    if(sleep_queue[cur_cpu] == NULL)
+        return -1;
+
+    if(pri_queue_init(sleep_queue[cur_cpu], sleep_queue_compare) < 0)
+        return -1;
+
+    sleep_lock[cur_cpu] = malloc(sizeof(spinlock_t));
+    if(sleep_lock[cur_cpu] == NULL) 
+        return -1;
+    if(spinlock_init(sleep_lock[cur_cpu])) 
+        return -1;
+
+    return 0;
+
 }
 
 /** @brief System call handler for gettid()
@@ -90,9 +105,11 @@ int sleep_syscall_handler(int ticks) {
     else if (ticks == 0)
         return 0;
 
+    int cur_cpu = smp_get_cpu();
+
     // lock the spinlock to avoid timer interrupt when manipulating 
     // priority queue of sleep()
-    spinlock_lock(&sleep_lock, 1);
+    spinlock_lock(sleep_lock[cur_cpu], 1);
 
     sleep_queue_data_t my_data;
     // calculate its time to wake up
@@ -104,9 +121,9 @@ int sleep_syscall_handler(int ticks) {
     // and return, it is safe
     pri_node_t my_node;
     my_node.data = &my_data;
-    pri_queue_enqueue(&sleep_queue, &my_node);
+    pri_queue_enqueue(sleep_queue[cur_cpu], &my_node);
 
-    spinlock_unlock(&sleep_lock, 1);
+    spinlock_unlock(sleep_lock[cur_cpu], 1);
 
     context_switch(OP_BLOCK, 0);
 
@@ -145,9 +162,13 @@ static int sleep_queue_compare(void* this, void* that) {
  *          up, return the thread. Otherwise return NULL. 
  */
 void* timer_callback(unsigned int ticks) {   
-    pri_node_t* node = pri_queue_get_first(&sleep_queue);
-    if (node && ((sleep_queue_data_t*)node->data)->ticks <= timer_get_ticks()) {
-        pri_queue_dequeue(&sleep_queue);
+
+    int cur_cpu = smp_get_cpu();
+
+    pri_node_t* node = pri_queue_get_first(sleep_queue[cur_cpu]);
+    if (node && ((sleep_queue_data_t*)node->data)->ticks 
+            <= timer_get_ticks()) {
+        pri_queue_dequeue(sleep_queue[cur_cpu]);
         return (void*)((sleep_queue_data_t*)node->data)->thr; 
     } else
         return NULL;

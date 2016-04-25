@@ -38,7 +38,14 @@ int syscall_deschedule_init() {
     return error ? -1 : 0;
 }
 
-
+/** @brief Multi-core version of deschedule syscall handler that's on manager 
+  * core side 
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_deschedule_syscall_handler(msg_t *msg) {
     // using mutex to protect deschedule_queue, it also make sure examine the 
     // value of *reject and block the thread (at here it is done by put the 
@@ -60,6 +67,14 @@ void smp_deschedule_syscall_handler(msg_t *msg) {
 
 }
 
+/** @brief Multi-core version of make_runnable syscall handler that's on 
+  * manager core side 
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_make_runnable_syscall_handler(msg_t *msg) {
 
     int tid = msg->data.make_runnable_data.tid;
