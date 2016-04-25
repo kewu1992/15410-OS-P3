@@ -105,7 +105,6 @@ int syscall_deschedule_init() {
  *  @return The thread ID of the invoking thread.
  */
 int gettid_syscall_handler() {
-    lprintf("thr %d at cpu%d", tcb_get_entry((void*)asm_get_esp())->tid, smp_get_cpu());
     return tcb_get_entry((void*)asm_get_esp())->tid;
 }
 
@@ -233,11 +232,12 @@ int yield_syscall_handler(int tid) {
 
     if (rv < 0) {
         // the thread is not on this core, try other cores
+        
+        tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+        int pd = this_thr->pcb->page_table_base;
 
         // Construct message
-        tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
         msg_t* msg = this_thr->my_msg;
-
         msg->req_thr = this_thr;
         msg->req_cpu = smp_get_cpu();
         msg->type = YIELD;
@@ -255,6 +255,10 @@ int yield_syscall_handler(int tid) {
 
         } while (msg->data.yield_data.result < 0 && 
                   smp_get_cpu() != msg->req_cpu);
+
+        // set page table base back to its own
+        this_thr->pcb->page_table_base = pd;
+        set_cr3(pd);
 
         if (msg->data.yield_data.result < 0)
             return ETHREAD;
@@ -464,9 +468,10 @@ int make_runnable_syscall_handler(int tid) {
     // Hand over to manager core
     // Get current thread
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-    msg_t* msg = this_thr->my_msg;
+    int pd = this_thr->pcb->page_table_base;
 
     // Construct message
+    msg_t* msg = this_thr->my_msg;
     msg->req_thr = this_thr;
     msg->req_cpu = smp_get_cpu();
     msg->type = MAKE_RUNNABLE;
@@ -492,6 +497,10 @@ int make_runnable_syscall_handler(int tid) {
              smp_get_cpu() != msg->req_cpu);
 
     
+    // set page table base back to its own
+    this_thr->pcb->page_table_base = pd;
+    set_cr3(pd);
+
     if (msg->data.make_runnable_data.result < 0)
         return ETHREAD;
     else

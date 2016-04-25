@@ -3,20 +3,10 @@
 #include <exec2obj.h>
 #include <string.h>
 #include <vm.h>
-
-/** @brief Halt by calling simics command 
-  *
-  * @return No return
-  */
-extern void sim_halt(void);
-
-/** @brief Halt 
-  *
-  * Disable interrupt and execute halt instruction
-  *
-  * @return No return
-  */
-extern void asm_hlt(void);
+#include <context_switcher.h>
+#include <control_block.h>
+#include <asm_helper.h>
+#include <smp.h>
 
 /** @brief The "." file that contains a list of the files that readfile()
   * can access.
@@ -32,10 +22,15 @@ static int dot_file_length;
   *
   */
 void halt_syscall_handler() {
-    sim_halt();
+    // construct message, tell manger to halt, then
+    // manager will broadcast this message to all cores
+    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    msg_t* msg = this_thr->my_msg;
+    msg->req_thr = this_thr;
+    msg->req_cpu = smp_get_cpu();
+    msg->type = HALT;
 
-    // if kernel is run on real hardware....
-    asm_hlt();
+    context_switch(OP_SEND_MSG, 0);
 }
 
 /** @brief Init readfile syscall and construct "." file

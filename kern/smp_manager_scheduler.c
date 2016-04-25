@@ -94,6 +94,9 @@ void smp_manager_boot() {
         case YIELD:
             smp_yield_syscall_handler(msg);
             break;
+        case HALT:
+            smp_syscall_halt(msg);
+            break;
         default:
             break;
         }

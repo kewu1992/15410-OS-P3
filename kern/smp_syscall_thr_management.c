@@ -11,7 +11,6 @@
 
 extern int num_worker_cores;
 
-
 /** @brief Multi-core version of make_runnable syscall handler that's on 
   * manager core side 
   *
@@ -30,6 +29,7 @@ void smp_make_runnable_syscall_handler(msg_t *msg) {
         msg->data.make_runnable_data.next_core = (msg->data.make_runnable_data.next_core + 1) % num_worker_cores;
         // add one to skip core 0
         msg->data.make_runnable_data.next_core++;
+
         manager_send_msg(msg, msg->data.make_runnable_data.next_core);
     }
 }

@@ -163,7 +163,7 @@ void swexn_handler(void *arg, ureg_t *ureg) {
  *  @return void
  */
 void install_autostack(void *stack_high, void *stack_low) {
-    /*
+    
     // first get ebp of _main()
     void* ebp = (void*)asm_get_ebp();
     ebp__main = get_last_ebp(ebp);
@@ -196,7 +196,7 @@ void install_autostack(void *stack_high, void *stack_low) {
     if(swexn((void *)esp3, swexn_handler, NULL, NULL) < 0) {
         return;
     }
-    */
+    
 }
 
 

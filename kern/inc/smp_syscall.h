@@ -33,4 +33,6 @@ void smp_set_init_pcb(msg_t* msg);
 
 void smp_yield_syscall_handler(msg_t* msg);
 
+void smp_syscall_halt(msg_t *msg);
+
 #endif

@@ -14,6 +14,20 @@ int num_worker_cores;
 
 extern tcb_t* idle_thr[MAX_CPUS];
 
+/** @brief Halt by calling simics command 
+  *
+  * @return No return
+  */
+extern void sim_halt(void);
+
+/** @brief Halt 
+  *
+  * Disable interrupt and execute halt instruction
+  *
+  * @return No return
+  */
+extern void asm_hlt(void);
+
 int msg_init() {
     int num_cpus = smp_num_cpus();
     
@@ -103,14 +117,14 @@ msg_t* worker_recv_msg() {
     if (msg_node == NULL)
         return NULL;
     else {
-        //lprintf("cpu%d recv a msg (req thr:%d), type:%d", ((msg_t*)(msg_node->thr))->req_cpu, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
+        lprintf("cpu%d recv a msg (req thr:%d), type:%d", ((msg_t*)(msg_node->thr))->req_cpu, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
         return (msg_t*)(msg_node->thr);
     }
 }
 
 
 void manager_send_msg(msg_t* msg, int dest_cpu) {
-    //lprintf("manager send a msg to cpu%d, type:%d", dest_cpu, msg->type);
+    lprintf("manager send a msg to cpu%d, type:%d", dest_cpu, msg->type);
 
     int id = (dest_cpu - 1) * 2 + 1;
     spinlock_lock(msg_spinlocks[id], 0);
@@ -137,6 +151,7 @@ msg_t* manager_recv_msg() {
     return msg_node->thr;
 }
 
+
 void* get_thr_from_msg_queue() {
     if (smp_get_cpu() == 0)
         return NULL;
@@ -151,9 +166,21 @@ void* get_thr_from_msg_queue() {
         case FORK_RESPONSE:
         case WAIT_RESPONSE:
         case RESPONSE:
+            return (tcb_t*)msg->req_thr;
         case MAKE_RUNNABLE:
         case YIELD:
-            return (tcb_t*)msg->req_thr;
+            // temporaryly set page table base to the same as the idle_task of 
+            // the core is visiting to avoid memory copying of page tables 
+            // accross cores
+            new_thr = (tcb_t*)msg->req_thr;
+            new_thr->pcb->page_table_base = idle_thr[smp_get_cpu()]->pcb->page_table_base;
+            return new_thr;
+        case HALT:
+            lprintf("cpu%d ready to die", smp_get_cpu());
+            sim_halt();
+            lprintf("???");
+            // if kernel is run on real hardware....
+            asm_hlt();
         default:
             return NULL;
         }

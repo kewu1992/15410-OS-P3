@@ -98,6 +98,7 @@ typedef enum {
     FORK_RESPONSE,  // 13
     WAIT_RESPONSE,  // 14
     VANISH_BACK,    // 15
+    HALT,           // 16
     NONE
 } msg_type_t;
 
