@@ -83,7 +83,7 @@ typedef struct {
     int pid;
 }msg_data_wait_response_t;
 
-/** @brief Message response data for init_pcb */
+/** @brief Message response data for set_init_pcb */
 typedef struct {
     int pid;
 } msg_data_set_init_pcb_t;
@@ -153,7 +153,7 @@ typedef struct {
         msg_data_response_t response_data;
         msg_data_set_init_pcb_t set_init_pcb_data;
         msg_data_vanish_back_t vanish_back_data;
-    } data;
+    } data; // 16 bytes
 } msg_t;
 
 
