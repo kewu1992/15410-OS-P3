@@ -11,15 +11,24 @@ The following is an overview of the AMP4 design in P4.
 Every worker core has two queues: a send queue and a recv queue. Each queue will
 be accessed by at most two cores: the worker core that owns the queue and the 
 manager core that polls the queue. Each thread has a message associated with it.
-Each time a syscall of an interprocessor request issues, the syscall wrapper 
-constructs a message of the following format, puts it in its send queue, at 
-the same time blocks, and the scheduler on the local core chooses the next 
-thread to run. Each time during timer context switch, the scheduler will first
-check if there's message in the core's recv queue to collect, if so, the tcb 
-identified by "msg->req_thr" will resume running from where it previously 
-blocks when sending the interprocessor request and can continue to finish sycall
-like examining result from the message that has been modified by the thread 
-that performs the request on a different core and return the result to user.
+Each time a syscall of an interprocessor request issues, the thread that 
+invoking the system call constructs its message of the following format, puts 
+its message in the core's send queue, at the same time blocks itself (will not 
+be scheduled by scheduler), and the scheduler on the local core chooses the next
+thread to run. Each time during timer context switch, every scheduler will first
+check if there's message in the core's recv queue to collect, if so, the thread
+that associated with the message will be resumed by scheduler and start running 
+from where it previously blocks when sending the interprocessor syscall and 
+can continue to finish the sycall like examining the result stored in the 
+message which has been modified by the thread that performs the interprocessor 
+syscall on a different core. Finally the thread return the result to user.
+
+Form the view of the thread that sends the interprocessor syscall, the syscall
+is very similar to a IPC/RPC. The threads is blocked after sending its message 
+and will be resumed by scheduler after the message is sent back. It can also 
+examine the result stored in the message. Notice that the same message that
+associated with the thread acts as both a request and a response for the
+interprocessor syscall. 
 
 typedef struct {
     /** @brief A node to enable this message be put in a queue somewhere */
@@ -38,7 +47,7 @@ typedef struct {
         msg_data_fork_t fork_data;
         msg_data_wait_t wait_data;
         ...
-    } data;
+    } data; // maximum is 16 bytes
 } msg_t;
 
 /** @brief Interface on worker core side */
@@ -50,19 +59,57 @@ void manager_send_msg(msg_t* msg, int dest_cpu);
 msg_t* manager_recv_msg();
 
 Besides, message and thread are highly related and are key to our design.
-Each thread has a field in its tcb that references the message owned soles by 
-the thread, and each message struct has a filed that references its unique 
-owner thread, which makes "blocking a thread" on a interprocessor syscall 
-convenient through putting it on send or recv queues. There's also an 
-interface for extracting tcb from a message.
+Each thread has a field in its tcb that points to a message owned exclusively
+by the thread. And each message has a filed that points to its unique 
+owner thread. The space of message is allocated when creating thread. So send/
+recv a message will not fail due to no resource problem. An important idea in 
+our design is that send/recv a message is highly related to block/resume a 
+thread. When a thread sends its message as a request of a interprocessor 
+syscall, the thread blocks itslef. When the message is sent back as a response 
+of the interprocessor syscall, the thread is resumed by scheduler. 
 
-void* get_thr_from_msg_queue();
+The relationship between send/recv message and block/resume thread can also be
+found on the manager core. When the manager core receives a message, it will 
+assign the message to a worker thread. The worker thread will perform the
+interprocessor syscall based the syscall information stored in the message. 
+When a worker thread serves for a message, we can regard the worker thread as
+an "agent" that acts on behalf of the thread associated with the message. It's
+like the thread is "resumed" and starts "running" on the manager core. On the 
+other hand, after a worker thread finsihes its work, stores result in the 
+message and puts the message (as a response) to the recv queue of the core that 
+issues the interprocessor syscall, it's like the thread associated with the 
+message is "blocked" by the manager core (which will later be resumed on its 
+local core).  This relationship is very important when we implements some 
+system call that might need to "block" a thread on the manger core. We don't
+need to (and shouldn't) really block the worker thread. When a workter thread 
+needs to "block" the thread it serves for on the manager core, the worker thread
+just put the message to a queue on the manager core (e.g. wait queue for wait 
+syscall), and then it could start serving the next thread. When the event that
+the message waiting for is satisfied, the worker thread just need to remove 
+the message from the wait queue, and send the message back to the recv queue of
+its local core. This is like the worker thread make the waiting thread 
+"runnable".
+
+This idea is very similar to what we have implemented in P3. In P3, we have 
+discussed that change the state of a thread such as running, runnable and block
+is just moving the thread between different queues. This argument is also true
+in P4 except that there are more queues (recv/send queue of local core, queues
+of manger core) than P3.
+
 
 2. Spinlock design
-As indicated by the send and recv queue design above, there're at most two 
-cores that will access a queue. So, locks for objects like that have known 
-potential number of requesters. Spinlocks in P4 are thus upgraded to support 
-bounded waiting.
+
+We have implemented a simple spinlock without supporting bounded waiting in P3.
+Please refer to README of P3 for details of implementation, the time to use it,
+etc. The main idea is that spinlock should only be used to protect a few lines
+of code and be locked for a short time. 
+
+In P4, we upgrade our spinlock to support bounded waiting. In P4, the only 
+shared data structure that will be accessed by multiple cores is the message
+queues. As indicated by the send and recv queue design above, there're at most 
+two cores that will access a queue. So, the potential number of requesters is 
+known. We can use the array method introduced in lecture "Synchronization #2" to 
+ensuring Bounded Waiting. 
 
 /**@ brief spinlock type */
 typedef struct {
@@ -72,21 +119,133 @@ typedef struct {
     int waiting[2];
 } spinlock_t;
 
+Notice that there are many places in our kernel that use spinlock. Most of
+them (i.e. codes of P3) are actually only need disable/enable interrupt to
+support exclusive access. This is becuase the design of P4 makes multiple cores
+will not access the same resources directly. These resources either have one 
+copy for each core or will only be access by manager (e.g. singleton resource).
+The only resource that will be access by multiple cores are the message queues.
+
 3. Overview of complicated system calls
 
-Fork:
+Fork():
 Fork is the only syscall that lets the worker core that actually does the fork
-sets its %cr3 to the one of the thread that needs to be forked while cloning 
+sets its %cr3 to the %cr3 of the thread that needs to be forked while cloning 
 page directory, which is inevitable, because the entire page direcotry and 
-frames needs to be traversed. When a task issues a fork request, it does
-a thread_fork and creates a tcb on the original core, then, this tcb is 
-sent to the manager core, who will select a worker core randomly and send
-the tcb to it, the tcb gets run on the chosen worker core and does clone_pd 
-and create a process first, after that, result of the fork operation will be
-sent back to the manager core, who will relay it to the original core that 
-issues the fork request.
+frames needs to be traversed. 
 
-Wait and vanish:
+Fork() is done in the following steps:
+
+0) A thread issues a fork syscall 
+1) the old thread on the old core does a thread_fork() and creates a new thread 
+   (kernel stack) on the old core using the heap sapce of the old core.
+2) the old thread constructs its message as FORK type, stores the tcb of the 
+   new thread in the message and sends the message to manager core. Thus the old 
+   thread is blocked.
+3) the manager core selects a worker core (refered as the new core) in round 
+   robin order and forward the ol dmessage (associated with the old thread) to 
+   the new core.
+4) the new core's scheduler receives the message, and add the *new thread* 
+   (not the old thread) that stored in the message to the queue of scheduler.
+5) new thread starts running on the new core, it performs the rest of fork(),
+   including clone page tables, create pcb data structure, clone swexn handler
+6) new thread constructs its message (refered as the new message) as 
+   FORK_RESPONSE type, stores the result of fork() in the message, and sends the
+   message to manger core. Thus the new thread is blocked.
+7) the manager core receives the messgae. If the fork() succeeds, the manager 
+   will modify the old message's (associated with the old thread) type as 
+   FORK_RESPONSE, copy result from the new message to the old message and sends 
+   the old message back to the old core. In the mean time, the manager core also 
+   send the new message back to the new core. 
+8) the old core receives the old message which contains the result of fork().
+   The old thread starts running. The new core receives the new message, the
+   new thread starts running.
+9) If fork() fails in step 7, then the manager core will choose another core and
+   forward the old message to the core. The process jumps to step 4.
+
+The key point in the fork() is that the new thread is created on
+the old core and then forwarded to the new core to run. The new thread is
+responsible to clone page tables and create pcb for itself on the new core. And
+then send fork response back. So the space of the kernel stack of the new thread
+belongs to the old core, and the space of page tables and pcb of the new thread
+belong to the new core.
+
+
+
+Vanish():
+If the thread that invoking vanish() is not the last thraed of the task, then
+only the resources of the thread need to be released. As implemented in P3, we
+put the thread in a zombie list and let other threads free its resources during 
+context switch. The only difference is that in P4 every core has its own zombie
+list to store its own zombie threads. A thread should be put to the zombie list
+of the core where it was created on. For the thread that is created by 
+thread_fork(), it is just the core that it is running on. Buf for the thread 
+that is created by fork(), the core that it is running on is not the core that
+is is created on. Recall that when fork(), the new thread is craeted on the old
+core and then forwarded to the new core. So this kinds of thread should be put
+back to the core that creates it. This is done by sending a message VANISH_BACK,
+then the manager core will forward this message to the original core. Thus the 
+thraed is temporaryly running on the original core, and put itself to the 
+zomebie list of the original core.
+
+If the thread is the last thread of the task, then the resources of the task
+need to be released. A task has two data structures, pcb and pcb_vanish_wait_t.
+pcb is allocated on the core that creates it which is easy to released. 
+pcb_vanish_wait_t is allocated on the manager core, and need to be freed on
+manager core. As the name suggested, pcb_vanish_wait_t contains data that is
+associated with vanish and wait, including wait_queue, child_exit_status_list,
+etc. These data reside on the manager core so that the data of different tasks
+can be accessed at the same time. For example, a child task may need to put its 
+exit status to its father's child_exit_status_list and wake up a waiting thread
+in the wait_queue of the partent task. However, child task and partent task may
+belongs to different core. Putting their pcb_vanish_wait_t data on the manager
+core could reduce memory copy.
+
+vanish() is done in the following steps:
+0) A thread issues a vanish syscall 
+1) If the thread is the last thread of the task, constructing its message as 
+VANISH, sending its message to manager core. Operations such as sending exit
+status to its parent(or init task), exporting unreapted child task to init task
+will be done on the manager core. After these operations, the manager core free
+pcb_vanish_wait_t, and send the message back. The thread free pcb on the local 
+core. 
+2) The thread constucts its message as VANISH_BACK, sends message to the manager
+core. The manager core will send the message to the original core that creates
+this thread.
+3) The thraed puts itself to the zombie list of the original core.
+4) some other threads will free the resources of the thread during context 
+   switch.
+
+
+
+wait():
+Most operations of wait() are completed on the manager core. As discussed 
+before, a thread "block" on the manager core is just puting the message 
+associated with the thread in a queue. And "make runnable" a thread is removing 
+the message from the queue and sending the message back to the recv queue of the
+local core. 
+
+wait() is done typically in the following steps:
+0) A thread issues a wait syscall
+1) The thread constructs its message as WAIT, and sends the message to the 
+   manager core. So the thread is blocked.
+2) The manager core receives the message, check its pcb_vanish_wait_t. If there
+   is any available exit status in the child_exit_status_list, the worker thread
+   just stores the status in the message, and sends the message back.
+3) If there is no available exit status but the task has alive child task, the
+   worker thread will "block" the thread on the manager core. This is done by
+   putting the message of the thread in the wait_queue of its pcb_vanish_wait_t. 
+   Then the work thread is free to server the next message.
+4) When a child task vanish, it will send message to the manager core. When a
+   worker thread tries to put the exit status of the child task to the partent
+   task's child_exit_status_list, it will find the message that is "blocked"
+   on the wait_queue of the partent task. The worker thread will remove the 
+   message from the queue, store the exit status in the message, and send the
+   message back to the recv queue of the local core. Thus the "blocking" thread
+   becomes "runnable".
+5) The local core receives the thread, the thread starts running again. It will
+   examine the result storeed in its message and return the result to user.
+
 
 
 Yield and deschedule:
