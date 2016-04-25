@@ -13,15 +13,21 @@ void smp_syscall_vanish(msg_t* msg);
 
 void smp_syscall_wait(msg_t* msg);
 
-void smp_readline_syscall_handler(msg_t *msg);
+int smp_syscall_read_init();
 
-void smp_get_cursor_pos_syscall_handler(msg_t *msg);
+void smp_syscall_readline(msg_t *msg);
 
-void smp_print_syscall_handler(msg_t *msg);
+void smp_syscall_get_cursor_pos(msg_t *msg);
 
-void smp_set_cursor_pos_syscall_handler(msg_t *msg);
+int smp_syscall_print_init();
 
-void smp_set_term_color_syscall_handler(msg_t *msg);
+void smp_syscall_print(msg_t *msg);
+
+void smp_syscall_set_cursor_pos(msg_t *msg);
+
+void smp_syscall_set_term_color(msg_t *msg);
+
+int smp_syscall_deschedule_init();
 
 void smp_deschedule_syscall_handler(msg_t *msg);
 

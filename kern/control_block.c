@@ -36,6 +36,7 @@
 
 #include <syscall_inter.h>
 #include <stdio.h>
+#include <smp.h>
 
 /** @brief Get the index in tcb_table array based on kernel stack address */
 #define GET_K_STACK_INDEX(x)    (((unsigned int)(x)) >> K_STACK_BITS)
@@ -130,6 +131,8 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
 
     // Initially no swexn handler registered
     thread->swexn_struct = NULL;
+
+    thread->ori_cpu = smp_get_cpu();
 
     return thread;
 }

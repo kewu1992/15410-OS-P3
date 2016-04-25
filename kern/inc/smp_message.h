@@ -70,6 +70,10 @@ typedef struct {
     int pid;
 } msg_data_set_init_pcb_t;
 
+typedef struct {
+    int ori_cpu;
+} msg_data_vanish_back_t;
+
 typedef enum {
     FORK,           // 0
     THREAD_FORK,    // 1
@@ -89,6 +93,7 @@ typedef enum {
 
     FORK_RESPONSE,  // 14
     WAIT_RESPONSE,  // 15
+    VANISH_BACK,    // 16
     NONE
 } msg_type_t;
 
@@ -115,6 +120,7 @@ typedef struct {
         msg_data_get_cursor_pos_response_t get_cursor_pos_response_data;
         msg_data_response_t response_data;
         msg_data_set_init_pcb_t set_init_pcb_data;
+        msg_data_vanish_back_t vanish_back_data;
     } data;
 } msg_t;
 

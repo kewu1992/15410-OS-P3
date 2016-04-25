@@ -30,21 +30,16 @@ void smp_manager_boot() {
         panic("msg_init() in smp_manager_boot() failed");
 
     if (smp_syscall_vanish_init() < 0)
-        panic("smp_syscall_vanish_init() in smp_manager_boot() failed");
-    /*
-    if (mutex_init(&queue_mutex) < 0)
-        panic("smp_manager_boot() failed");
+        panic("smp_syscall_vanish_init() failed");
 
+    if (smp_syscall_deschedule_init() < 0)
+        panic("smp_syscall_deschedule_init failed!");
 
-    // thread fork all worker threads
-    int i;
-    for (i = 0; i < NUM_WORKER_THR; i++) {
-        context_switch(OP_THREAD_FORK, 0);
-        if (tcb_get_entry((void*)asm_get_esp())->result == 0) {
-            worker_run();
-        }
-    }
-    */
+    if (smp_syscall_print_init() < 0)
+        panic("smp_syscall_print_init failed!");
+
+    if (smp_syscall_read_init() < 0)
+        panic("smp_syscall_read_init failed!");
 
     // Init lapic timer
     init_lapic_timer_driver();
@@ -56,10 +51,6 @@ void smp_manager_boot() {
     msg_synchronize();
 
     lprintf("all cores synchronized");
-
-    //manager_msg.node.thr = &manager_msg;
-    //manager_msg.req_thr = tcb_get_entry((void*)asm_get_esp());
-    //manager_msg.req_cpu = 0;
     
 
     while(1) {
@@ -78,30 +69,36 @@ void smp_manager_boot() {
         case VANISH:
             smp_syscall_vanish(msg);
             break;
+        case VANISH_BACK:
+            msg->type = RESPONSE;
+            manager_send_msg(msg, msg->data.vanish_back_data.ori_cpu);
+            break;
         case SET_CURSOR_POS:
-            smp_set_cursor_pos_syscall_handler(msg);
+            smp_syscall_set_cursor_pos(msg);
             break;
         case SET_TERM_COLOR:
-            smp_set_term_color_syscall_handler(msg);
+            smp_syscall_set_term_color(msg);
             break;
         case GET_CURSOR_POS:
-            smp_get_cursor_pos_syscall_handler(msg);
+            smp_syscall_get_cursor_pos(msg);
             break;
         case READLINE:
-            smp_readline_syscall_handler(msg);
+            smp_syscall_readline(msg);
             break;
         case PRINT:
-            smp_print_syscall_handler(msg);
+            smp_syscall_print(msg);
             break;
         case SET_INIT_PCB:
              smp_set_init_pcb(msg);
              break;
+        /*
         case MAKE_RUNNABLE:
              smp_make_runnable_syscall_handler(msg);
              break;
         case DESCHEDULE:
              smp_deschedule_syscall_handler(msg);
              break;
+        */
         default:
             break;
         }

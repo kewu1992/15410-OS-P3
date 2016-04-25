@@ -87,6 +87,9 @@ typedef struct tcb_t {
     swexn_t *swexn_struct;
 
     msg_t* my_msg;
+
+    /** @brief Stores which cpu malloc() the kernel stack for this thread */
+    int ori_cpu;
 } tcb_t;
 
 
