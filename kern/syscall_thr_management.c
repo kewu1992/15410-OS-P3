@@ -22,6 +22,7 @@
 #include <syscall_errors.h>
 
 #include <smp.h>
+#include <scheduler.h>
 
 /** @brief For sleep() syscall.
  *         The data field for node of sleep priority queue */
@@ -228,7 +229,39 @@ void* timer_callback(unsigned int ticks) {
 int yield_syscall_handler(int tid) {
 
     context_switch(OP_YIELD, tid);
-    return tcb_get_entry((void*)asm_get_esp())->result;
+    int rv = tcb_get_entry((void*)asm_get_esp())->result;
+
+    if (rv < 0) {
+        // the thread is not on this core, try other cores
+
+        // Construct message
+        tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+        msg_t* msg = this_thr->my_msg;
+
+        msg->req_thr = this_thr;
+        msg->req_cpu = smp_get_cpu();
+        msg->type = YIELD;
+        msg->data.yield_data.tid = tid;
+        msg->data.yield_data.result = -1;
+        msg->data.yield_data.next_core = smp_get_cpu();
+
+        do {
+            if (scheduler_is_exist_or_running(msg->data.yield_data.tid)) {
+                msg->data.yield_data.result = 0;
+            }
+
+            // loop to visit all cores
+            context_switch(OP_SEND_MSG, 0);
+
+        } while (msg->data.yield_data.result < 0 && 
+                  smp_get_cpu() != msg->req_cpu);
+
+        if (msg->data.yield_data.result < 0)
+            return ETHREAD;
+        else
+            return 0;
+    } else
+        return 0;
 }
 
 /** @brief Check validness of values in ureg
@@ -431,17 +464,17 @@ int make_runnable_syscall_handler(int tid) {
     // Hand over to manager core
     // Get current thread
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    msg_t* msg = this_thr->my_msg;
 
     // Construct message
-    this_thr->my_msg->req_thr = this_thr;
-    this_thr->my_msg->req_cpu = smp_get_cpu();
-    this_thr->my_msg->type = MAKE_RUNNABLE;
-    this_thr->my_msg->data.make_runnable_data.tid = tid;
-    this_thr->my_msg->data.make_runnable_data.result = -1;
-    this_thr->my_msg->data.make_runnable_data.next_core = smp_get_cpu();
+    msg->req_thr = this_thr;
+    msg->req_cpu = smp_get_cpu();
+    msg->type = MAKE_RUNNABLE;
+    msg->data.make_runnable_data.tid = tid;
+    msg->data.make_runnable_data.result = -1;
+    msg->data.make_runnable_data.next_core = smp_get_cpu();
 
     do {
-        lprintf("check on core %d", smp_get_cpu());
         mutex_lock(deschedule_mutexs[smp_get_cpu()]);
         simple_node_t* node = simple_queue_remove_tid(deschedule_queues[smp_get_cpu()], tid);
         mutex_unlock(deschedule_mutexs[smp_get_cpu()]);
@@ -449,18 +482,17 @@ int make_runnable_syscall_handler(int tid) {
         if (node != NULL) {
             // find the descheduled thread, make it runnable
             context_switch(OP_MAKE_RUNNABLE, (uint32_t)node->thr);
-            lprintf("find");
-            this_thr->my_msg->data.make_runnable_data.result = 0;
+            msg->data.make_runnable_data.result = 0;
         }
 
         // loop to visit deschedule queues of all cores
         context_switch(OP_SEND_MSG, 0);
 
-    } while (this_thr->my_msg->data.make_runnable_data.result < 0 &&
-             smp_get_cpu() != this_thr->my_msg->req_cpu);
+    } while (msg->data.make_runnable_data.result < 0 &&
+             smp_get_cpu() != msg->req_cpu);
 
     
-    if (this_thr->my_msg->data.make_runnable_data.result < 0)
+    if (msg->data.make_runnable_data.result < 0)
         return ETHREAD;
     else
         return 0;

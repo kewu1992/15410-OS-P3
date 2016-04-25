@@ -87,6 +87,20 @@ simple_node_t* simple_queue_remove_tid(simple_queue_t *deque, int tid) {
     return NULL;
 }
 
+int simple_queue_is_exist_tid(simple_queue_t *deque, int tid) {
+    simple_node_t* node = &(deque->head);
+
+    while(node->next != &(deque->tail)) {
+        if (((tcb_t *)node->next->thr)->tid == tid) {
+            return 1;
+        }
+        node = node->next;
+    }
+
+    return 0;
+}
+
+
 /** @brief Multi-core version of simple_queue_remove_tid
   * The data field of simple queue node is a message.
   *

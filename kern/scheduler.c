@@ -11,6 +11,12 @@
 #include <simics.h>
 #include <smp.h>
 
+extern void context_switch_unlock();
+
+extern void context_switch_lock();
+
+extern tcb_t* get_current_running_thr();
+
 /** @brief The scheduler queue */
 static simple_queue_t* queues[MAX_CPUS];
 
@@ -92,5 +98,17 @@ void scheduler_make_runnable(tcb_t *thread) {
     
     node->thr = thread;
     simple_queue_enqueue(queues[smp_get_cpu()], node);
+}
+
+
+int scheduler_is_exist_or_running(int tid) {
+    context_switch_lock();
+    int rv = simple_queue_is_exist_tid(queues[smp_get_cpu()], tid);
+    context_switch_unlock();
+
+    if (tid == get_current_running_thr()->tid)
+        rv = 1;
+    
+    return rv;
 }
 

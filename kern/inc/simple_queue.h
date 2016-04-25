@@ -33,11 +33,14 @@ int simple_queue_enqueue(simple_queue_t *deque, simple_node_t* new_node);
 simple_node_t* simple_queue_dequeue(simple_queue_t *deque);
 
 simple_node_t* simple_queue_remove_tid(simple_queue_t *deque, int tid);
+
 simple_node_t* smp_simple_queue_remove_tid(simple_queue_t *deque, int tid);
 
 int simple_queue_destroy(simple_queue_t *deque);
 
 int simple_queue_size(simple_queue_t *deque);
+
+int simple_queue_is_exist_tid(simple_queue_t *deque, int tid);
 
 
 #endif /* _SIMPLE_QUEUE_H_ */

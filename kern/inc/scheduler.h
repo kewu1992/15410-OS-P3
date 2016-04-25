@@ -21,4 +21,6 @@ tcb_t* scheduler_block();
 
 void scheduler_make_runnable(tcb_t *thread);
 
+int scheduler_is_exist_or_running(int tid);
+
 #endif

@@ -34,3 +34,16 @@ void smp_make_runnable_syscall_handler(msg_t *msg) {
     }
 }
 
+void smp_yield_syscall_handler(msg_t* msg) {
+    if (msg->data.yield_data.result == 0) {
+        // already find the tid, send this thread back to its original core
+        manager_send_msg(msg, msg->req_cpu);
+    } else {
+        // continue looping to visit all cores
+        msg->data.yield_data.next_core = (msg->data.yield_data.next_core + 1) % num_worker_cores;
+        // add one to skip core 0
+        msg->data.yield_data.next_core++;
+        manager_send_msg(msg, msg->data.yield_data.next_core);
+    }
+}
+

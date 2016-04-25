@@ -81,6 +81,11 @@ static spinlock_t* spinlocks[MAX_CPUS];
  *         there is no other thread to run */
 extern tcb_t* idle_thr[MAX_CPUS];
 
+/** @brief Stores the current running thread on each core. Note that it is
+ *         an array of tcb_t** so that each core will malloc a tcb_t* using
+ *         its own heap to avoid false sharing. */
+static tcb_t** cur_running_thr[MAX_CPUS];
+
 /** @brief Context switch from a thread to another thread. 
  *
  *  @param op   The operation for context_switch()
@@ -240,6 +245,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             // context switch to the next thread successfully
             if (this_thr != idle_thr[smp_get_cpu()])
                 scheduler_make_runnable(this_thr);
+
+            *cur_running_thr[smp_get_cpu()] = new_thr;
             return new_thr;
         
         case OP_FORK:    // fork and context switch to new thread
@@ -306,6 +313,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 // decide to enqueue this thread, should not be interrupted until 
                 // context switch to the next thread successfully
                 scheduler_make_runnable(this_thr);
+                *cur_running_thr[smp_get_cpu()] = new_thr;
                 return new_thr;
             } else
                 return this_thr;
@@ -331,6 +339,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             // decide to enqueue this thread, should not be interrupted until 
             // context switch to the next thread successfully
             scheduler_make_runnable(this_thr);
+
+            *cur_running_thr[smp_get_cpu()] = new_thr;
             return new_thr;
 
         case OP_BLOCK: // block itself
@@ -361,9 +371,12 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                     else if (idle_thr[smp_get_cpu()] == NULL)
                         panic("no other process is running, %d can not \
                                                     be blocked", this_thr->tid);
-                    else
+                    else {
+                        *cur_running_thr[smp_get_cpu()] = idle_thr[smp_get_cpu()];
                         return idle_thr[smp_get_cpu()];
-                } else { 
+                    }
+                } else {
+                    *cur_running_thr[smp_get_cpu()] = new_thr; 
                     return new_thr;
                 }
             }    
@@ -408,6 +421,7 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 panic("strange state in context_switch(OP_RESUME,thr)");
             }
 
+            *cur_running_thr[smp_get_cpu()] = new_thr;
             return new_thr;
 
         case OP_SEND_MSG: // send message to manager core
@@ -424,9 +438,12 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 else if (idle_thr[smp_get_cpu()] == NULL)
                     panic("no other process is running, %d can not \
                                                 be blocked", this_thr->tid);
-                else
+                else {
+                    *cur_running_thr[smp_get_cpu()] = idle_thr[smp_get_cpu()];
                     return idle_thr[smp_get_cpu()];
+                }
             } else { 
+                *cur_running_thr[smp_get_cpu()] = new_thr;
                 return new_thr;
             }
 
@@ -498,6 +515,10 @@ void* get_last_ebp(void* ebp) {
 int context_switcher_init() {
     int cur_cpu = smp_get_cpu();
 
+    cur_running_thr[cur_cpu] = malloc(sizeof(tcb_t*));
+    if (cur_running_thr[cur_cpu] == NULL)
+        return -1;
+
     spinlocks[cur_cpu] = malloc(sizeof(spinlock_t));
     if (spinlocks[cur_cpu] == NULL)
         return -1;
@@ -511,4 +532,13 @@ int context_switcher_init() {
 /** @brief Unlock spinlock of context switcher */
 void context_switch_unlock() {
     spinlock_unlock(spinlocks[smp_get_cpu()], 1);
+}
+
+/** @brief Lock spinlock of context switcher */
+void context_switch_lock() {
+    spinlock_lock(spinlocks[smp_get_cpu()], 1);
+}
+
+tcb_t* get_current_running_thr() {
+    return *cur_running_thr[smp_get_cpu()];
 }

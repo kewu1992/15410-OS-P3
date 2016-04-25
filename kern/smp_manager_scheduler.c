@@ -86,11 +86,14 @@ void smp_manager_boot() {
             smp_syscall_print(msg);
             break;
         case SET_INIT_PCB:
-             smp_set_init_pcb(msg);
-             break;
+            smp_set_init_pcb(msg);
+            break;
         case MAKE_RUNNABLE:
-             smp_make_runnable_syscall_handler(msg);
-             break;
+            smp_make_runnable_syscall_handler(msg);
+            break;
+        case YIELD:
+            smp_yield_syscall_handler(msg);
+            break;
         default:
             break;
         }

@@ -73,6 +73,12 @@ typedef struct {
     int ori_cpu;
 } msg_data_vanish_back_t;
 
+typedef struct {
+    int tid;
+    int next_core;
+    int result;
+} msg_data_yield_t;
+
 typedef enum {
     FORK,           // 0
     THREAD_FORK,    // 1
@@ -110,7 +116,7 @@ typedef struct {
         msg_data_readline_t readline_data;
         msg_data_print_t print_data;
         msg_data_make_runnable_t make_runnable_data;
-
+        msg_data_yield_t yield_data;
 
 
         msg_data_wait_response_t wait_response_data;
