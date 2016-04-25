@@ -76,7 +76,7 @@ void kernel_init() {
     if (malloc_init(0) < 0)
         panic("Initialize malloc at cpu0 failed!");
 
-    if (init_IDT(timer_callback) < 0)
+    if (init_IDT() < 0)
         panic("Initialize IDT at cpu0 failed!");
 
     enable_interrupts();
@@ -98,14 +98,14 @@ void kernel_init() {
 
     // Initialize system call specific data structure
 
-    if (syscall_sleep_init() < 0)
-        panic("Initialize syscall sleep() at cpu 0failed!");
-
     if (syscall_vanish_init() < 0)
         panic("Initialize syscall vanish() at cpu0 failed!");
 
     if (syscall_deschedule_init() < 0)
          panic("Initialize syscall deschedule() at cpu0 failed!");
+
+    if (syscall_sleep_init() < 0)
+        panic("Initialize syscall sleep() at cpu 0failed!");
 
     if (syscall_readfile_init() < 0)
         panic("Initialize syscall readfile() at cpu0 failed!");

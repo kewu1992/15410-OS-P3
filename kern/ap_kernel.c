@@ -51,7 +51,10 @@ static void ap_kernel_init(int cpu_id) {
         panic("Initialize vanish at cpu%d failed!", cpu_id);
 
     if (syscall_deschedule_init() < 0)
-         panic("Initialize deschedule at cpu%d failed!", cpu_id);
+        panic("Initialize deschedule at cpu%d failed!", cpu_id);
+
+    if(syscall_sleep_init() < 0) 
+        panic("syscall_sleep_init at cpu%d failed", cpu_id);
 }
 
 

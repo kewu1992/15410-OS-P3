@@ -7,20 +7,19 @@
  *  @bug No known bugs.
  */
 
-#include <control_block.h>
-#include <asm_helper.h>
-#include <simics.h>
-#include <priority_queue.h>
-#include <spinlock.h>
-#include <timer_driver.h>
-#include <context_switcher.h>
-#include <malloc.h>
-#include <vm.h>
-#include <exception_handler.h>
-#include <syscall_errors.h>
+#include <smp_message.h>
 
 extern int num_worker_cores;
 
+
+/** @brief Multi-core version of make_runnable syscall handler that's on 
+  * manager core side 
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_make_runnable_syscall_handler(msg_t *msg) {
 
     if (msg->data.make_runnable_data.result == 0) {
