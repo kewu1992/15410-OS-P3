@@ -2,9 +2,115 @@
 
 @mainpage 15-410 Project 4
 
-@author Name1 (id1)
-@author Name2 (id2)
+@author Ke Wu (kewu)
+@author Jian Wang (jianwan3)
 
-Please make sure your README.dox documents your P4, not your P3!
+The following is an overview of the AMP4 design in P4.
+
+1. Message passing interface
+Every worker core has two queues: a send queue and a recv queue. Each queue will
+be accessed by at most two cores: the worker core that owns the queue and the 
+manager core that polls the queue. Each thread has a message associated with it.
+Each time a syscall of an interprocessor request issues, the syscall wrapper 
+constructs a message of the following format, puts it in its send queue, at 
+the same time blocks, and the scheduler on the local core chooses the next 
+thread to run. Each time during timer context switch, the scheduler will first
+check if there's message in the core's recv queue to collect, if so, the tcb 
+identified by "msg->req_thr" will resume running from where it previously 
+blocks when sending the interprocessor request and can continue to finish sycall
+like examining result from the message that has been modified by the thread 
+that performs the request on a different core and return the result to user.
+
+typedef struct {
+    /** @brief A node to enable this message be put in a queue somewhere */
+    simple_node_t node;  // 12 bytes
+    /** @brief The tcb of the thread that issues a interprocessor syscall */
+    void* req_thr;      // 4 bytes
+    /** @brief The index of the core where the requesting thread resides */
+    int req_cpu;        // 4 bytes
+    /** @brief Type of the message: can be request or response type */
+    msg_type_t type;  // 4 bytes
+    /** @brief Data field of the message, can be request or response data 
+     *  Use union to limit message size. Data types like msg_data_fork_t
+     *  contains data that's needed by fork, etc.
+     */
+    union {
+        msg_data_fork_t fork_data;
+        msg_data_wait_t wait_data;
+        ...
+    } data;
+} msg_t;
+
+/** @brief Interface on worker core side */
+void worker_send_msg(msg_t* msg);
+msg_t* worker_recv_msg();
+
+/** @brief Interface on manager core side */
+void manager_send_msg(msg_t* msg, int dest_cpu);
+msg_t* manager_recv_msg();
+
+Besides, message and thread are highly related and are key to our design.
+Each thread has a field in its tcb that references the message owned soles by 
+the thread, and each message struct has a filed that references its unique 
+owner thread, which makes "blocking a thread" on a interprocessor syscall 
+convenient through putting it on send or recv queues. There's also an 
+interface for extracting tcb from a message.
+
+void* get_thr_from_msg_queue();
+
+2. Spinlock design
+As indicated by the send and recv queue design above, there're at most two 
+cores that will access a queue. So, locks for objects like that have known 
+potential number of requesters. Spinlocks in P4 are thus upgraded to support 
+bounded waiting.
+
+/**@ brief spinlock type */
+typedef struct {
+    /** @brief Flag indicating if the lock is available */
+    int available;
+    /** @brief Flag indicating waiting status */
+    int waiting[2];
+} spinlock_t;
+
+3. Overview of complicated system calls
+
+Fork:
+Fork is the only syscall that lets the worker core that actually does the fork
+sets its %cr3 to the one of the thread that needs to be forked while cloning 
+page directory, which is inevitable, because the entire page direcotry and 
+frames needs to be traversed. When a task issues a fork request, it does
+a thread_fork and creates a tcb on the original core, then, this tcb is 
+sent to the manager core, who will select a worker core randomly and send
+the tcb to it, the tcb gets run on the chosen worker core and does clone_pd 
+and create a process first, after that, result of the fork operation will be
+sent back to the manager core, who will relay it to the original core that 
+issues the fork request.
+
+Wait and vanish:
+
+
+Yield and deschedule:
+
+
+Print:
+Since console is a singleton resource, all print() syscalls need to be 
+completed on the manager core. In order to let the manager core access the 
+user buffer to be printed, a worker core mallocs a kernel buffer, copies the 
+user buffer to the kernel buffer, sends the kernel buffer pointer to the
+manager core, and the manager core accesses the kernel buffer through the
+pointer. This is to avoid having the manager thread set %cr3 to be the 
+thread that requests the print, which clears TLB on manager core; and, to avoid
+changing the page table on manager core to access user buffer, which may crash
+with other thread requesting accessing user space memory at the same time. As
+kernel memory are directly mapped and accessable on every core, referencing
+a kernel space buffer causes the minimal cost except some cache line miss that
+is inevitable.
+
+4. Limitations
+Due to limited time and final week, we adhere to a solid working 
+single-threaded manager core that polls messages on worker cores
+and executes the system calls itself, instead of a multi-threaded
+manager core.
+
 
 */

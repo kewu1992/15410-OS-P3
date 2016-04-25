@@ -1,4 +1,4 @@
-/** @file syscall_errors.h
+/** @file syscall_inter.h
  *
  *  @brief This file contains definitions for syscall internals
  *
