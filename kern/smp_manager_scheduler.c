@@ -44,7 +44,7 @@ void smp_manager_boot() {
     // Boot AP kernels after initilization is done
     smp_boot(ap_kernel_main);
 
-     // barrier to wait for all AP cores ready
+    // barrier to wait for all AP cores ready
     msg_synchronize();
 
     lprintf("all cores synchronized");

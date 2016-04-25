@@ -181,7 +181,6 @@ void context_switch(int op, uint32_t arg) {
                         put_next_zombie(node);
                     } else {
                         // Zombie thread is ready to be freed
-                        lprintf("thr %d reap zombie thr %d", this_thr->tid, zombie_thr->tid);
                         tcb_vanish_thread(zombie_thr);
                     }
                 }

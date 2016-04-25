@@ -47,13 +47,15 @@ static void ap_kernel_init(int cpu_id) {
     if (scheduler_init() < 0)
         panic("Initialize scheduler at cpu%d failed!", cpu_id);
 
+    // Initialize system call specific data structure
+
     if (syscall_vanish_init() < 0)
         panic("Initialize vanish at cpu%d failed!", cpu_id);
 
     if (syscall_deschedule_init() < 0)
         panic("Initialize deschedule at cpu%d failed!", cpu_id);
 
-    if(syscall_sleep_init() < 0) 
+    if (syscall_sleep_init() < 0) 
         panic("syscall_sleep_init at cpu%d failed", cpu_id);
 }
 
@@ -63,9 +65,6 @@ void ap_kernel_main(int cpu_id) {
     lprintf("Initializing kernel for cpu%d", cpu_id);
     ap_kernel_init(cpu_id);
     lprintf("Finish initialization for cpu%d", cpu_id);
-
-    uint32_t cr3 = (uint32_t)get_cr3();
-    lprintf("cpu %d's cr3:%x", smp_get_cpu(), (unsigned)cr3);
 
     enable_interrupts();
 

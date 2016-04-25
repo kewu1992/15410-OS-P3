@@ -105,7 +105,7 @@ void kernel_init() {
          panic("Initialize syscall deschedule() at cpu0 failed!");
 
     if (syscall_sleep_init() < 0)
-        panic("Initialize syscall sleep() at cpu 0failed!");
+        panic("Initialize syscall sleep() at cpu 0 failed!");
 
     if (syscall_readfile_init() < 0)
         panic("Initialize syscall readfile() at cpu0 failed!");
