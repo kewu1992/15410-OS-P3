@@ -44,6 +44,16 @@ static pri_queue sleep_queue;
  *         of sleep() */
 static spinlock_t sleep_lock;
 
+/** @brief For deschedule() and make_runnable() syscalls.
+ *         All threads that are blocked because of deschedule() will be stored 
+ *         in this queue. make_runnable() will try to find the thread to be 
+ *         made runable in this queue */
+static simple_queue_t *deschedule_queues[MAX_CPUS];
+
+/** @brief For deschedule() and make_runnable() syscalls.
+ *         Mutex lock to protect deschedule_queue */
+static mutex_t *deschedule_mutexs[MAX_CPUS];
+
 static int sleep_queue_compare(void* this, void* that);
 
 /** @brief Initialize data structure for sleep() syscall */
@@ -53,11 +63,33 @@ int syscall_sleep_init() {
     return error ? -1 : 0;
 }
 
+/** @brief Initialize data structure for deschedule() syscall */
+int syscall_deschedule_init() {
+    int cur_cpu = smp_get_cpu();
+
+    deschedule_queues[cur_cpu] = malloc(sizeof(simple_queue_t));
+    if (deschedule_queues[cur_cpu] == NULL)
+        return -1;
+
+    deschedule_mutexs[cur_cpu] = malloc(sizeof(mutex_t));
+    if (deschedule_mutexs[cur_cpu] == NULL)
+        return -1;
+
+    if (simple_queue_init(deschedule_queues[cur_cpu]) < 0)
+        return -1;
+
+    if (mutex_init(deschedule_mutexs[cur_cpu]) < 0)
+        return -1;
+
+    return 0;
+}
+
 /** @brief System call handler for gettid()
  *
  *  @return The thread ID of the invoking thread.
  */
 int gettid_syscall_handler() {
+    lprintf("thr %d at cpu%d", tcb_get_entry((void*)asm_get_esp())->tid, smp_get_cpu());
     return tcb_get_entry((void*)asm_get_esp())->tid;
 }
 
@@ -338,19 +370,26 @@ int deschedule_syscall_handler(int *reject) {
     }
     // Finish parameter check
 
-    // Hand over to manager core
-    // Get current thread
-    tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
+    // using mutex to protect deschedule_queue, it also make sure examine the 
+    // value of *reject and block the thread (at here it is done by put the 
+    // thread in the deschedule_queue) is atomic with respect to make runnable()
+    mutex_lock(deschedule_mutexs[smp_get_cpu()]);
+    if (*reject) {
+        mutex_unlock(deschedule_mutexs[smp_get_cpu()]);
+        return 0;
+    }
+    simple_node_t node;
+    node.thr = tcb_get_entry((void*)asm_get_esp());
 
-    // Construct message
-    this_thr->my_msg->req_thr = this_thr;
-    this_thr->my_msg->req_cpu = smp_get_cpu();
-    this_thr->my_msg->type = DESCHEDULE;
-    this_thr->my_msg->data.deschedule_data.reject = *reject;
+    // enter the tail of deschedule_queue to wait, note that stack
+    // memory is used for node of queue. Because the stack of 
+    // deschedule_syscall_handler() will not be destroied until this 
+    // function return, so it is safe
+    simple_queue_enqueue(deschedule_queues[smp_get_cpu()], &node);
+    mutex_unlock(deschedule_mutexs[smp_get_cpu()]);
 
-    context_switch(OP_SEND_MSG, 0);
-
-    return this_thr->my_msg->data.response_data.result;
+    context_switch(OP_BLOCK, 0);
+    return 0;
 
 }
 
@@ -377,10 +416,33 @@ int make_runnable_syscall_handler(int tid) {
     this_thr->my_msg->req_cpu = smp_get_cpu();
     this_thr->my_msg->type = MAKE_RUNNABLE;
     this_thr->my_msg->data.make_runnable_data.tid = tid;
+    this_thr->my_msg->data.make_runnable_data.result = -1;
+    this_thr->my_msg->data.make_runnable_data.next_core = smp_get_cpu();
 
-    context_switch(OP_SEND_MSG, 0);
+    do {
+        lprintf("check on core %d", smp_get_cpu());
+        mutex_lock(deschedule_mutexs[smp_get_cpu()]);
+        simple_node_t* node = simple_queue_remove_tid(deschedule_queues[smp_get_cpu()], tid);
+        mutex_unlock(deschedule_mutexs[smp_get_cpu()]);
 
-    return this_thr->my_msg->data.response_data.result;
+        if (node != NULL) {
+            // find the descheduled thread, make it runnable
+            context_switch(OP_MAKE_RUNNABLE, (uint32_t)node->thr);
+            lprintf("find");
+            this_thr->my_msg->data.make_runnable_data.result = 0;
+        }
+
+        // loop to visit deschedule queues of all cores
+        context_switch(OP_SEND_MSG, 0);
+
+    } while (this_thr->my_msg->data.make_runnable_data.result < 0 &&
+             smp_get_cpu() != this_thr->my_msg->req_cpu);
+
+    
+    if (this_thr->my_msg->data.make_runnable_data.result < 0)
+        return ETHREAD;
+    else
+        return 0;
 
 }
 

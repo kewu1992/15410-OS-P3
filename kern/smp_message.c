@@ -151,6 +151,7 @@ void* get_thr_from_msg_queue() {
         case FORK_RESPONSE:
         case WAIT_RESPONSE:
         case RESPONSE:
+        case MAKE_RUNNABLE:
             return (tcb_t*)msg->req_thr;
         default:
             return NULL;

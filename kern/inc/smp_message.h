@@ -39,12 +39,11 @@ typedef struct {
     char *kernel_buf;
 } msg_data_readline_t;
 
-typedef struct {
-    int reject;
-} msg_data_deschedule_t;
 
 typedef struct {
     int tid;
+    int next_core;
+    int result;
 } msg_data_make_runnable_t;
 
 typedef struct {
@@ -80,20 +79,19 @@ typedef enum {
     VANISH,         // 2
     WAIT,           // 3
     YIELD,          // 4
-    DESCHEDULE,     // 5
-    MAKE_RUNNABLE,  // 6
-    READLINE,       // 7
-    PRINT,          // 8
-    SET_TERM_COLOR, // 9
-    SET_CURSOR_POS, // 10
-    GET_CURSOR_POS, // 11
-    SET_INIT_PCB,   // 12
-    RESPONSE,       // 13
+    MAKE_RUNNABLE,  // 5
+    READLINE,       // 6
+    PRINT,          // 7
+    SET_TERM_COLOR, // 8
+    SET_CURSOR_POS, // 9
+    GET_CURSOR_POS, // 10
+    SET_INIT_PCB,   // 11
+    RESPONSE,       // 12
 
 
-    FORK_RESPONSE,  // 14
-    WAIT_RESPONSE,  // 15
-    VANISH_BACK,    // 16
+    FORK_RESPONSE,  // 13
+    WAIT_RESPONSE,  // 14
+    VANISH_BACK,    // 15
     NONE
 } msg_type_t;
 
@@ -111,7 +109,6 @@ typedef struct {
         msg_data_set_cursor_pos_t set_cursor_pos_data;
         msg_data_readline_t readline_data;
         msg_data_print_t print_data;
-        msg_data_deschedule_t deschedule_data;
         msg_data_make_runnable_t make_runnable_data;
 
 
