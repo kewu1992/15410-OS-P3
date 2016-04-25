@@ -20,6 +20,8 @@ int syscall_sleep_init();
 
 int syscall_vanish_init();
 
+int syscall_deschedule_init();
+
 int syscall_readfile_init();
 
 void* resume_reading_thr(char ch);

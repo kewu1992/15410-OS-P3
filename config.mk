@@ -62,7 +62,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory.
 #
-STUDENTTESTS = agility_drill beady_test cvar_test cyclone excellent hello_world io_test join_specific_test juggle largetest mandelbrot multitest mutex_test my_cho my_fork my_new_pages my_wild_test1 my_yield_desc_mkrun paraguay param_check racer rwlock_downgrade_read_test sleep_test small_program startle switched_program switzerland test_fork test_readfile test_swexn test_swexn_helper test_yield thr_exit_join vanish_check
+STUDENTTESTS = agility_drill beady_test cvar_test cyclone excellent hello_world io_test join_specific_test juggle largetest mandelbrot multitest mutex_test my_cho my_fork my_new_pages my_wild_test1 my_yield_desc_mkrun paraguay param_check racer rwlock_downgrade_read_test sleep_test small_program startle switched_program switzerland test_fork test_readfile test_swexn test_swexn_helper test_yield thr_exit_join vanish_check my_mkrun_desc
 
 
 ###########################################################################

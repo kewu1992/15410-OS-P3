@@ -98,14 +98,17 @@ void kernel_init() {
 
     // Initialize system call specific data structure
 
-    if (syscall_sleep_init() < 0)
-        panic("Initialize syscall sleep() failed!");
-
     if (syscall_vanish_init() < 0)
-        panic("Initialize syscall vanish() failed!");
+        panic("Initialize syscall vanish() at cpu0 failed!");
+
+    if (syscall_deschedule_init() < 0)
+         panic("Initialize syscall deschedule() at cpu0 failed!");
+
+    if (syscall_sleep_init() < 0)
+        panic("Initialize syscall sleep() at cpu 0failed!");
 
     if (syscall_readfile_init() < 0)
-        panic("Initialize syscall readfile() failed!");
+        panic("Initialize syscall readfile() at cpu0 failed!");
     
 
     clear_console();
