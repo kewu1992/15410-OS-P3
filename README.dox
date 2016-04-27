@@ -128,13 +128,13 @@ The only resource that will be access by multiple cores are the message queues.
 
 3. Overview of complicated system calls
 
-Fork():
+fork():
 Fork is the only syscall that lets the worker core that actually does the fork
 sets its %cr3 to the %cr3 of the thread that needs to be forked while cloning 
 page directory, which is inevitable, because the entire page direcotry and 
 frames needs to be traversed. 
 
-Fork() is done in the following steps:
+fork() is done in the following steps:
 
 0) A thread issues a fork syscall 
 1) the old thread on the old core does a thread_fork() and creates a new thread 
@@ -172,7 +172,7 @@ belong to the new core.
 
 
 
-Vanish():
+vanish():
 If the thread that invoking vanish() is not the last thraed of the task, then
 only the resources of the thread need to be released. As implemented in P3, we
 put the thread in a zombie list and let other threads free its resources during 
@@ -248,10 +248,64 @@ wait() is done typically in the following steps:
 
 
 
-Yield and deschedule:
+yield() and make_runnable():
+These two system calls are special because they need to check resources of 
+every core. For yield(), it needs to check the runnable queue of every 
+scheduler. For make_runnable(). it needs to check the deschedule queue of every
+core. We implemented this by making the thread that invoking the syscalls to 
+"visit" (run on) every core one by one and check the queues of the core that it
+running on. And finally, after the thread has visited all cores, it will go 
+back to its own core and return the result to user.
+
+For example, make_runnable() is done in the following steps:
+0) A thread issues a make_runnable syscall
+1) The thread constructs it message as MAKE_RUNNABLE, set the value of the 
+   next_core field as the core it is running on (the original core). Thread 
+   sends the message to the manager core, the thread is blocked (from the view 
+   of the original core).
+2) The manager core receives the message, calculates "the next core" as 
+   next_core = (next_core + 1) % num_worker_cores, then sends the message to the
+   recv queue of "the next core".
+3) "The next core" receives the message, adds the thread to its scheduler's 
+   queue. Form the view of "the next core", it makes the thraed runnable.
+4) The thread starts running, it will check the deschedule queue of "the next 
+   core". If it finds the thread that has the tid that make_runnable syscall 
+   specifies, it makes the thread runnable and change the result field in
+   its message.
+5) The thread sends its message to the manager core. From the view of "the next
+   core", the thread is blocked.
+6) The manager core receives the message, it checks the result field to see 
+   whether the syscall has succeeded. If so, the manager core will send the 
+   message back to the recv queue of the original core immediately. Otherwise, 
+   it will jump to step 2.
+7) Finally, the thread will go back to the original core. It will return the
+   result stored in its message back to user.
+
+One issue is that when the thread switcheing the core it is running on, it will
+set its pcb to the pcb of the idle task of the core it will be running on. The
+reason is that in our implementation each core has its own page tables that 
+mapping virtual memory of kernel space to the physical frames. In other words,
+all tasks running on the same core share the same page tables that mapping 
+kernel space to frames. Tasks running on the difference cores have different 
+kernel-space mapping page table. (However, the physical frames that they mapped
+to are the same and shared by all cores). So when a thread switching cores, it 
+sets its pcb to the idle task of the core it will be running on to avoid the 
+large memory transferring of the page tabels. 
+
+However, we realize that there is still some non-trivial memory transferring if
+the thread switches the core temporarily. For example, the running kernel stack
+space of the thread. However, it should be not very large (probably 100 bytes 
+for a frame of the stack). Besides, we think the temporary core-switching is 
+inevitable for yield() and make_runnable(). Some threads must check the queues
+of every core. And our design tries to avoid "letting other threads do things
+for you" because it will be painful, compltex and error prone (like vanish()).
+So we try our best to let thread do its own work, like letting the new thread 
+clone its page directory and page tables during fork() and checking queues of
+cores during yield() and make_runnable().  
 
 
-Print:
+
+print():
 Since console is a singleton resource, all print() syscalls need to be 
 completed on the manager core. In order to let the manager core access the 
 user buffer to be printed, a worker core mallocs a kernel buffer, copies the 
