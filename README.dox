@@ -6,6 +6,14 @@
 @author Jian Wang (jianwan3)
 
 The following is an overview of the AMP design in P4.
+We meet most of the requirements of P4, Specifically, our kernel can boot and 
+function correctly in a multi-processor environment. We set up APIC timer, 
+data strcuture and initialization for each cores. We designed and implemented
+the message passing interface for AMP. We also modified all system call to 
+support AMP. However, due to limited time and final week, we adhere to a solid 
+working single-threaded manager core that polls messages on worker cores and 
+executes the system calls itself, instead of a multi-threaded manager core.
+
 
 1. Message passing interface
 Every worker core has two queues: a send queue and a recv queue. Each queue will
