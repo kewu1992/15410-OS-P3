@@ -359,4 +359,7 @@ core, it also sends a inter-processor interrupt. This provides an opportunity
 for the interrupt handler of the manager core to wake up the mailbox thread.
 
 
+5. Bugs
+Sometimes sim_halt() will cause simics to segmentation fault and exit. Although
+it is a kind of halt(), it might be a problem. 
 */

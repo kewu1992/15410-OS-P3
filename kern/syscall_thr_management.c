@@ -245,7 +245,7 @@ int yield_syscall_handler(int tid) {
         // the thread is not on this core, try other cores
         
         tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-        int pd = this_thr->pcb->page_table_base;
+        pcb_t* pcb = this_thr->pcb;
 
         // Construct message
         msg_t* msg = this_thr->my_msg;
@@ -268,8 +268,8 @@ int yield_syscall_handler(int tid) {
                   smp_get_cpu() != msg->req_cpu);
 
         // set page table base back to its own
-        this_thr->pcb->page_table_base = pd;
-        set_cr3(pd);
+        this_thr->pcb = pcb;
+        set_cr3(this_thr->pcb->page_table_base);
 
         if (msg->data.yield_data.result < 0)
             return ETHREAD;
@@ -479,7 +479,7 @@ int make_runnable_syscall_handler(int tid) {
     // Hand over to manager core
     // Get current thread
     tcb_t *this_thr = tcb_get_entry((void*)asm_get_esp());
-    int pd = this_thr->pcb->page_table_base;
+    pcb_t* pcb = this_thr->pcb;
 
     // Construct message
     msg_t* msg = this_thr->my_msg;
@@ -509,8 +509,8 @@ int make_runnable_syscall_handler(int tid) {
 
     
     // set page table base back to its own
-    this_thr->pcb->page_table_base = pd;
-    set_cr3(pd);
+    this_thr->pcb = pcb;
+    set_cr3(this_thr->pcb->page_table_base);
 
     if (msg->data.make_runnable_data.result < 0)
         return ETHREAD;

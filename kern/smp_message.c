@@ -223,8 +223,7 @@ void* get_thr_from_msg_queue() {
             // the same as the idle_task of the core is visiting to avoid memory
             // copying of page tables accross cores
             new_thr = (tcb_t*)msg->req_thr;
-            new_thr->pcb->page_table_base = 
-                                idle_thr[smp_get_cpu()]->pcb->page_table_base;
+            new_thr->pcb = idle_thr[smp_get_cpu()]->pcb;
             return new_thr;
         case HALT:
             // the manager core sends HALT message, should halt...
