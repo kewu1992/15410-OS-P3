@@ -5,14 +5,14 @@
 @author Ke Wu (kewu)
 @author Jian Wang (jianwan3)
 
-The following is an overview of the AMP4 design in P4.
+The following is an overview of the AMP design in P4.
 
 1. Message passing interface
 Every worker core has two queues: a send queue and a recv queue. Each queue will
 be accessed by at most two cores: the worker core that owns the queue and the 
 manager core that polls the queue. Each thread has a message associated with it.
 Each time a syscall of an interprocessor request issues, the thread that 
-invoking the system call constructs its message of the following format, puts 
+invoking the system call constructs its message with the following format, puts 
 its message in the core's send queue, at the same time blocks itself (will not 
 be scheduled by scheduler), and the scheduler on the local core chooses the next
 thread to run. Each time during timer context switch, every scheduler will first
@@ -24,24 +24,24 @@ message which has been modified by the thread that performs the interprocessor
 syscall on a different core. Finally the thread return the result to user.
 
 Form the view of the thread that sends the interprocessor syscall, the syscall
-is very similar to a IPC/RPC. The threads is blocked after sending its message 
-and will be resumed by scheduler after the message is sent back. It can also 
-examine the result stored in the message. Notice that the same message that
-associated with the thread acts as both a request and a response for the
-interprocessor syscall. 
+is very similar to a IPC/RPC because it is "synchronous". The threads is blocked
+after sending its message and will be resumed by scheduler after the message is
+sent back. It can also examine the result stored in the message. Notice that the
+same message that associated with the thread acts as both a request and a 
+response for the interprocessor syscall. 
 
 typedef struct {
     /** @brief A node to enable this message be put in a queue somewhere */
-    simple_node_t node;  // 12 bytes
+    simple_node_t node; // 12 bytes
     /** @brief The tcb of the thread that issues a interprocessor syscall */
     void* req_thr;      // 4 bytes
     /** @brief The index of the core where the requesting thread resides */
     int req_cpu;        // 4 bytes
     /** @brief Type of the message: can be request or response type */
-    msg_type_t type;  // 4 bytes
+    msg_type_t type;    // 4 bytes
     /** @brief Data field of the message, can be request or response data 
      *  Use union to limit message size. Data types like msg_data_fork_t
-     *  contains data that's needed by fork, etc.
+     *  contains data that's needed by fork(), etc.
      */
     union {
         msg_data_fork_t fork_data;
@@ -57,6 +57,11 @@ msg_t* worker_recv_msg();
 /** @brief Interface on manager core side */
 void manager_send_msg(msg_t* msg, int dest_cpu);
 msg_t* manager_recv_msg();
+
+The queue used in our design is the simple queue as we implemented in P3. It is
+a simple double-ended FIFO queue without using malloc(). To avoid using 
+malloc(), it is caller's responsibility to provide space for node of simple 
+queue. The simple queue is NOT thread safe.
 
 Besides, message and thread are highly related and are key to our design.
 Each thread has a field in its tcb that points to a message owned exclusively
