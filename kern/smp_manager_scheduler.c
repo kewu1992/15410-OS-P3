@@ -1,5 +1,5 @@
 /** @file smp_manager_scheduler.c
- *  @brief This file contains the main function for manager core
+ *  @brief This file contains the main function for the manager core
  *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu <kewu@andrew.cmu.edu>
@@ -18,11 +18,12 @@
 /** @brief The kernel_main function for worker cores */
 extern void ap_kernel_main(int cpu_id);
 
-/** @brief Boot manager core and run
-  * 
-  * @return void
-  *
-  */
+/** @brief Initialize the manager core and boot other cores
+ * 
+ *  Any data structures initialized here are own by the manager core only.
+ * 
+ *  @return void
+ */
 void smp_manager_boot() {
     
     if (msg_init() < 0)
@@ -48,7 +49,7 @@ void smp_manager_boot() {
 
     lprintf("all cores synchronized");
     
-
+    // poll message from queues repeatedly
     while(1) {
         msg_t* msg = manager_recv_msg();
 

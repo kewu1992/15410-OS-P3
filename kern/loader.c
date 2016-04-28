@@ -70,8 +70,34 @@ extern void asm_new_process_iret(void *esp);
  */
 extern void asm_idle_process_iret(void *esp);
 
+
+/**********************
+ *  P4 new functions  *
+ **********************/
+
+/** @brief Jump to the prepared kernel stack and call smp_manager_boot()
+ *
+ *  This function will be invoked by ASP in loadMailboxTask(). It is important
+ *  that the mailbox task jump to the created kernel stack as soon as possible 
+ *  because it needs its stack to find its tcb during context switch. 
+ *
+ *  @param esp The new value that %esp will set to.
+ *
+ *  @return Should never return
+ */
 extern void asm_mailbox_process_load(void *esp);
 
+
+/** @brief Jump to the prepared kernel stack and call load_idle_process()
+ *
+ *  This function will be invoked by APs in loadFirstTask(). It is important
+ *  that the idle task jump to the created kernel stack as soon as possible 
+ *  because it needs its stack to find its tcb during context switch. 
+ *
+ *  @param esp The new value that %esp will set to.
+ *
+ *  @return Should never return
+ */
 extern void asm_idle_process_load(void* esp, const char *filename);
 
 /** @brief The initial value of EFLAGS that will be set to every new process */
@@ -146,6 +172,13 @@ void loadFirstTask(const char *filename) {
     asm_idle_process_load(thread->k_stack_esp, filename);
 }
 
+/** @brief Load the idle task for APs
+ *
+ *  This function will be invoked by asm_idle_process_load() to load idle task.
+ *
+ *  @param filename The executable file of idle task to be loaded  
+ *  @return Should never return
+ */
 void load_idle_process(const char *filename) {
     tcb_t* thread = tcb_get_entry((void*)asm_get_esp());
 
@@ -403,7 +436,12 @@ void idle_process_init() {
 }
 
 
-
+/** @brief Load the mailbox task for BSP
+ *
+ *  This function will be invoked by kernel_main() to load mailbox task.
+ *
+ *  @return Should never return
+ */
 void loadMailboxTask() {  
     init_eflags = get_eflags();
 
@@ -412,7 +450,7 @@ void loadMailboxTask() {
     if (thread == NULL)
         panic("Load mailbox task failed");
 
-    // set idle thread as NULL
+    // set idle thread as NULL for BSP
     idle_thr[0] = NULL;
 
     asm_mailbox_process_load(thread->k_stack_esp);

@@ -35,6 +35,12 @@
  *
  *  OP_YIELD     -1 or 0-N  Yield to -1 or a given tid.
  *
+ *  OP_SEND_MSG         0   Send the message associated with the calling thread 
+ *                          to the manager core. Block the calling thread and 
+ *                          let scheduler to choose the next thread to run. The
+ *                          tcb of the blocking thread is stored in the message
+ *                          which stored in the send queue of this core.
+ *
  *
  *
  *  @author Jian Wang (jianwan3)
@@ -102,29 +108,30 @@ void context_switch(int op, uint32_t arg) {
     if (this_thr == NULL)
         return;
 
-    //lprintf("before context switch: tid:%d at cpu%d, op:%d, cr3:%x", this_thr->tid, smp_get_cpu(), op, (unsigned int)get_cr3());
-
     asm_context_switch(op, arg, this_thr);
 
     this_thr = tcb_get_entry((void*)asm_get_esp());
 
 
-    // for child process of fork(), set cr3 to the new page table base
-    //if (op == OP_FORK && this_thr->result == 0)
-    //    set_cr3((uint32_t)(this_thr->pcb->page_table_base));
-
+    /* for child process of fork(), finish the rest part of fork(), including
+     * create pcb, clone page table and clone swexn. */ 
     if (op == OP_FORK && this_thr->result == 0) {
         if (this_thr->my_msg->type == FORK_RESPONSE) {
             // set cr3 to partent task's page table
             set_cr3((uint32_t)(this_thr->pcb->page_table_base));
 
             msg_t* req_msg = this_thr->my_msg->data.fork_response_data.req_msg;
+
+            // finish the rest part of fork()
             int rv = fork_create_process(this_thr, req_msg->req_thr);
 
+            // construct FORK_RESPONSE message
             this_thr->my_msg->req_thr = this_thr;
             this_thr->my_msg->req_cpu = smp_get_cpu();
             this_thr->my_msg->data.fork_response_data.result = rv;
 
+            // send FORK_RESPONSE message back to the manager core, so the 
+            // manager core may send the result of fork() to the old task
             context_switch(OP_SEND_MSG, 0);
         }
         
@@ -136,7 +143,6 @@ void context_switch(int op, uint32_t arg) {
         set_cr3(this_thr->pcb->page_table_base);
 
 
-    //lprintf("after context switch: tid:%d at cpu%d, op:%d, cr3:%x", this_thr->tid, smp_get_cpu(), op, (unsigned int)get_cr3());
 
     // reset esp0
     set_esp0((uint32_t)tcb_get_high_addr(this_thr->k_stack_esp-1));
@@ -270,9 +276,10 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
 
             int rv;
 
+            /* If it is not the idle thread that invoking fork(), should 
+             * send message to the manager core and ask another core to do the 
+             * rest of fork() */
             if (this_thr != idle_thr[smp_get_cpu()]) {
-                // if it is not idle thread that invoking fork(), should 
-                // ask manager to do the work
                 // construct message
                 this_thr->my_msg->req_thr = this_thr;
                 this_thr->my_msg->req_cpu = smp_get_cpu();
@@ -282,14 +289,21 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                 this_thr->my_msg->data.fork_data.new_tid = new_thr->tid;
                 this_thr->my_msg->data.fork_data.ppid = this_thr->pcb->pid;
 
-
+                // construct part of message of FORK_RESPONSE, 
                 new_thr->my_msg->type = FORK_RESPONSE;
-                new_thr->my_msg->data.fork_response_data.req_msg = this_thr->my_msg;
+                new_thr->my_msg->data.fork_response_data.req_msg = 
+                                                               this_thr->my_msg;
 
                 context_switch(OP_SEND_MSG, 0);
 
+                // copy result from message
                 rv = this_thr->my_msg->data.fork_response_data.result;
             } else {
+                /* if it is the idle thread that invoking fork(), just do the
+                 * rest of fork() locally. Because idle thread is the very first
+                 * thraed in the core. It can not send message to the manager
+                 * core during initialzation (idle fork init) because it can not
+                 * be blocked. */ 
                 new_thr->my_msg->type = NONE;
                 rv = fork_create_process(new_thr, this_thr);
             }
@@ -306,11 +320,11 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
             this_thr->result = new_thr->tid;
 
             if (this_thr == idle_thr[smp_get_cpu()]) {
-                // will unlock in asm_context_switch() --> after context switch to 
-                // the next thread successfully
+                // will unlock in asm_context_switch() --> after context switch
+                // to the next thread successfully
                 spinlock_lock(spinlocks[smp_get_cpu()], 1);
-                // decide to enqueue this thread, should not be interrupted until 
-                // context switch to the next thread successfully
+                // decide to enqueue this thread, should not be interrupted 
+                // until context switch to the next thread successfully
                 scheduler_make_runnable(this_thr);
                 *cur_running_thr[smp_get_cpu()] = new_thr;
                 return new_thr;
@@ -371,7 +385,8 @@ tcb_t* context_switch_get_next(int op, uint32_t arg, tcb_t* this_thr) {
                         panic("no other process is running, %d can not \
                                                     be blocked", this_thr->tid);
                     else {
-                        *cur_running_thr[smp_get_cpu()] = idle_thr[smp_get_cpu()];
+                        *cur_running_thr[smp_get_cpu()] = 
+                                                        idle_thr[smp_get_cpu()];
                         return idle_thr[smp_get_cpu()];
                     }
                 } else {
@@ -538,6 +553,7 @@ void context_switch_lock() {
     spinlock_lock(spinlocks[smp_get_cpu()], 1);
 }
 
+/** @brief Get the current running thread */
 tcb_t* get_current_running_thr() {
     return *cur_running_thr[smp_get_cpu()];
 }

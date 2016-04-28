@@ -160,14 +160,6 @@ void *smemalign(size_t alignment, size_t size)
     return rv;
 }
 
-void* _init_smemalign(size_t alignment, size_t size) {
-    while (!asm_xchg(&init_lock, 0)) 
-        continue;
-    void* rv = _smemalign(alignment, size);
-    asm_xchg(&init_lock, 1);
-    return rv;
-}
-
 /** @brief Thread-safe version of _sfree
  *
  *  @param buf The first arg of _sfree

@@ -1,5 +1,8 @@
 /** @file ap_kernel.c
- *  @brief Contains the AP entry-point function
+ *  @brief Contains the APs entry-point function. 
+ *
+ *  Do some initialization for kernel and load the first task (idle task).
+ *  In our design, APs are also worker cores.
  *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu (kewu)
@@ -27,7 +30,10 @@
 #include <smp_message.h>
 
 
-
+/** @brief Initialize AP kernel 
+ *  The order of initialization may not be changed. Any data structures that
+ *  are initialized here means every core has its own copy. 
+ */
 static void ap_kernel_init(int cpu_id) {
 
     adopt_init_pd(cpu_id);
@@ -35,10 +41,10 @@ static void ap_kernel_init(int cpu_id) {
     if (malloc_init(cpu_id) < 0)
         panic("Initialize malloc at cpu%d failed!", cpu_id);
 
-    if(init_pm() < 0)
+    if (init_pm() < 0)
         panic("init_pm at cpu%d failed!", cpu_id);
 
-    if(init_ap_msg() < 0)
+    if (init_ap_msg() < 0)
         panic("init_msg at cpu%d failed!", cpu_id);
 
     if (context_switcher_init() < 0)
@@ -59,7 +65,12 @@ static void ap_kernel_init(int cpu_id) {
         panic("syscall_sleep_init at cpu%d failed", cpu_id);
 }
 
-
+/** @brief APs' kernel entrypoint.
+ *  
+ *  This is the entrypoint for APs' kernel.
+ *
+ * @return Does not return
+ */
 void ap_kernel_main(int cpu_id) {
 
     lprintf("Initializing kernel for cpu%d", cpu_id);

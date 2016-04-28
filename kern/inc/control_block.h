@@ -3,6 +3,13 @@
  *         (tcb) and process control block (pcb) and function prototypes for 
  *         control_block.c.
  *
+ *  ******************************
+ *  *       P4 new sesign        *
+ *  ******************************
+ *  A part of pcb that is realted to vanish() and wait() in P3 is now divided
+ *  from pcb and becomes pcb_vanish_wait_t in smp_syscall_lifecycle.c.
+ *
+ *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu (kewu)
  *
@@ -46,6 +53,7 @@ typedef struct pcb_t {
     /** @brief Parent task's pid */
     int ppid;
     
+    /** @brief Exit status for this task */
     int status;
     
     /** @brief Current number of alive threads in the task, determine if 
@@ -86,6 +94,7 @@ typedef struct tcb_t {
     /** @brief The parameters for registered swexn handler */
     swexn_t *swexn_struct;
 
+    /** @brief The message that associated with this thread */
     msg_t* my_msg;
 
     /** @brief Stores which cpu malloc() the kernel stack for this thread */
@@ -99,7 +108,8 @@ pcb_t* tcb_create_process_only(tcb_t* thread, tcb_t* pthr,
 
 tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state);
 
-tcb_t* tcb_create_idle_process(thread_state_t state, uint32_t new_page_table_base);
+tcb_t* tcb_create_idle_process(thread_state_t state, 
+                                                uint32_t new_page_table_base);
 
 void tcb_free_thread(tcb_t *thr);
 

@@ -26,7 +26,8 @@ void smp_make_runnable_syscall_handler(msg_t *msg) {
         manager_send_msg(msg, msg->req_cpu);
     } else {
         // continue looping to visit all cores
-        msg->data.make_runnable_data.next_core = (msg->data.make_runnable_data.next_core + 1) % num_worker_cores;
+        msg->data.make_runnable_data.next_core = 
+              (msg->data.make_runnable_data.next_core + 1) % num_worker_cores;
         // add one to skip core 0
         msg->data.make_runnable_data.next_core++;
 
@@ -48,7 +49,8 @@ void smp_yield_syscall_handler(msg_t* msg) {
         manager_send_msg(msg, msg->req_cpu);
     } else {
         // continue looping to visit all cores
-        msg->data.yield_data.next_core = (msg->data.yield_data.next_core + 1) % num_worker_cores;
+        msg->data.yield_data.next_core = 
+                    (msg->data.yield_data.next_core + 1) % num_worker_cores;
         // add one to skip core 0
         msg->data.yield_data.next_core++;
         manager_send_msg(msg, msg->data.yield_data.next_core);

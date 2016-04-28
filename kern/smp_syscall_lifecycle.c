@@ -39,6 +39,8 @@ typedef struct {
     mutex_t lock;
 } task_wait_t;
 
+/** @brief The Data structure for vanish() and wait() syscall, each task
+ *         should have a such of data structure on the manager core */
 typedef struct {
     /** @brief Child tasks exit status list. When a child task dies, it will
      *  put its exit_status_node to the parent's child_exit_status_list */
@@ -61,13 +63,6 @@ static void ht_remove_task(int pid);
 
 static void *get_task(int pid);
 
-static pcb_vanish_wait_t* init_task;
-
-
-static int fork_next_core = 0;
-
-extern int num_worker_cores;
-
 static int create_pcb_vanish_wait_struct(int pid);
 
 static void free_pcb_vanish_wait_struct(pcb_vanish_wait_t* pcb);
@@ -77,6 +72,16 @@ static void free_pcb_vanish_wait_struct(pcb_vanish_wait_t* pcb);
  *         pick a prime number */
 #define PID_PCB_HASH_SIZE 1021
 
+/** @brief The pcb_vanish_wait_t structure for init_task, it is used for
+ *         receiving exit status of unreaped orphan task. */
+static pcb_vanish_wait_t* init_task;
+
+/** @brief Fork() is done in round robin. This variable stores where the
+ *         next fork() should go. */
+static int fork_next_core = 0;
+
+/** @brief The number of worker cores */
+extern int num_worker_cores;
 
 /** @brief Hashtable to map pid to pcb, dead process doesn't have entry in 
  *         hashtable. It is useful to detect if partent task dead */
@@ -118,12 +123,14 @@ void smp_syscall_fork(msg_t* msg) {
   */
 void smp_fork_response(msg_t* msg) {
     msg_t* ori_msg;
-    if (msg->data.fork_response_data.result == 0) { // fork success 
+    if (msg->data.fork_response_data.result == 0) { 
+        // fork success 
         ori_msg = msg->data.fork_response_data.req_msg;
 
         // add num_alive of child process for parent process
         mutex_lock(&ht_pid_pcb_lock);
-        pcb_vanish_wait_t* parent_task = (pcb_vanish_wait_t*)get_task(ori_msg->data.fork_data.ppid);
+        pcb_vanish_wait_t* parent_task = 
+                    (pcb_vanish_wait_t*)get_task(ori_msg->data.fork_data.ppid);
         mutex_unlock(&ht_pid_pcb_lock);
 
         mutex_lock(&parent_task->task_wait_struct.lock);
@@ -132,7 +139,8 @@ void smp_fork_response(msg_t* msg) {
 
         // change the type of the original message to FORK_RESPONSE
         ori_msg->type = FORK_RESPONSE;
-        ori_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
+        ori_msg->data.fork_response_data.result = 
+                                        msg->data.fork_response_data.result;
 
         // send the response back to the thread calling fork()
         manager_send_msg(ori_msg, ori_msg->req_cpu);
@@ -150,12 +158,14 @@ void smp_fork_response(msg_t* msg) {
 
             // free pcb_vanish_wait_t 
             mutex_lock(&ht_pid_pcb_lock);
-            pcb_vanish_wait_t* this_task = (pcb_vanish_wait_t*)get_task(msg->data.fork_data.new_tid);
+            pcb_vanish_wait_t* this_task = 
+                    (pcb_vanish_wait_t*)get_task(msg->data.fork_data.new_tid);
             mutex_unlock(&ht_pid_pcb_lock);
             free_pcb_vanish_wait_struct(this_task);
 
             ori_msg->type = FORK_RESPONSE;
-            ori_msg->data.fork_response_data.result = msg->data.fork_response_data.result;
+            ori_msg->data.fork_response_data.result = 
+                                            msg->data.fork_response_data.result;
             // send response back to the thread calling fork()
             manager_send_msg(ori_msg, ori_msg->req_cpu);
         } else {
@@ -166,10 +176,6 @@ void smp_fork_response(msg_t* msg) {
         }
     }
 }
-
-/************ vanish ***********************/
-
-
 
 
 /** @brief The hash function for hash table 
@@ -244,7 +250,7 @@ int smp_syscall_vanish_init() {
     return 0;
 }
 
-/** @brief Multi-core version of pcb initialization
+/** @brief Create and set pcb_vanish_wait_t data structure for init task
   *
   * @param msg The message that contains the syscall request
   *
@@ -255,7 +261,8 @@ void smp_set_init_pcb(msg_t* msg) {
     int rv = create_pcb_vanish_wait_struct(msg->data.set_init_pcb_data.pid);
     if (rv == 0) {
         mutex_lock(&ht_pid_pcb_lock);
-        init_task = (pcb_vanish_wait_t*)get_task(msg->data.set_init_pcb_data.pid);
+        init_task = 
+                (pcb_vanish_wait_t*)get_task(msg->data.set_init_pcb_data.pid);
         mutex_unlock(&ht_pid_pcb_lock);
     }
     
@@ -273,7 +280,8 @@ void smp_set_init_pcb(msg_t* msg) {
   */
 void smp_syscall_vanish(msg_t* msg) {
     mutex_lock(&ht_pid_pcb_lock);
-    pcb_vanish_wait_t* this_task = (pcb_vanish_wait_t*)get_task(msg->data.vanish_data.pid);
+    pcb_vanish_wait_t* this_task = 
+                        (pcb_vanish_wait_t*)get_task(msg->data.vanish_data.pid);
     mutex_unlock(&ht_pid_pcb_lock);
     if (this_task == NULL) {
         panic("Can not find pcb_vanish_wait_t in smp_syscall_vanish()");
@@ -401,7 +409,8 @@ void smp_syscall_vanish(msg_t* msg) {
 void smp_syscall_wait(msg_t* msg) {
 
     mutex_lock(&ht_pid_pcb_lock);
-    pcb_vanish_wait_t* pcb = (pcb_vanish_wait_t*)get_task(msg->data.wait_data.pid);
+    pcb_vanish_wait_t* pcb = 
+                    (pcb_vanish_wait_t*)get_task(msg->data.wait_data.pid);
     mutex_unlock(&ht_pid_pcb_lock);
 
     if (pcb == NULL)
@@ -446,7 +455,7 @@ void smp_syscall_wait(msg_t* msg) {
 }
 
 
-/** @brief Create the vanish wait struct in pcb
+/** @brief Create the vanish wait struct for a task
   *
   * @param pid The process id
   *
@@ -458,7 +467,7 @@ static int create_pcb_vanish_wait_struct(int pid) {
     if (process == NULL)
         return -1;
 
-    // Put pid to pcb mapping in hashtable
+    // Put pid to pcb_vanish_wait_t mapping in hashtable
     if (ht_put_task(pid, process) < 0) {
         // out of memory
         free(process);
@@ -521,7 +530,7 @@ static int create_pcb_vanish_wait_struct(int pid) {
     return 0;
 }
 
-/** @brief Free resources in pcb
+/** @brief Free resources of pcb_vanish_wait_t
   *
   * @param pcb The struct that contains the resouces of pcb to free
   *

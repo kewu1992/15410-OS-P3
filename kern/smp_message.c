@@ -41,7 +41,7 @@ extern void sim_halt(void);
   */
 extern void asm_hlt(void);
 
-/** @brief Init message queues on manager core
+/** @brief Init the array of message queues on manager core
  *
  *  @return 0 on success; -1 on error
  *
@@ -65,7 +65,7 @@ int msg_init() {
     return 0;
 }
 
-/** @brief Initialize AP cores' message queue 
+/** @brief Initialize AP cores' message queue
   * 
   * @return 0 on success; a negative integer on error
   *
@@ -192,9 +192,13 @@ msg_t* manager_recv_msg() {
     return msg_node->thr;
 }
 
-/** @brief Get the thread corresponding to the message as an agent to run
+/** @brief Get the thread corresponding to the message
  *
- *  @return The thread to run if message isn't NULL; NULL otherwise
+ *  This function will be invoked by schedulers of worker cores. If some 
+ *  messages are sent by the manager core, this function will transform the
+ *  message to the corresponding thread and let scheduler to schedule it.
+ *
+ *  @return The thread to schedule if message isn't NULL; NULL otherwise
  */
 void* get_thr_from_msg_queue() {
     if (smp_get_cpu() == 0)
@@ -205,21 +209,25 @@ void* get_thr_from_msg_queue() {
         tcb_t* new_thr;
         switch(msg->type) {
         case FORK:
+            // for fork(), should return the newly created thread
             new_thr = (tcb_t*)(msg->data.fork_data.new_thr);
             return new_thr;
         case FORK_RESPONSE:
         case WAIT_RESPONSE:
         case RESPONSE:
+            // for response message, just return the associated thread
             return (tcb_t*)msg->req_thr;
         case MAKE_RUNNABLE:
         case YIELD:
-            // temporaryly set page table base to the same as the idle_task of 
-            // the core is visiting to avoid memory copying of page tables 
-            // accross cores
+            // for make_runnable and yield, temporaryly set page table base to 
+            // the same as the idle_task of the core is visiting to avoid memory
+            // copying of page tables accross cores
             new_thr = (tcb_t*)msg->req_thr;
-            new_thr->pcb->page_table_base = idle_thr[smp_get_cpu()]->pcb->page_table_base;
+            new_thr->pcb->page_table_base = 
+                                idle_thr[smp_get_cpu()]->pcb->page_table_base;
             return new_thr;
         case HALT:
+            // the manager core sends HALT message, should halt...
             asm_hlt();
         default:
             return NULL;

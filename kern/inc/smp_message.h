@@ -7,9 +7,14 @@
 
 /** @brief Message data for fork */
 typedef struct {
+    /** @brief tcb of the newly created thread*/
     void* new_thr;
+    /** @brief The times of retrying fork() if the previous are failed */
     int retry_times; 
+    /** @brief tid of the newly created thread, it is also the pid of the
+     *         new process */
     int new_tid;
+    /** @brief pid of the parent task */
     int ppid;
 } msg_data_fork_t;
 

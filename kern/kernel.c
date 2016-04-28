@@ -1,7 +1,8 @@
 /** @file kernel.c
  *  @brief An initial kernel.c
  *
- *  Do some initialization for kernel and load the first task (idle task)
+ *  Do some initialization for kernel and load the first task (mailbox task).
+ *  In our design, BSP is also the manager core.
  *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu (kewu)
@@ -69,7 +70,8 @@ int kernel_main(mbinfo_t *mbinfo, int argc, char **argv, char **envp)
 }
 
 /** @brief Initialize kernel 
- *  The order of initialization may not be changed
+ *  The order of initialization may not be changed. Any data structures that
+ *  are initialized here means every core has its own copy. 
  */
 void kernel_init() {
 

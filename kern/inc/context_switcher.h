@@ -31,11 +31,9 @@
 #define OP_RESUME 5
 /** @brief Yield to -1 or a given tid. */
 #define OP_YIELD 6
-
+/** @brief Send message and block the calling thread. */
 #define OP_SEND_MSG 7
 
-
-#define FORK_RESULT_RAW_CHILD  -1024
 
 int context_switcher_init();
 

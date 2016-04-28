@@ -1,3 +1,12 @@
+/** @file smp_syscall.h
+ *
+ *  @brief This file contains definitions for syscall internals of SMP version.
+ *
+ *  @author Ke Wu (kewu)
+ *
+ *  @bug No known bugs.
+ */
+
 #ifndef _SMP_SYSCALL_H_
 #define _SMP_SYSCALL_H_
 

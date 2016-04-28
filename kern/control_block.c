@@ -1,6 +1,4 @@
-/** NEED TO CHANGE COMMENTS!! (tcb_table)
-
-@file control_block.c
+/** @file control_block.c
  *  @brief This file contains functions related to thread control block (tcb)
  *         and process control block (pcb).
  *
@@ -8,16 +6,21 @@
  *  when it is created. When each thread is running in kernel mode, it run
  *  on its kernel stack. The size of each kernel stack is defined as 
  *  K_STACK_SIZE. The start address of each kernel stack algins to K_STACK_SIZE.
- *  To quickly find its tcb struct for each thread, an array tcb_table is used.
- *  The size of the array is KERNEL_MEM_SIZE/K_STACK_SIZE. So each kernel stack
- *  is corresponding to an unique index in the array. The elements in the array
- *  are tcb for all threads created by kernel. So a thread can get its tcb
- *  easily by calculating its index (a thread can get its kernel stack address
- *  by using the current %esp value) in the array and get the tcb from array.
  *
  *  All threads belong to the same task (process) share a same pcb struct. 
  *  In each tcb, there is a pointer points to the pcb. Pcb is used to store
- *  the task-level resources, such as page table address, parent task's pid.  
+ *  the task-level resources, such as page table address, parent task's pid. 
+ *
+ *  **************************************
+ *  *           P4 new desigin           *
+ *  **************************************
+ *  Unlike P3 where we put all tcbs in an array and find a tcb by indexing. In
+ *  P4 we put the tcb data structure of each thread on the *top* of its kernel
+ *  stack space. So the very top space with the size sizeof(tcb_t) of kernel
+ *  stack of each thread is its tcb. The thread can still get its tcb very 
+ *  quickly. It just need to know the highest address of its kernel stack.
+ *  The reason we do so is to avoid allocating tcb_table array for each core 
+ *  which is memory consuming. 
  *
  *
  *  @author Jian Wang (jianwan3)
@@ -146,7 +149,8 @@ tcb_t* tcb_create_thread_only(pcb_t* process, thread_state_t state) {
  *  @return Thread control block data structure of the newly created thread, 
  *          return NULL on error
  */
-tcb_t* tcb_create_idle_process(thread_state_t state, uint32_t new_page_table_base) {
+tcb_t* tcb_create_idle_process(thread_state_t state, 
+                                            uint32_t new_page_table_base) {
     tcb_t *thread = tcb_create_thread_only(NULL, state);
     if (thread == NULL) {
         return NULL;
@@ -263,7 +267,8 @@ tcb_t* tcb_get_entry(void *addr) {
  *  @return The highest kernel stack address of the thread
  */
 void* tcb_get_high_addr(void *addr) {
-    return (void*)((GET_K_STACK_INDEX(addr) + 1) * K_STACK_SIZE - sizeof(tcb_t));
+    return (void*)((GET_K_STACK_INDEX(addr) + 1) * K_STACK_SIZE - 
+                                                                sizeof(tcb_t));
 }
 
 /** @brief Get the lowest kernel stack address of a thread 

@@ -49,8 +49,10 @@ tcb_t* scheduler_get_next(int mode) {
     simple_node_t* node;
 
     if (mode == -1) {
-        // before get the next thread from queue of scheduler, check message queue
+        // before get the next thread from queue of scheduler, check the recv
+        // message queue
         tcb_t* rv = (tcb_t*)get_thr_from_msg_queue();
+        // if there is a available message, schedule its associated thread
         if (rv)
             return rv;
 
@@ -100,7 +102,14 @@ void scheduler_make_runnable(tcb_t *thread) {
     simple_queue_enqueue(queues[smp_get_cpu()], node);
 }
 
-
+/** @brief Check if a thread is running or runnable on this core. 
+ *
+ *  This function is used for mutil-core version of yield()
+ *
+ *  @param The thraed that to be checked
+ *
+ *  @return If thread is running or runnable, return 1 else return 0
+ */
 int scheduler_is_exist_or_running(int tid) {
     context_switch_lock();
     int rv = simple_queue_is_exist_tid(queues[smp_get_cpu()], tid);

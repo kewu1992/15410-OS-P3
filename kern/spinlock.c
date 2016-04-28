@@ -16,6 +16,13 @@
  *  to protect a few lines of code (e.g. the implementation of mutex) or very
  *  tricky data structure (e.g. queue of scheduler during context switch). 
  *
+ *  ********************************
+ *  *       P4 new design          *
+ *  ********************************
+ *  Because the maximum number of cores that will access the shared resources 
+ *  (i.e. message queues) is two. The array method can be used to ensure 
+ *  bounded waiting.
+ *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu (kewu)
  *  @bug No known bugs
@@ -41,6 +48,7 @@ int spinlock_init(spinlock_t* lock) {
 /** @brief Lock a spinlock
  *  
  *  @param lock The lock to lock
+ *  @param is_disable_interrupt Indiciate if to disable interrupt when lock
  *  @return void
  */
 void spinlock_lock(spinlock_t* lock, int is_disable_interrupt) {
@@ -60,6 +68,7 @@ void spinlock_lock(spinlock_t* lock, int is_disable_interrupt) {
 /** @brief Unlock a spinlock
  *  
  *  @param lock The lock to unlock
+ *  @param is_enable_interrupt Indicate if to enable interrupt when unlock
  *  @return void
  */
 void spinlock_unlock(spinlock_t* lock, int is_enable_interrupt) {
