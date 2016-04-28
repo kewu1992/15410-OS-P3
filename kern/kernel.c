@@ -28,7 +28,6 @@
 
 #include <apic.h>
 #include <timer_driver.h>
-#include <smp_manager_scheduler.h>
 
 /** @brief A flag indicating if init_vm has finished */
 int finished_init_vm;

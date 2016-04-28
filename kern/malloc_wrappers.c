@@ -17,8 +17,6 @@
 /** @brief Locks that protect mutex library */
 static mutex_t* lock[MAX_CPUS];
 
-static int init_lock = 1;
-
 /** @brief Init malloc library 
  *
  *  @return 0 on success; a negative integer on error
