@@ -80,7 +80,7 @@ message and puts the message (as a response) to the recv queue of the core that
 issues the interprocessor syscall, it's like the thread associated with the 
 message is "blocked" by the manager core (which will later be resumed on its 
 local core).  This relationship is very important when we implements some 
-system call that might need to "block" a thread on the manger core. We don't
+system call that might need to "block" a thread on the manager core. We don't
 need to (and shouldn't) really block the worker thread. When a workter thread 
 needs to "block" the thread it serves for on the manager core, the worker thread
 just put the message to a queue on the manager core (e.g. wait queue for wait 
@@ -93,8 +93,8 @@ its local core. This is like the worker thread make the waiting thread
 This idea is very similar to what we have implemented in P3. In P3, we have 
 discussed that change the state of a thread such as running, runnable and block
 is just moving the thread between different queues. This argument is also true
-in P4 except that there are more queues (recv/send queue of local core, queues
-of manger core) than P3.
+in P4 except that there are more queues (recv/send queues of local cores, queues
+of manager core) than P3.
 
 
 2. Spinlock design
@@ -128,7 +128,7 @@ The only resource that will be access by multiple cores are the message queues.
 
 3. Overview of complicated system calls
 
-fork():
+3.1 fork():
 Fork is the only syscall that lets the worker core that actually does the fork
 sets its %cr3 to the %cr3 of the thread that needs to be forked while cloning 
 page directory, which is inevitable, because the entire page direcotry and 
@@ -151,7 +151,7 @@ fork() is done in the following steps:
    including clone page tables, create pcb data structure, clone swexn handler
 6) new thread constructs its message (refered as the new message) as 
    FORK_RESPONSE type, stores the result of fork() in the message, and sends the
-   message to manger core. Thus the new thread is blocked.
+   message to manager core. Thus the new thread is blocked.
 7) the manager core receives the messgae. If the fork() succeeds, the manager 
    will modify the old message's (associated with the old thread) type as 
    FORK_RESPONSE, copy result from the new message to the old message and sends 
@@ -172,7 +172,7 @@ belong to the new core.
 
 
 
-vanish():
+3.2 vanish():
 If the thread that invoking vanish() is not the last thraed of the task, then
 only the resources of the thread need to be released. As implemented in P3, we
 put the thread in a zombie list and let other threads free its resources during 
@@ -218,7 +218,7 @@ this thread.
 
 
 
-wait():
+3.3 wait():
 Most operations of wait() are completed on the manager core. As discussed 
 before, a thread "block" on the manager core is just puting the message 
 associated with the thread in a queue. And "make runnable" a thread is removing 
@@ -248,7 +248,7 @@ wait() is done typically in the following steps:
 
 
 
-yield() and make_runnable():
+3.4 yield() and make_runnable():
 These two system calls are special because they need to check resources of 
 every core. For yield(), it needs to check the runnable queue of every 
 scheduler. For make_runnable(). it needs to check the deschedule queue of every
@@ -305,7 +305,7 @@ cores during yield() and make_runnable().
 
 
 
-print():
+3.5 print():
 Since console is a singleton resource, all print() syscalls need to be 
 completed on the manager core. In order to let the manager core access the 
 user buffer to be printed, a worker core mallocs a kernel buffer, copies the 
@@ -319,11 +319,37 @@ kernel memory are directly mapped and accessable on every core, referencing
 a kernel space buffer causes the minimal cost except some cache line miss that
 is inevitable.
 
-4. Limitations
-Due to limited time and final week, we adhere to a solid working 
-single-threaded manager core that polls messages on worker cores
-and executes the system calls itself, instead of a multi-threaded
-manager core.
+4. Weakness and improvement
+Due to limited time and final week, we adhere to a solid working single-threaded
+manager core that polls messages on worker cores and executes the system calls
+itself, instead of a multi-threaded manager core. However, we would like to 
+state our design here.
+
+A multi-threaded manager core includes a mailbox thread and many worker threads.
+The mailbox thread will poll the send queues of worker cores periodically and 
+assign work(message) to worker threads. The worker threads are organized as a
+thread pool, any work can be assigned to any thread as long as it is idle. 
+
+Normally, a worker thread will not be blocked when it is working (except for 
+the case that it is blocked due to mutex which ensures bounded waiting). If the
+work can not be done immediately and needs to block (e.g. wait() and readline())
+, the worker thread will just put the message in a wait queue like we discussed
+previously and then the worker thread thinks it finishes its work and is ready 
+for the next work. When there is no work need to be done (no message in send 
+queues), a worker thread will be blocked in a queue. Later when some messages 
+coming, the mailbox thread will wake up the blocked thread and assign work to 
+it.
+
+The mailbox thread will be scheduled by scheduler only if it can make progress. 
+So if either there is no available message or there is no idle worker thread, 
+the mailbox thread will be blocked. When a worker thread finishes its work, it 
+will try to wake up the mailbox thread before the worker thread blocks itself. 
+The interesting part is how to wake up the mailbox thread when a new message is 
+comming. We find the previous slides in 410kern/smp/L36_P4.pdf which presents
+a new kind of interrupt: Inter-Processor Interrupts (IPIs). We think this will 
+be helpful for this problem. When a worker core sends a message to the manager
+core, it also sends a inter-processor interrupt. This provides an opportunity 
+for the interrupt handler of the manager core to wake up the mailbox thread.
 
 
 */
