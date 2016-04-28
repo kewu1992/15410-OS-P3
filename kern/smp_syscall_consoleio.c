@@ -60,7 +60,10 @@ int smp_syscall_print_init() {
     return mutex_init(&print_lock);
 }
 
-/** @brief Initialize data structure for readline() syscall */
+/** @brief Initialize data structure for readline() syscall 
+ *
+ *  @return 0 on success; -1 on error
+ */
 int smp_syscall_read_init() {
     read_waiting_thr = NULL;
 
@@ -157,6 +160,8 @@ void smp_syscall_readline(msg_t *msg) {
  *  This function should only be called by keyboard interrupt, so this function
  *  call will not be interrupted. It can manipulate data structure of readline()
  *  safely.
+ *
+ *  @param ch The character to read in
  * 
  *  @return Return the blocked thread that should be wakened up (sent back) 
  *          if readline() completes, return NULL otherwise */

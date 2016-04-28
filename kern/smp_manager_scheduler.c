@@ -1,3 +1,11 @@
+/** @file smp_manager_scheduler.c
+ *  @brief This file contains the main function for manager core
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug No known bugs.
+ */
+
 #include <smp.h>
 #include <smp_message.h>
 #include <mptable.h>
@@ -7,23 +15,14 @@
 #include <timer_driver.h>
 
 
-#define NUM_WORKER_THR  16
-
-//static tcb_t* mailbox_thr;
-
-// static simple_queue_t worker_queue;
-
-// static mutex_t queue_mutex;
-
-// static void worker_run();
-// static void work_finish();
-
-
-
+/** @brief The kernel_main function for worker cores */
 extern void ap_kernel_main(int cpu_id);
 
-//static msg_t manager_msg;
-
+/** @brief Boot manager core and run
+  * 
+  * @return void
+  *
+  */
 void smp_manager_boot() {
     
     if (msg_init() < 0)
@@ -103,49 +102,3 @@ void smp_manager_boot() {
     } 
 }
 
-
-/*
-void worker_run() {
-    while (1) {
-        lprintf("thr %d at cpu%d goes here", tcb_get_entry((void*)asm_get_esp())->tid, smp_get_cpu());
-        work_finish();
-    }
-}
-
-
-void work_finish() {
-    simple_node_t node;
-    node.thr = tcb_get_entry((void*)asm_get_esp());
-
-    mutex_lock(&queue_mutex);
-    simple_queue_enqueue(&worker_queue, &node);
-    mutex_unlock(&queue_mutex);
-
-    context_switch(OP_BLOCK, 0);
-}
-
-
-void assign_work() {
-    while(1) {
-        mutex_lock(&queue_mutex);
-        simple_node_t* thr_node = simple_queue_dequeue(&worker_queue);
-        mutex_unlock(&queue_mutex);
-        if (thr_node != NULL) {
-            int i = 0;
-            simple_node_t* msg_node = NULL;
-            do {
-                spinlock_lock(spinlocks[i]);
-                msg_node = simple_queue_dequeue(msg_queues[i]);
-                spinlock_unlock(spinlocks[i]);
-                i = (i + 2) % num_worker_cores;
-            } while (msg_node == NULL);
-
-            tcb_t* worker_thr = thr_node->thr;
-            msg_t* msg = msg_node->thr;
-            worker_thr->my_msg = msg;
-            context_switch(OP_MAKE_RUNNABLE
-                , (uint32_t)worker_thr); 
-        }
-    } 
-}
-*/

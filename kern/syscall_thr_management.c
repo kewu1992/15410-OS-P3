@@ -24,6 +24,8 @@
 #include <smp.h>
 #include <scheduler.h>
 
+ static int sleep_queue_compare(void* this, void* that);
+
 /** @brief For sleep() syscall.
  *         The data field for node of sleep priority queue */
 typedef struct {
@@ -55,9 +57,11 @@ static simple_queue_t *deschedule_queues[MAX_CPUS];
  *         Mutex lock to protect deschedule_queue */
 static mutex_t *deschedule_mutexs[MAX_CPUS];
 
-static int sleep_queue_compare(void* this, void* that);
-
-/** @brief Initialize data structure for sleep() syscall */
+/** @brief Initialize data structure for sleep() syscall 
+ *
+ *  @return 0 on success; -1 on error
+ *
+ */
 int syscall_sleep_init() {
 
     int cur_cpu = smp_get_cpu();
@@ -79,7 +83,10 @@ int syscall_sleep_init() {
 
 }
 
-/** @brief Initialize data structure for deschedule() syscall */
+/** @brief Initialize data structure for deschedule() syscall 
+ *
+ *  @return 0 on success; -1 on error
+ */
 int syscall_deschedule_init() {
     int cur_cpu = smp_get_cpu();
 
@@ -127,6 +134,8 @@ unsigned int get_ticks_syscall_handler() {
  *
  *  Deschedules the calling thread until at least ticks timer interrupts have 
  *  occurred after the call. Returns immediately if ticks is zero.
+ *
+ *  @param ticks The number of ticks to sleep
  *
  *  @return Returns an integer error code less than zero if ticks is negative. 
  *          Returns zero otherwise.
@@ -189,6 +198,8 @@ static int sleep_queue_compare(void* this, void* that) {
  *  of sleep() should be wakened up. This function is invoked by timer interrupt
  *  handler, so this function call will not be interrupted. It can manipulate 
  *  priority queue of sleep() safely.
+ *
+ *  @param ticks The number of ticks passed to callback of timer
  *
  *  @return If the thread at the head of the priority queue should be wakened
  *          up, return the thread. Otherwise return NULL. 

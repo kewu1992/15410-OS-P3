@@ -34,6 +34,14 @@ void smp_make_runnable_syscall_handler(msg_t *msg) {
     }
 }
 
+/** @brief Multi-core version of yield syscall handler that's on 
+  * manager core side 
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_yield_syscall_handler(msg_t* msg) {
     if (msg->data.yield_data.result == 0) {
         // already find the tid, send this thread back to its original core

@@ -2,7 +2,7 @@
  *  @brief System calls related to life cycle
  *
  *  This file contains implementations of system calls that are related to 
- *  life cycle.
+ *  life cycle (on worker cores side).
  *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu <kewu@andrew.cmu.edu>
@@ -35,8 +35,6 @@
 
 /** @brief The maxinum number of arguments of exec() */
 #define EXEC_MAX_ARGC (MAX_EXEC_BUF/EXEC_MAX_ARG_SIZE-1)
-
-
 
 /** @brief A list that stores the zombie thread to be freed  */
 static simple_queue_t* zombie_lists[MAX_CPUS];
@@ -72,6 +70,13 @@ int fork_syscall_handler() {
     return tcb_get_entry((void*)asm_get_esp())->result;
 }
 
+/** @brief Create new process for fork
+ *
+ *  @param new_thr The newly cloned thread
+ *  @param old_thr The old thread of the old task
+ *
+ *  @return 0 on success; -1 on error
+ */
 int fork_create_process(tcb_t* new_thr, tcb_t* old_thr) {
     // allocate resources for new process 
     // clone page table

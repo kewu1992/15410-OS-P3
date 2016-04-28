@@ -102,7 +102,13 @@ int simple_queue_is_exist_tid(simple_queue_t *deque, int tid) {
 
 
 /** @brief Multi-core version of simple_queue_remove_tid
-  * The data field of simple queue node is a message.
+  *
+  * The data field of simple queue node is a message struct.
+  *
+  * @param deque The queue to search from
+  * @param tid The key to search for
+  *
+  * @return The node that we find in the queue
   *
   */
 simple_node_t* smp_simple_queue_remove_tid(simple_queue_t *deque, int tid) {

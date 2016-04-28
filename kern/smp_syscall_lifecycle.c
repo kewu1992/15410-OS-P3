@@ -1,3 +1,13 @@
+/** @file smp_syscall_lifecycle.c
+ *  @brief Multi-core version of system calls related to thread lifecycle
+ *  (manager core side).
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug No known bugs.
+ */
+
+
 #include <smp_message.h>
 #include <asm_helper.h>
 #include <malloc.h>
@@ -76,8 +86,13 @@ static hashtable_t ht_pid_pcb;
 static mutex_t ht_pid_pcb_lock;
 
 
-
-
+/** @brief Multi-core version of fork syscall handler
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_syscall_fork(msg_t* msg) {
      if (create_pcb_vanish_wait_struct(msg->data.fork_data.new_tid) < 0) {
         // create_pcb_vanish_wait_struct failed, return error
@@ -94,7 +109,13 @@ void smp_syscall_fork(msg_t* msg) {
 }
 
 
-
+/** @brief Multi-core version of fork syscall's response handler
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_fork_response(msg_t* msg) {
     msg_t* ori_msg;
     if (msg->data.fork_response_data.result == 0) { // fork success 
@@ -203,7 +224,11 @@ static void ht_remove_task(int pid) {
     mutex_unlock(&ht_pid_pcb_lock);
 }
 
-
+/** @brief Multi-core version of vanish syscall initialization
+  *
+  * @return 0 on success; -1 on error
+  *
+  */
 int smp_syscall_vanish_init() {
     // Initialize the hashtable that stores wait status
     ht_pid_pcb.size = PID_PCB_HASH_SIZE;
@@ -219,6 +244,13 @@ int smp_syscall_vanish_init() {
     return 0;
 }
 
+/** @brief Multi-core version of pcb initialization
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_set_init_pcb(msg_t* msg) {  
     int rv = create_pcb_vanish_wait_struct(msg->data.set_init_pcb_data.pid);
     if (rv == 0) {
@@ -232,7 +264,13 @@ void smp_set_init_pcb(msg_t* msg) {
     manager_send_msg(msg, msg->req_cpu);
 }
 
-
+/** @brief Multi-core version of vanish syscall
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_syscall_vanish(msg_t* msg) {
     mutex_lock(&ht_pid_pcb_lock);
     pcb_vanish_wait_t* this_task = (pcb_vanish_wait_t*)get_task(msg->data.vanish_data.pid);
@@ -352,6 +390,14 @@ void smp_syscall_vanish(msg_t* msg) {
     manager_send_msg(msg, msg->req_cpu);
 }
 
+
+/** @brief Multi-core version of wait syscall
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_syscall_wait(msg_t* msg) {
 
     mutex_lock(&ht_pid_pcb_lock);
@@ -400,6 +446,13 @@ void smp_syscall_wait(msg_t* msg) {
 }
 
 
+/** @brief Create the vanish wait struct in pcb
+  *
+  * @param pid The process id
+  *
+  * @return 0 on success; -1 on error
+  *
+  */
 static int create_pcb_vanish_wait_struct(int pid) {
     pcb_vanish_wait_t* process = malloc(sizeof(pcb_vanish_wait_t));
     if (process == NULL)
@@ -468,6 +521,13 @@ static int create_pcb_vanish_wait_struct(int pid) {
     return 0;
 }
 
+/** @brief Free resources in pcb
+  *
+  * @param pcb The struct that contains the resouces of pcb to free
+  *
+  * @return void
+  *
+  */
 static void free_pcb_vanish_wait_struct(pcb_vanish_wait_t* pcb) {
     mutex_destroy(&pcb->task_wait_struct.lock);
     simple_queue_destroy(&pcb->task_wait_struct.wait_queue);

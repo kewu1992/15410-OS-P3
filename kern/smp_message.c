@@ -1,3 +1,11 @@
+/** @file smp_message.c
+ *  @brief This file contains the message passing interface for multi-cores
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug No known bugs.
+ */
+
 #include <smp_message.h>
 #include <simple_queue.h>
 #include <spinlock.h>
@@ -7,11 +15,16 @@
 #include <control_block.h>
 #include <simics.h>
 
+/** @brief The message queues */
 simple_queue_t** msg_queues;
+
+/** @brief The locks that protects message queues */
 spinlock_t** msg_spinlocks;
 
+/** @brief Number of worker cores */
 int num_worker_cores;
 
+/** Idle threads on different cores */
 extern tcb_t* idle_thr[MAX_CPUS];
 
 /** @brief Halt by calling simics command 
@@ -28,6 +41,11 @@ extern void sim_halt(void);
   */
 extern void asm_hlt(void);
 
+/** @brief Init message queues on manager core
+ *
+ *  @return 0 on success; -1 on error
+ *
+ */
 int msg_init() {
     int num_cpus = smp_num_cpus();
     
@@ -83,6 +101,11 @@ int init_ap_msg() {
     return 0;
 }
 
+/** @brief Wait for completeness of AP cores' message queues initilization 
+ *  before the manager core moves on.
+ *
+ *  @return void
+ */
 void msg_synchronize() {
     int i;
     for (i = 0; i < 2*num_worker_cores; i++) {
@@ -93,8 +116,13 @@ void msg_synchronize() {
     }
 }
 
+/** @brief Send message for a worker core
+ *
+ *  @msg The message to send
+ *
+ *  @return void
+ */
 void worker_send_msg(msg_t* msg) {
-    //lprintf("thr %d at cpu%d send a msg, type:%d", ((tcb_t*)(msg->req_thr))->tid, msg->req_cpu, msg->type);
 
     int cur_cpu = smp_get_cpu();
 
@@ -106,6 +134,11 @@ void worker_send_msg(msg_t* msg) {
 
 }
 
+/** @brief Receive a message for a worker core
+ *
+ *
+ *  @return The message recved
+ */
 msg_t* worker_recv_msg() {
 
     int id = (smp_get_cpu() - 1) * 2 + 1;
@@ -117,14 +150,18 @@ msg_t* worker_recv_msg() {
     if (msg_node == NULL)
         return NULL;
     else {
-        //lprintf("cpu%d recv a msg (req thr:%d), type:%d", ((msg_t*)(msg_node->thr))->req_cpu, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
         return (msg_t*)(msg_node->thr);
     }
 }
 
-
+/** @brief Send a message for the manager core
+ *
+ *  @param msg The message to send
+ *  @param dest_cpu The destination core
+ *
+ *  @return void
+ */
 void manager_send_msg(msg_t* msg, int dest_cpu) {
-    //lprintf("manager send a msg to cpu%d, type:%d", dest_cpu, msg->type);
 
     int id = (dest_cpu - 1) * 2 + 1;
     spinlock_lock(msg_spinlocks[id], 0);
@@ -132,6 +169,11 @@ void manager_send_msg(msg_t* msg, int dest_cpu) {
     spinlock_unlock(msg_spinlocks[id], 0);
 }
 
+/** @brief Recv a message for the manager core by polling message queues
+ *  on worker cores.
+ *
+ *  @return The message recved
+ */
 msg_t* manager_recv_msg() {
     int i = 0;
     simple_node_t* msg_node = NULL;
@@ -147,11 +189,13 @@ msg_t* manager_recv_msg() {
         i = (i + 2) % (2*num_worker_cores);
     }
 
-    //lprintf("manager recv a msg at cpu%d, req thr:%d, type:%d", i/2+1, ((tcb_t*)(((msg_t*)(msg_node->thr))->req_thr))->tid, ((msg_t*)(msg_node->thr))->type);
     return msg_node->thr;
 }
 
-
+/** @brief Get the thread corresponding to the message as an agent to run
+ *
+ *  @return The thread to run if message isn't NULL; NULL otherwise
+ */
 void* get_thr_from_msg_queue() {
     if (smp_get_cpu() == 0)
         return NULL;

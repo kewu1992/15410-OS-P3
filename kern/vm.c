@@ -105,23 +105,6 @@ static void enable_paging() {
     set_cr0(cr0);
 }
 
-
-/** @brief Enable global page
- *
- *  Set kernel page table entries as global so that they wouldn't be cleared
- *  in TLB when %cr3 is reset.
- *
- *  @return Void
- */
-/*
-static void enable_pge_flag() {
-    uint32_t cr4 = get_cr4();
-    cr4 |= CR4_PGE;
-    set_cr4(cr4);
-}
-*/
-
-
 /** @brief Count number of pages allocated in user space
  *
  *  This function is called by clone_pd so that it can know how many new frames
@@ -608,8 +591,7 @@ void dist_kernel_mem() {
 
     // Get number of cores
     int num_cpus = smp_num_cpus();
-    lprintf("Current number of cpus: %d", num_cpus);
-
+  
     // Distribute kernel memory evenly among cores
 
     // Get amount of memory available in the pool
@@ -618,6 +600,7 @@ void dist_kernel_mem() {
     while(1) {
         smidge = lmm_alloc(&malloc_lmm, kmem_avail, 0);
         if(smidge != NULL) break;
+        // Retry smaller amount if failed
         kmem_avail -= sizeof(uint32_t);
     }
 
@@ -699,10 +682,6 @@ int init_vm() {
 
     adopt_init_pd(0);
 
-    // Enable global page so that kernel pages in TLB wouldn't
-    // be cleared when %cr3 is reset
-    //enable_pge_flag();
-
     // Allocate a system-wide all-zero frame to do ZFOD later
     void *new_f = smemalign(PAGE_SIZE, PAGE_SIZE);
     if(new_f == NULL) {
@@ -752,8 +731,6 @@ uint32_t create_pd() {
  *  a task is multithreading, so there's no need to acquire page table
  *  locks when performing this operation. On failure, resources allocated
  *  for creating the new address space will be all freed.
- *
- *  @param old_page_dir The page directory to clone
  *
  *  @return The new page directory base address on success, a negative integer
  *  on error.
@@ -894,10 +871,10 @@ void free_entire_space(uint32_t pd_base, int need_unreserve_frames) {
  *  @param is_kernel_space 1 for kernel space; 0 for user space
  *
  *  @param need_unreserve_frames Flag indicating if there's need to
- *  unreserve frames while freeing. (This is needed since there are situations 
+ *  unreserve frames while freeing. (This is needed since there are situations
  *  where frames are unreserved in a different place, like clone_pd());
  *
- *  @return 0 on success; a negative integer on error
+ *  @return Void
  */
 void free_space(uint32_t pd_base, int is_kernel_space, 
         int need_unreserve_frames) {

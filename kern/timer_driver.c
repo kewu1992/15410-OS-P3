@@ -59,7 +59,6 @@ static unsigned int numTicks;
  *  Calculate interrupt rate, configure timer mode and rate. Set callback
  *  function and set numTicks to zero.
  *         
- *  @param tickback Pointer to clock-tick callback function
  *  @return Void.
  */
 void init_timer_driver() {

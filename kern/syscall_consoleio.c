@@ -2,7 +2,7 @@
  *  @brief System calls related to console I/O.
  *
  *  This file contains implementations of system calls that are related to 
- *  console I/O on worker cores side.
+ *  console I/O (on worker cores side).
  *
  *  @author Jian Wang (jianwan3)
  *  @author Ke Wu <kewu@andrew.cmu.edu>

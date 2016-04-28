@@ -1,3 +1,12 @@
+/** @file syscall_misc.c
+ *  @brief Contains the implementation of miscellaneous syscalls
+ *
+ *  @author Jian Wang
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug None known
+ */
+
+
 #include <simics.h>
 #include <stdlib.h>
 #include <exec2obj.h>

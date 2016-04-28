@@ -1,7 +1,16 @@
+/** @file smp_syscall_misc.c
+ *  @brief Multi-core version of miscellaneous syscall
+ *
+ *  @author Jian Wang (jianwan3)
+ *  @author Ke Wu <kewu@andrew.cmu.edu>
+ *  @bug No known bugs.
+ */
+
 #include <malloc.h>
 #include <smp_message.h>
 #include <simics.h>
 
+/** @brief Number of worker cores */
 extern int num_worker_cores;
 
 /** @brief Halt 
@@ -12,6 +21,13 @@ extern int num_worker_cores;
   */
 extern void asm_hlt(void);
 
+/** @brief Multi-core version of halt syscall handler
+  *
+  * @param msg The message that contains the syscall request
+  *
+  * @return void
+  *
+  */
 void smp_syscall_halt(msg_t *msg) {
     
     msg_t msgs[num_worker_cores];
